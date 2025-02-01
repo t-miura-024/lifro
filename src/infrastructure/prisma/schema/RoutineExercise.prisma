@@ -1,0 +1,12 @@
+model RoutineExercise {
+    id         Int      @id @default(autoincrement())
+    routine    Routine  @relation(fields: [routineId], references: [id])
+    routineId  Int
+    exercise   Exercise @relation(fields: [exerciseId], references: [id])
+    exerciseId Int
+    weight     Float
+    reps       Int
+    order      Int
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+}
