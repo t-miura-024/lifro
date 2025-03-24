@@ -1,11 +1,11 @@
 model User {
-    id                       Int                       @id @default(autoincrement())
-    email                    String                    @unique
-    createdAt                DateTime                  @default(now())
-    updatedAt                DateTime                  @updatedAt
-    exercises                Exercise[]
-    repMaxGoals              RepMaxGoal[]
-    periodVolumeGoals        PeriodVolumeGoal[]
-    exerciseDailyVolumeGoals ExerciseDailyVolumeGoal[]
-    routines                 Routine[]
+    id                        Int                        @id @default(autoincrement())
+    email                     String                     @unique
+    createdAt                 DateTime                   @default(now())
+    updatedAt                 DateTime                   @updatedAt
+    exercises                 Exercise[]
+    repMaxGoals               RepMaxGoal[]
+    periodVolumeGoals         PeriodVolumeGoal[]
+    exercisePeriodVolumeGoals ExercisePeriodVolumeGoal[]
+    routines                  Routine[]
 }

@@ -1,0 +1,12 @@
+model ExercisePeriodVolumeGoal {
+    id         Int      @id @default(autoincrement())
+    user       User     @relation(fields: [userId], references: [id])
+    userId     Int
+    exercise   Exercise @relation(fields: [exerciseId], references: [id])
+    exerciseId Int
+    volume     Float
+    startDate  DateTime
+    endDate    DateTime
+    createdAt  DateTime @default(now())
+    updatedAt  DateTime @updatedAt
+}
