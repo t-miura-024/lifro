@@ -29,7 +29,7 @@ erDiagram
         TIMESTAMP updated_at "更新日時"
     }
 
-    USERS ||--o{ EXERCISES : "has"
-    USERS ||--o{ SETS : "performs"
-    EXERCISES ||--o{ SETS : "used_in"
+    USERS ||--o{ EXERCISES : ""
+    USERS ||--o{ SETS : ""
+    EXERCISES ||--o{ SETS : ""
 ```
