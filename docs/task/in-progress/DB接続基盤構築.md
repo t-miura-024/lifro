@@ -11,10 +11,10 @@ Prisma と PostgreSQL を使用した DB 接続基盤を構築します。
 
 1. DB 接続基盤の構築場所
 
-   - `server/infrastructure/database/prisma`: Prisma 関連のセットアップを配置
-   - `server/infrastructure/database/repositories`: リポジトリ実装を配置
+   - `src/server/infrastructure/database/prisma`: Prisma 関連のセットアップを配置
+   - `src/server/infrastructure/database/repositories`: リポジトリ実装を配置
 
-2. Prisma のスキーマ定義（`server/infrastructure/database/prisma/schema.prisma`）
+2. Prisma のスキーマ定義（`src/server/infrastructure/database/prisma/schema.prisma`）
 
    - データソース設定: PostgreSQL (Neon)
    - モデル定義:
