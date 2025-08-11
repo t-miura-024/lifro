@@ -15,8 +15,8 @@ erDiagram
         INTEGER user_id FK "ユーザーID"
         FLOAT weight "重量"
         INTEGER reps "レップ数"
-        DATETIME date "トレーニング日"
-        INTEGER order "並び順"
+        DATE date "トレーニング日"
+        INTEGER sort_index "並び順"
         TIMESTAMP created_at "作成日時"
         TIMESTAMP updated_at "更新日時"
     }
