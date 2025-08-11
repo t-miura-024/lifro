@@ -1,8 +1,17 @@
 "use client";
 import { signOut } from "next-auth/react";
+import { Button } from "@mui/material";
 
 export default function LogoutButton() {
   return (
-    <button type="button" onClick={() => signOut({ callbackUrl: "/login" })}>ログアウト</button>
+    <Button
+      variant="outlined"
+      color="inherit"
+      size="small"
+      onClick={() => signOut({ callbackUrl: "/login" })}
+      sx={{ textTransform: "none" }}
+    >
+      ログアウト
+    </Button>
   );
 }
