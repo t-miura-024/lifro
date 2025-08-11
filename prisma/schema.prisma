@@ -1,0 +1,52 @@
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+model User {
+    id        Int        @id @default(autoincrement())
+    email     String     @unique
+    createdAt DateTime   @default(now()) @map("created_at")
+    updatedAt DateTime   @updatedAt @map("updated_at")
+    exercises Exercise[]
+    sets      Set[]
+
+    @@map("users")
+}
+
+model Exercise {
+    id        Int      @id @default(autoincrement())
+    userId    Int      @map("user_id")
+    name      String
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+    sets Set[]
+
+    @@index([userId])
+    @@map("exercises")
+}
+
+model Set {
+    id         Int      @id @default(autoincrement())
+    exerciseId Int      @map("exercise_id")
+    userId     Int      @map("user_id")
+    weight     Float
+    reps       Int
+    date       DateTime @db.Date
+    sortIndex  Int      @map("sort_index")
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @updatedAt @map("updated_at")
+
+    exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+    user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@index([exerciseId])
+    @@map("sets")
+}
