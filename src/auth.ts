@@ -24,6 +24,9 @@ export const authOptions: NextAuthOptions = {
       allowDangerousEmailAccountLinking: true,
     }),
   ],
+  pages: {
+    signIn: "/login",
+  },
   callbacks: {
     async signIn({ user, account }) {
       const email = user?.email ?? undefined;
