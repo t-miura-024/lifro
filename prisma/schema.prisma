@@ -8,12 +8,16 @@ datasource db {
 }
 
 model User {
-    id        Int        @id @default(autoincrement())
-    email     String     @unique
-    createdAt DateTime   @default(now()) @map("created_at")
-    updatedAt DateTime   @updatedAt @map("updated_at")
-    exercises Exercise[]
-    sets      Set[]
+    id            Int        @id @default(autoincrement())
+    email         String     @unique
+    createdAt     DateTime   @default(now()) @map("created_at")
+    updatedAt     DateTime   @updatedAt @map("updated_at")
+    exercises     Exercise[]
+    sets          Set[]
+    // NextAuth 用
+    accounts      Account[]
+    sessions      Session[]
+    emailVerified DateTime?  @map("email_verified")
 
     @@map("users")
 }
@@ -49,4 +53,49 @@ model Set {
     @@index([userId])
     @@index([exerciseId])
     @@map("sets")
+}
+
+/// NextAuth — OAuth アカウント
+model Account {
+    id                Int     @id @default(autoincrement())
+    userId            Int     @map("user_id")
+    type              String
+    provider          String
+    providerAccountId String  @map("provider_account_id")
+    refresh_token     String? @db.Text
+    access_token      String? @db.Text
+    expires_at        Int?
+    token_type        String?
+    scope             String?
+    id_token          String? @db.Text
+    session_state     String?
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@unique([provider, providerAccountId])
+    @@index([userId])
+    @@map("accounts")
+}
+
+/// NextAuth — セッション（データベースセッション戦略）
+model Session {
+    id           String   @id @default(cuid())
+    sessionToken String   @unique @map("session_token")
+    userId       Int      @map("user_id")
+    expires      DateTime
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId])
+    @@map("sessions")
+}
+
+/// NextAuth — メール/Passkey等の検証トークン
+model VerificationToken {
+    identifier String
+    token      String
+    expires    DateTime
+
+    @@unique([identifier, token])
+    @@map("verification_tokens")
 }
