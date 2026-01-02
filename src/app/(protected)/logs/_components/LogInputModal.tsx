@@ -418,6 +418,17 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                                       },
                                       '& .MuiInputBase-input': {
                                         textAlign: 'right',
+                                        '&::-webkit-outer-spin-button': {
+                                          WebkitAppearance: 'none',
+                                          margin: 0,
+                                        },
+                                        '&::-webkit-inner-spin-button': {
+                                          WebkitAppearance: 'none',
+                                          margin: 0,
+                                        },
+                                        '&[type=number]': {
+                                          MozAppearance: 'textfield',
+                                        },
                                       },
                                     }}
                                     fullWidth
@@ -441,6 +452,17 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                                       },
                                       '& .MuiInputBase-input': {
                                         textAlign: 'right',
+                                        '&::-webkit-outer-spin-button': {
+                                          WebkitAppearance: 'none',
+                                          margin: 0,
+                                        },
+                                        '&::-webkit-inner-spin-button': {
+                                          WebkitAppearance: 'none',
+                                          margin: 0,
+                                        },
+                                        '&[type=number]': {
+                                          MozAppearance: 'textfield',
+                                        },
                                       },
                                     }}
                                     fullWidth
