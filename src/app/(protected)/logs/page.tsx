@@ -15,9 +15,11 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
+import type { Training } from '@/server/domain/entities'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { deleteTrainingAction, fetchTrainingByDateAction, fetchTrainingsAction } from './_actions'
 import LogInputModal from './_components/LogInputModal'
+import type { SetFormData } from './_components/LogInputModal'
 import LogsTable from './_components/LogsTable'
 import type { TrainingRow } from './_components/LogsTable'
 
@@ -48,6 +50,23 @@ function summaryToRow(summary: TrainingSummary): TrainingRow {
   }
 }
 
+let setKeyCounter = 0
+function trainingToSetFormData(training: Training | null): SetFormData[] {
+  if (!training || training.sets.length === 0) {
+    return []
+  }
+  return training.sets
+    .sort((a, b) => a.sortIndex - b.sortIndex)
+    .map((set) => ({
+      key: `set-${Date.now()}-${setKeyCounter++}`,
+      id: set.id,
+      exerciseId: set.exerciseId,
+      exerciseName: set.exercise?.name || '',
+      weight: set.weight.toString(),
+      reps: set.reps.toString(),
+    }))
+}
+
 export default function LogsPage() {
   const [currentMonth, setCurrentMonth] = useState<Date>(() => {
     const now = new Date()
@@ -57,6 +76,7 @@ export default function LogsPage() {
   const [isLoading, startLoading] = useTransition()
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
+  const [initialSets, setInitialSets] = useState<SetFormData[] | undefined>(undefined)
   const [snackbar, setSnackbar] = useState<{
     open: boolean
     message: string
@@ -80,14 +100,26 @@ export default function LogsPage() {
   }, [loadData])
 
   // 新規追加ボタン
-  const handleAddClick = () => {
-    setSelectedDate(new Date())
+  const handleAddClick = async () => {
+    const today = new Date()
+    setSelectedDate(today)
+    const dateStr = formatDate(today)
+    const training = await fetchTrainingByDateAction(dateStr)
+    // 当日のデータが存在する場合は詳細モーダルを表示、存在しない場合は新規作成
+    if (training && training.sets.length > 0) {
+      setInitialSets(trainingToSetFormData(training))
+    } else {
+      setInitialSets(undefined)
+    }
     setModalOpen(true)
   }
 
   // 行クリックで編集
-  const handleRowClick = (dateStr: string) => {
-    setSelectedDate(new Date(dateStr))
+  const handleRowClick = async (dateStr: string) => {
+    const date = new Date(dateStr)
+    setSelectedDate(date)
+    const training = await fetchTrainingByDateAction(dateStr)
+    setInitialSets(trainingToSetFormData(training))
     setModalOpen(true)
   }
 
@@ -153,9 +185,13 @@ export default function LogsPage() {
 
       <LogInputModal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          setModalOpen(false)
+          setInitialSets(undefined)
+        }}
         onSaved={handleSaved}
         date={selectedDate}
+        initialSets={initialSets}
       />
 
       <Snackbar

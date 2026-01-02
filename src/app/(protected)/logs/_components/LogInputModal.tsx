@@ -16,9 +16,10 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useEffect, useState, useTransition } from 'react'
+import { Fragment, useEffect, useState, useTransition } from 'react'
 import {
   createExerciseAction,
+  deleteTrainingAction,
   fetchExerciseHistoryAction,
   getExercisesAction,
   upsertTrainingAction,
@@ -57,6 +58,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
   const [previousValues, setPreviousValues] = useState<
     Record<number, { weight: number; reps: number }>
   >({})
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
 
   // 種目リストを取得
   useEffect(() => {
@@ -167,6 +169,23 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
     })
   }
 
+  const handleDelete = () => {
+    setDeleteConfirmOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    startTransition(async () => {
+      const dateStr = date.toISOString().split('T')[0]
+      await deleteTrainingAction(dateStr)
+      setDeleteConfirmOpen(false)
+      onSaved()
+      onClose()
+    })
+  }
+
+  // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
+  const hasExistingData = initialSets && initialSets.some((set) => set.id !== undefined)
+
   const dateStr = date.toLocaleDateString('ja-JP', {
     year: 'numeric',
     month: 'long',
@@ -174,6 +193,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
   })
 
   return (
+    <>
     <Dialog
       open={open}
       onClose={onClose}
@@ -183,7 +203,22 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         sx: { m: 1, width: 'calc(100% - 16px)', maxHeight: 'calc(100% - 16px)' },
       }}
     >
-      <DialogTitle>{dateStr} のトレーニング</DialogTitle>
+      <DialogTitle>
+        <Box display="flex" justifyContent="space-between" alignItems="center">
+          <Typography variant="h6" component="span">
+            {dateStr} のトレーニング
+          </Typography>
+          {hasExistingData && (
+            <IconButton
+              onClick={handleDelete}
+              disabled={isPending}
+              aria-label="トレーニングを削除"
+            >
+              <DeleteIcon />
+            </IconButton>
+          )}
+        </Box>
+      </DialogTitle>
       <DialogContent dividers>
         <Stack spacing={2}>
           {sets.map((set, index) => {
@@ -283,5 +318,36 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         </Button>
       </DialogActions>
     </Dialog>
+
+    {/* 削除確認ダイアログ */}
+    <Dialog
+      open={deleteConfirmOpen}
+      onClose={() => setDeleteConfirmOpen(false)}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>削除の確認</DialogTitle>
+      <DialogContent>
+        <Typography>
+          {dateStr} のトレーニング記録を全て削除しますか？
+          <br />
+          この操作は取り消せません。
+        </Typography>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, py: 2 }}>
+        <Button onClick={() => setDeleteConfirmOpen(false)} disabled={isPending}>
+          キャンセル
+        </Button>
+        <Button
+          variant="contained"
+          color="error"
+          onClick={handleDeleteConfirm}
+          disabled={isPending}
+        >
+          {isPending ? '削除中...' : '削除'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+    </>
   )
 }
