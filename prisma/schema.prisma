@@ -8,16 +8,15 @@ datasource db {
 }
 
 model User {
-    id            Int        @id @default(autoincrement())
-    email         String     @unique
-    createdAt     DateTime   @default(now()) @map("created_at")
-    updatedAt     DateTime   @updatedAt @map("updated_at")
-    exercises     Exercise[]
-    sets          Set[]
+    id        Int        @id @default(autoincrement())
+    email     String     @unique
+    createdAt DateTime   @default(now()) @map("created_at")
+    updatedAt DateTime   @updatedAt @map("updated_at")
+    exercises Exercise[]
+    sets      Set[]
     // NextAuth 用
-    accounts      Account[]
-    sessions      Session[]
-    emailVerified DateTime?  @map("email_verified")
+    accounts  Account[]
+    sessions  Session[]
 
     @@map("users")
 }
@@ -88,14 +87,4 @@ model Session {
 
     @@index([userId])
     @@map("sessions")
-}
-
-/// NextAuth — メール/Passkey等の検証トークン
-model VerificationToken {
-    identifier String
-    token      String
-    expires    DateTime
-
-    @@unique([identifier, token])
-    @@map("verification_tokens")
 }
