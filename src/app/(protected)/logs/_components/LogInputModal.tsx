@@ -299,7 +299,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
             <Typography variant="h6" component="span">
-              {dateStr} のトレーニング
+              {dateStr}
             </Typography>
             {hasExistingData && (
               <IconButton
@@ -335,7 +335,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                   style={{ marginTop: '12px' }}
                 >
                   <Stack spacing={2}>
-                    <Box sx={{ position: 'relative' }}>
+                    <Stack direction="row" alignItems="center" spacing={1}>
                       <Autocomplete
                         freeSolo
                         options={exercises}
@@ -387,26 +387,25 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                           size="small"
                           onClick={() => handleRemoveExerciseGroup(groupIndex)}
                           aria-label="種目を削除"
-                          sx={{
-                            position: 'absolute',
-                            right: 8,
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                          }}
+                          sx={{ flexShrink: 0 }}
                         >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
-                    </Box>
+                    </Stack>
                     {group.latestSets && (
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">
-                          前回 ({group.latestSets.date.toLocaleDateString('ja-JP')})
+                      <Box style={{ marginTop: '6px' }}>
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'text.secondary' }}
+                          style={{ fontSize: '0.875rem' }}
+                        >
+                          前回：{group.latestSets.date.toLocaleDateString('ja-JP')}
                         </Typography>
                       </Box>
                     )}
 
-                    <TableContainer>
+                    <TableContainer style={{ marginTop: '2px' }}>
                       <Table size="small">
                         <TableHead>
                           <TableRow>
@@ -674,7 +673,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         <DialogTitle>削除の確認</DialogTitle>
         <DialogContent>
           <Typography>
-            {dateStr} のトレーニング記録を全て削除しますか？
+            {dateStr} の記録を全て削除しますか？
             <br />
             この操作は取り消せません。
           </Typography>
