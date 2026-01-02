@@ -2,7 +2,12 @@
 
 import { getServerAuthSession } from '@/auth'
 import { trainingService } from '@/server/application/services'
-import type { SetInput, Training, TrainingSummary } from '@/server/domain/entities'
+import type {
+  LatestExerciseSets,
+  SetInput,
+  Training,
+  TrainingSummary,
+} from '@/server/domain/entities'
 
 /**
  * 認証済みユーザーIDを取得するヘルパー
@@ -63,4 +68,14 @@ export async function fetchExerciseHistoryAction(
   const history = await trainingService.getLatestExerciseHistory(userId, exerciseId)
   if (!history) return null
   return { weight: history.weight, reps: history.reps }
+}
+
+/**
+ * 直近実施日の当該種目の全セットを取得
+ */
+export async function fetchLatestExerciseSetsAction(
+  exerciseId: number,
+): Promise<LatestExerciseSets | null> {
+  const userId = await getAuthenticatedUserId()
+  return trainingService.getLatestExerciseSets(userId, exerciseId)
 }

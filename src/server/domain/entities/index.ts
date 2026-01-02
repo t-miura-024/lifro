@@ -61,6 +61,18 @@ export type ExerciseHistory = {
   date: Date
 }
 
+/** 直近実施日の当該種目の全セット */
+export type LatestExerciseSets = {
+  exerciseId: number
+  exerciseName: string
+  date: Date
+  sets: Array<{
+    weight: number
+    reps: number
+    sortIndex: number
+  }>
+}
+
 /** トレーニングの要約（一覧表示用） */
 export type TrainingSummary = {
   date: Date

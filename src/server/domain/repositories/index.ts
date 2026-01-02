@@ -2,7 +2,14 @@
  * リポジトリインターフェース定義
  */
 
-import type { Exercise, ExerciseHistory, SetInput, Training, TrainingSummary } from '../entities'
+import type {
+  Exercise,
+  ExerciseHistory,
+  LatestExerciseSets,
+  SetInput,
+  Training,
+  TrainingSummary,
+} from '../entities'
 
 /** トレーニングリポジトリ */
 export interface ITrainingRepository {
@@ -31,6 +38,11 @@ export interface ITrainingRepository {
    * 種目の前回値（直近の記録）を取得
    */
   getLatestHistory(userId: number, exerciseId: number): Promise<ExerciseHistory | null>
+
+  /**
+   * 直近実施日の当該種目の全セットを取得
+   */
+  getLatestExerciseSets(userId: number, exerciseId: number): Promise<LatestExerciseSets | null>
 }
 
 /** 種目リポジトリ */

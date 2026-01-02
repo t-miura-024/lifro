@@ -4,6 +4,7 @@ export {
   upsertTrainingAction,
   deleteTrainingAction,
   fetchExerciseHistoryAction,
+  fetchLatestExerciseSetsAction,
 } from './training'
 
 export {

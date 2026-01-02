@@ -1,4 +1,10 @@
-import type { ExerciseHistory, SetInput, Training, TrainingSummary } from '@/server/domain/entities'
+import type {
+  ExerciseHistory,
+  LatestExerciseSets,
+  SetInput,
+  Training,
+  TrainingSummary,
+} from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { prisma } from '../../database/prisma/client'
 
@@ -144,6 +150,52 @@ export class PrismaTrainingRepository implements ITrainingRepository {
       weight: latestSet.weight,
       reps: latestSet.reps,
       date: latestSet.date,
+    }
+  }
+
+  async getLatestExerciseSets(
+    userId: number,
+    exerciseId: number,
+  ): Promise<LatestExerciseSets | null> {
+    // 指定種目の最新実施日を取得
+    const latestSet = await prisma.set.findFirst({
+      where: {
+        userId,
+        exerciseId,
+      },
+      orderBy: [{ date: 'desc' }],
+    })
+
+    if (!latestSet) {
+      return null
+    }
+
+    // その日の当該種目の全セットを取得
+    const sets = await prisma.set.findMany({
+      where: {
+        userId,
+        exerciseId,
+        date: latestSet.date,
+      },
+      include: {
+        exercise: true,
+      },
+      orderBy: { sortIndex: 'asc' },
+    })
+
+    if (sets.length === 0) {
+      return null
+    }
+
+    return {
+      exerciseId: sets[0].exerciseId,
+      exerciseName: sets[0].exercise.name,
+      date: sets[0].date,
+      sets: sets.map((s) => ({
+        weight: s.weight,
+        reps: s.reps,
+        sortIndex: s.sortIndex,
+      })),
     }
   }
 }

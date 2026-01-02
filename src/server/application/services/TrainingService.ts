@@ -1,4 +1,10 @@
-import type { ExerciseHistory, SetInput, Training, TrainingSummary } from '@/server/domain/entities'
+import type {
+  ExerciseHistory,
+  LatestExerciseSets,
+  SetInput,
+  Training,
+  TrainingSummary,
+} from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { trainingRepository } from '@/server/infrastructure/repositories/prisma'
 
@@ -50,6 +56,16 @@ export class TrainingService {
     exerciseId: number,
   ): Promise<ExerciseHistory | null> {
     return this.repository.getLatestHistory(userId, exerciseId)
+  }
+
+  /**
+   * 直近実施日の当該種目の全セットを取得
+   */
+  async getLatestExerciseSets(
+    userId: number,
+    exerciseId: number,
+  ): Promise<LatestExerciseSets | null> {
+    return this.repository.getLatestExerciseSets(userId, exerciseId)
   }
 }
 
