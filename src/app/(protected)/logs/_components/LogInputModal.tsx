@@ -316,6 +316,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                   sx={{
                     p: 2,
                   }}
+                  style={{ marginTop: '12px' }}
                 >
                   <Stack spacing={2}>
                     <Box sx={{ position: 'relative' }}>
