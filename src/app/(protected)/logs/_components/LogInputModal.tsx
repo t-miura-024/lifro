@@ -76,6 +76,15 @@ const emptyExerciseGroup = (): ExerciseGroup => ({
   latestSets: null,
 })
 
+// 差分をフォーマットする関数
+const formatDelta = (current: number, previous: number | null) => {
+  if (previous === null) return { text: 'NEW', color: 'text.secondary' }
+  const delta = current - previous
+  if (delta > 0) return { text: `+${delta.toLocaleString()}`, color: 'success.main' }
+  if (delta < 0) return { text: delta.toLocaleString(), color: 'error.main' }
+  return { text: '±0', color: 'text.disabled' }
+}
+
 export default function LogInputModal({ open, onClose, onSaved, date, initialSets }: Props) {
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([emptyExerciseGroup()])
   const [exercises, setExercises] = useState<Exercise[]>([])
@@ -100,7 +109,10 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
               latestSets: null,
             })
           }
-          grouped.get(groupKey)!.sets.push(set)
+          const group = grouped.get(groupKey)
+          if (group) {
+            group.sets.push(set)
+          }
         }
         const groups = Array.from(grouped.values())
         setExerciseGroups(groups)
@@ -265,7 +277,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
   }
 
   // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
-  const hasExistingData = initialSets && initialSets.some((set) => set.id !== undefined)
+  const hasExistingData = initialSets?.some((set) => set.id !== undefined) ?? false
 
   const dateStr = date.toLocaleDateString('ja-JP', {
     year: 'numeric',
@@ -308,6 +320,10 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                 const reps = Number.parseInt(set.reps, 10) || 0
                 return sum + weight * reps
               }, 0)
+              const previousTotalVolume = group.latestSets
+                ? group.latestSets.sets.reduce((sum, set) => sum + set.weight * set.reps, 0)
+                : null
+              const totalVolumeDelta = formatDelta(totalVolume, previousTotalVolume)
 
               return (
                 <Paper
@@ -384,11 +400,8 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                     </Box>
                     {group.latestSets && (
                       <Box>
-                        <Typography variant="caption" color="text.secondary" display="block">
-                          前回 ({group.latestSets.date.toLocaleDateString('ja-JP')}):{' '}
-                          {group.latestSets.sets
-                            .map((s) => `${s.weight}kg × ${s.reps}回`)
-                            .join(', ')}
+                        <Typography variant="caption" color="text.secondary">
+                          前回 ({group.latestSets.date.toLocaleDateString('ja-JP')})
                         </Typography>
                       </Box>
                     )}
@@ -406,7 +419,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                             <TableCell align="right" width={120}>
                               ボリューム
                             </TableCell>
-                            <TableCell width={60}></TableCell>
+                            <TableCell width={60} />
                           </TableRow>
                         </TableHead>
                         <TableBody>
@@ -414,83 +427,145 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                             const weight = Number.parseFloat(set.weight) || 0
                             const reps = Number.parseInt(set.reps, 10) || 0
                             const volume = weight * reps
+                            const previousSet = group.latestSets?.sets[setIndex] || null
+                            const previousWeight = previousSet?.weight ?? null
+                            const previousReps = previousSet?.reps ?? null
+                            const previousVolume = previousSet
+                              ? previousSet.weight * previousSet.reps
+                              : null
+                            const weightDelta = formatDelta(weight, previousWeight)
+                            const repsDelta = formatDelta(reps, previousReps)
+                            const volumeDelta = formatDelta(volume, previousVolume)
                             return (
                               <TableRow key={set.key}>
                                 <TableCell sx={{ p: 0 }}>
-                                  <TextField
-                                    type="number"
-                                    size="small"
-                                    value={set.weight}
-                                    onChange={(e) =>
-                                      handleSetChange(
-                                        groupIndex,
-                                        setIndex,
-                                        'weight',
-                                        e.target.value,
-                                      )
-                                    }
-                                    inputProps={{ min: 0, step: 0.5 }}
-                                    sx={{
-                                      '& .MuiOutlinedInput-root': {
-                                        borderRadius: 0,
-                                      },
-                                      '& .MuiOutlinedInput-notchedOutline': {
-                                        border: 'none',
-                                      },
-                                      '& .MuiInputBase-input': {
-                                        textAlign: 'right',
-                                        '&::-webkit-outer-spin-button': {
-                                          WebkitAppearance: 'none',
-                                          margin: 0,
+                                  <Stack spacing={0.5}>
+                                    <TextField
+                                      type="number"
+                                      size="small"
+                                      value={set.weight}
+                                      onChange={(e) =>
+                                        handleSetChange(
+                                          groupIndex,
+                                          setIndex,
+                                          'weight',
+                                          e.target.value,
+                                        )
+                                      }
+                                      inputProps={{ min: 0, step: 0.5 }}
+                                      sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                          borderRadius: 0,
                                         },
-                                        '&::-webkit-inner-spin-button': {
-                                          WebkitAppearance: 'none',
-                                          margin: 0,
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                          border: 'none',
                                         },
-                                        '&[type=number]': {
-                                          MozAppearance: 'textfield',
+                                        '& .MuiInputBase-input': {
+                                          textAlign: 'right',
+                                          padding: 0,
+                                          '&::-webkit-outer-spin-button': {
+                                            WebkitAppearance: 'none',
+                                            margin: 0,
+                                          },
+                                          '&::-webkit-inner-spin-button': {
+                                            WebkitAppearance: 'none',
+                                            margin: 0,
+                                          },
+                                          '&[type=number]': {
+                                            MozAppearance: 'textfield',
+                                          },
                                         },
-                                      },
-                                    }}
-                                    fullWidth
-                                  />
+                                      }}
+                                      fullWidth
+                                    />
+                                    {group.latestSets && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          textAlign: 'right',
+                                          color: weightDelta.color,
+                                          fontSize: '0.7rem',
+                                        }}
+                                        style={{ marginTop: 0 }}
+                                      >
+                                        {weightDelta.text}
+                                      </Typography>
+                                    )}
+                                  </Stack>
                                 </TableCell>
                                 <TableCell sx={{ p: 0 }}>
-                                  <TextField
-                                    type="number"
-                                    size="small"
-                                    value={set.reps}
-                                    onChange={(e) =>
-                                      handleSetChange(groupIndex, setIndex, 'reps', e.target.value)
-                                    }
-                                    inputProps={{ min: 0, step: 1 }}
-                                    sx={{
-                                      '& .MuiOutlinedInput-root': {
-                                        borderRadius: 0,
-                                      },
-                                      '& .MuiOutlinedInput-notchedOutline': {
-                                        border: 'none',
-                                      },
-                                      '& .MuiInputBase-input': {
-                                        textAlign: 'right',
-                                        '&::-webkit-outer-spin-button': {
-                                          WebkitAppearance: 'none',
-                                          margin: 0,
+                                  <Stack spacing={0.5}>
+                                    <TextField
+                                      type="number"
+                                      size="small"
+                                      value={set.reps}
+                                      onChange={(e) =>
+                                        handleSetChange(
+                                          groupIndex,
+                                          setIndex,
+                                          'reps',
+                                          e.target.value,
+                                        )
+                                      }
+                                      inputProps={{ min: 0, step: 1 }}
+                                      sx={{
+                                        '& .MuiOutlinedInput-root': {
+                                          borderRadius: 0,
                                         },
-                                        '&::-webkit-inner-spin-button': {
-                                          WebkitAppearance: 'none',
-                                          margin: 0,
+                                        '& .MuiOutlinedInput-notchedOutline': {
+                                          border: 'none',
                                         },
-                                        '&[type=number]': {
-                                          MozAppearance: 'textfield',
+                                        '& .MuiInputBase-input': {
+                                          textAlign: 'right',
+                                          padding: 0,
+                                          '&::-webkit-outer-spin-button': {
+                                            WebkitAppearance: 'none',
+                                            margin: 0,
+                                          },
+                                          '&::-webkit-inner-spin-button': {
+                                            WebkitAppearance: 'none',
+                                            margin: 0,
+                                          },
+                                          '&[type=number]': {
+                                            MozAppearance: 'textfield',
+                                          },
                                         },
-                                      },
-                                    }}
-                                    fullWidth
-                                  />
+                                      }}
+                                      fullWidth
+                                    />
+                                    {group.latestSets && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          textAlign: 'right',
+                                          color: repsDelta.color,
+                                          fontSize: '0.7rem',
+                                        }}
+                                        style={{ marginTop: 0 }}
+                                      >
+                                        {repsDelta.text}
+                                      </Typography>
+                                    )}
+                                  </Stack>
                                 </TableCell>
                                 <TableCell align="right">
-                                  {volume > 0 ? volume.toLocaleString() : '-'}
+                                  <Stack spacing={0.5} alignItems="flex-end">
+                                    <Typography>
+                                      {volume > 0 ? volume.toLocaleString() : '-'}
+                                    </Typography>
+                                    {group.latestSets && (
+                                      <Typography
+                                        variant="caption"
+                                        sx={{
+                                          color: volumeDelta.color,
+                                          fontSize: '0.7rem',
+                                        }}
+                                        style={{ marginTop: 0 }}
+                                      >
+                                        {volumeDelta.text}
+                                      </Typography>
+                                    )}
+                                  </Stack>
                                 </TableCell>
                                 <TableCell>
                                   {group.sets.length > 1 && (
@@ -511,11 +586,25 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                               <Typography variant="subtitle2">合計</Typography>
                             </TableCell>
                             <TableCell align="right">
-                              <Typography variant="subtitle2">
-                                {totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
-                              </Typography>
+                              <Stack spacing={0.5} alignItems="flex-end">
+                                <Typography variant="subtitle2">
+                                  {totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
+                                </Typography>
+                                {group.latestSets && (
+                                  <Typography
+                                    variant="caption"
+                                    sx={{
+                                      color: totalVolumeDelta.color,
+                                      fontSize: '0.7rem',
+                                    }}
+                                    style={{ marginTop: 0 }}
+                                  >
+                                    {totalVolumeDelta.text}
+                                  </Typography>
+                                )}
+                              </Stack>
                             </TableCell>
-                            <TableCell></TableCell>
+                            <TableCell />
                           </TableRow>
                         </TableBody>
                       </Table>
