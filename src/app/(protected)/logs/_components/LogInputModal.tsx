@@ -336,12 +336,32 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                           }
                         }}
                         fullWidth
+                        slotProps={{
+                          paper: {
+                            sx: {
+                              borderRadius: 0,
+                              borderTopLeftRadius: 0,
+                              borderTopRightRadius: 0,
+                              borderBottomRightRadius: 0,
+                              borderBottomLeftRadius: 0,
+                            },
+                          },
+                        }}
                         renderInput={(params) => (
                           <TextField
                             {...params}
                             label="種目"
                             size="small"
                             placeholder="種目を選択または入力"
+                            sx={{
+                              '& .MuiOutlinedInput-root': {
+                                borderRadius: 0,
+                                borderTopLeftRadius: 0,
+                                borderTopRightRadius: 0,
+                                borderBottomRightRadius: 0,
+                                borderBottomLeftRadius: 0,
+                              },
+                            }}
                           />
                         )}
                       />
