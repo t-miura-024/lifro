@@ -45,10 +45,16 @@ export interface ITrainingRepository {
   getLatestExerciseSets(userId: number, exerciseId: number): Promise<LatestExerciseSets | null>
 }
 
+/** 種目の並び順更新用入力 */
+export type ExerciseSortOrderInput = {
+  id: number
+  sortIndex: number
+}
+
 /** 種目リポジトリ */
 export interface IExerciseRepository {
   /**
-   * ユーザーの全種目を取得
+   * ユーザーの全種目を取得（sortIndex順）
    */
   findAllByUserId(userId: number): Promise<Exercise[]>
 
@@ -63,7 +69,22 @@ export interface IExerciseRepository {
   create(userId: number, name: string): Promise<Exercise>
 
   /**
+   * 種目名を更新
+   */
+  update(userId: number, exerciseId: number, name: string): Promise<Exercise>
+
+  /**
+   * 種目の並び順を一括更新
+   */
+  updateSortOrder(userId: number, exercises: ExerciseSortOrderInput[]): Promise<void>
+
+  /**
    * 種目を削除
    */
   delete(userId: number, exerciseId: number): Promise<void>
+
+  /**
+   * 種目に紐づくセットが存在するかチェック
+   */
+  hasRelatedSets(userId: number, exerciseId: number): Promise<boolean>
 }

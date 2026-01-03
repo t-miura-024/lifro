@@ -4,15 +4,19 @@ import type { Exercise, LatestExerciseSets } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import {
-  Autocomplete,
   Box,
   Button,
   Dialog,
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControl,
   IconButton,
+  InputLabel,
+  MenuItem,
   Paper,
+  Select,
+  type SelectChangeEvent,
   Stack,
   Table,
   TableBody,
@@ -23,9 +27,8 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { Fragment, useEffect, useState, useTransition } from 'react'
+import { useEffect, useState, useTransition } from 'react'
 import {
-  createExerciseAction,
   deleteTrainingAction,
   fetchLatestExerciseSetsAction,
   getExercisesAction,
@@ -134,13 +137,11 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
   }, [open, initialSets])
 
   // 種目変更時に前回値を取得
-  const handleExerciseChange = async (
-    groupIndex: number,
-    exercise: Exercise | null,
-    inputValue: string,
-  ) => {
+  const handleExerciseChange = async (groupIndex: number, exerciseId: number | null) => {
     const newGroups = [...exerciseGroups]
     const group = newGroups[groupIndex]
+    const exercise = exercises.find((e) => e.id === exerciseId)
+
     if (exercise) {
       group.exerciseId = exercise.id
       group.exerciseName = exercise.name
@@ -151,29 +152,19 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         exerciseName: exercise.name,
       }))
       // 前回値を取得
-      if (!group.latestSets) {
-        const latestSets = await fetchLatestExerciseSetsAction(exercise.id)
-        group.latestSets = latestSets
-      }
+      const latestSets = await fetchLatestExerciseSetsAction(exercise.id)
+      group.latestSets = latestSets
     } else {
       group.exerciseId = null
-      group.exerciseName = inputValue
-      // グループ内の全セットの種目を更新
+      group.exerciseName = ''
       group.sets = group.sets.map((set) => ({
         ...set,
         exerciseId: null,
-        exerciseName: inputValue,
+        exerciseName: '',
       }))
       group.latestSets = null
     }
     setExerciseGroups(newGroups)
-  }
-
-  // 新規種目を作成
-  const handleCreateExercise = async (name: string): Promise<Exercise> => {
-    const newExercise = await createExerciseAction(name)
-    setExercises((prev) => [...prev, newExercise].sort((a, b) => a.name.localeCompare(b.name)))
-    return newExercise
   }
 
   const handleSetChange = (
@@ -219,10 +210,8 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
       // 全グループから有効なセットを収集
       const allSets: SetFormData[] = []
       for (const group of exerciseGroups) {
-        // バリデーション: 種目（既存または新規）と重量・回数が入力されているセットのみ
-        const validSets = group.sets.filter(
-          (s) => (group.exerciseId || group.exerciseName.trim()) && s.weight && s.reps,
-        )
+        // バリデーション: 種目IDと重量・回数が入力されているセットのみ
+        const validSets = group.sets.filter((s) => group.exerciseId && s.weight && s.reps)
         allSets.push(...validSets)
       }
 
@@ -230,30 +219,19 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         return
       }
 
-      // 新規種目がある場合は先に作成
-      const setsToSave = await Promise.all(
-        allSets.map(async (s, index) => {
-          const group = exerciseGroups.find((g) => g.sets.includes(s))
-          if (!group) {
-            throw new Error('Group not found')
-          }
-          let exerciseId = group.exerciseId
-          if (!exerciseId && group.exerciseName.trim()) {
-            const newExercise = await handleCreateExercise(group.exerciseName.trim())
-            exerciseId = newExercise.id
-          }
-          if (!exerciseId) {
-            throw new Error('Exercise ID is required')
-          }
-          return {
-            id: s.id,
-            exerciseId,
-            weight: Number.parseFloat(s.weight),
-            reps: Number.parseInt(s.reps, 10),
-            sortIndex: index,
-          }
-        }),
-      )
+      const setsToSave = allSets.map((s, index) => {
+        const group = exerciseGroups.find((g) => g.sets.includes(s))
+        if (!group || !group.exerciseId) {
+          throw new Error('Exercise ID is required')
+        }
+        return {
+          id: s.id,
+          exerciseId: group.exerciseId,
+          weight: Number.parseFloat(s.weight),
+          reps: Number.parseInt(s.reps, 10),
+          sortIndex: index,
+        }
+      })
 
       const dateStr = date.toISOString().split('T')[0]
       await upsertTrainingAction(dateStr, setsToSave)
@@ -278,6 +256,9 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
 
   // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
   const hasExistingData = initialSets?.some((set) => set.id !== undefined) ?? false
+
+  // 種目が0件の場合の判定
+  const hasNoExercises = exercises.length === 0
 
   const dateStr = date.toLocaleDateString('ja-JP', {
     year: 'numeric',
@@ -336,52 +317,34 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
                 >
                   <Stack spacing={2}>
                     <Stack direction="row" alignItems="center" spacing={1}>
-                      <Autocomplete
-                        freeSolo
-                        options={exercises}
-                        getOptionLabel={(option) =>
-                          typeof option === 'string' ? option : option.name
-                        }
-                        value={exercises.find((e) => e.id === group.exerciseId) || null}
-                        inputValue={group.exerciseName}
-                        onInputChange={(_, value) => handleExerciseChange(groupIndex, null, value)}
-                        onChange={(_, newValue) => {
-                          if (typeof newValue === 'string') {
-                            handleExerciseChange(groupIndex, null, newValue)
-                          } else {
-                            handleExerciseChange(groupIndex, newValue, newValue?.name || '')
-                          }
-                        }}
-                        fullWidth
-                        slotProps={{
-                          paper: {
-                            sx: {
+                      <FormControl fullWidth size="small" disabled={hasNoExercises}>
+                        <InputLabel id={`exercise-label-${groupIndex}`}>
+                          {hasNoExercises ? '種目を登録してください' : '種目'}
+                        </InputLabel>
+                        <Select
+                          labelId={`exercise-label-${groupIndex}`}
+                          value={group.exerciseId?.toString() || ''}
+                          label={hasNoExercises ? '種目を登録してください' : '種目'}
+                          onChange={(e: SelectChangeEvent) => {
+                            const value = e.target.value
+                            handleExerciseChange(
+                              groupIndex,
+                              value ? Number.parseInt(value, 10) : null,
+                            )
+                          }}
+                          sx={{
+                            '& .MuiOutlinedInput-notchedOutline': {
                               borderRadius: 0,
-                              borderTopLeftRadius: 0,
-                              borderTopRightRadius: 0,
-                              borderBottomRightRadius: 0,
-                              borderBottomLeftRadius: 0,
                             },
-                          },
-                        }}
-                        renderInput={(params) => (
-                          <TextField
-                            {...params}
-                            label="種目"
-                            size="small"
-                            placeholder="種目を選択または入力"
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                borderRadius: 0,
-                                borderTopLeftRadius: 0,
-                                borderTopRightRadius: 0,
-                                borderBottomRightRadius: 0,
-                                borderBottomLeftRadius: 0,
-                              },
-                            }}
-                          />
-                        )}
-                      />
+                          }}
+                        >
+                          {exercises.map((exercise) => (
+                            <MenuItem key={exercise.id} value={exercise.id.toString()}>
+                              {exercise.name}
+                            </MenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
                       {exerciseGroups.length > 1 && (
                         <IconButton
                           size="small"

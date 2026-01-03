@@ -86,6 +86,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
           id: s.exercise.id,
           userId: s.exercise.userId,
           name: s.exercise.name,
+          sortIndex: s.exercise.sortIndex,
           createdAt: s.exercise.createdAt,
           updatedAt: s.exercise.updatedAt,
         },

@@ -15,6 +15,7 @@ export type Exercise = {
   id: number
   userId: number
   name: string
+  sortIndex: number
   createdAt: Date
   updatedAt: Date
 }

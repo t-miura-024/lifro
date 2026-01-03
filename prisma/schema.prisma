@@ -25,6 +25,7 @@ model Exercise {
     id        Int      @id @default(autoincrement())
     userId    Int      @map("user_id")
     name      String
+    sortIndex Int      @default(0) @map("sort_index")
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 

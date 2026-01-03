@@ -2,6 +2,7 @@
 
 import BarChartIcon from '@mui/icons-material/BarChart'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
+import ListAltIcon from '@mui/icons-material/ListAlt'
 import SettingsIcon from '@mui/icons-material/Settings'
 import {
   AppBar,
@@ -17,6 +18,7 @@ import { usePathname, useRouter } from 'next/navigation'
 
 const navItems = [
   { label: 'ログ', icon: <FitnessCenterIcon />, path: '/logs' },
+  { label: '種目', icon: <ListAltIcon />, path: '/exercises' },
   { label: '統計', icon: <BarChartIcon />, path: '/statistics' },
   { label: '設定', icon: <SettingsIcon />, path: '/settings' },
 ]

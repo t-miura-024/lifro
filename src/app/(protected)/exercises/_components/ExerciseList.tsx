@@ -1,0 +1,344 @@
+'use client'
+
+import type { Exercise } from '@/server/domain/entities'
+import AddIcon from '@mui/icons-material/Add'
+import {
+  Alert,
+  Box,
+  Button,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  IconButton,
+  Paper,
+  Snackbar,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from '@mui/material'
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { useCallback, useEffect, useState, useTransition } from 'react'
+import {
+  canDeleteExerciseAction,
+  createExerciseAction,
+  deleteExerciseAction,
+  getExercisesAction,
+  updateExerciseAction,
+  updateExerciseSortOrderAction,
+} from '../_actions'
+import SortableExerciseItem from './SortableExerciseItem'
+
+export default function ExerciseList() {
+  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [isPending, startTransition] = useTransition()
+
+  // ダイアログ状態
+  const [createDialogOpen, setCreateDialogOpen] = useState(false)
+  const [editDialogOpen, setEditDialogOpen] = useState(false)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
+  const [exerciseName, setExerciseName] = useState('')
+
+  // エラー表示
+  const [errorSnackbar, setErrorSnackbar] = useState<string | null>(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
+  )
+
+  // 種目リストを取得
+  const loadExercises = useCallback(() => {
+    startTransition(async () => {
+      const data = await getExercisesAction()
+      setExercises(data)
+    })
+  }, [])
+
+  useEffect(() => {
+    loadExercises()
+  }, [loadExercises])
+
+  // ドラッグ終了時の処理
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+
+    if (over && active.id !== over.id) {
+      const oldIndex = exercises.findIndex((item) => item.id === active.id)
+      const newIndex = exercises.findIndex((item) => item.id === over.id)
+      const newItems = arrayMove(exercises, oldIndex, newIndex)
+
+      // ローカル状態を即座に更新
+      setExercises(newItems)
+
+      // 並び順をサーバーに保存
+      startTransition(async () => {
+        const sortOrderUpdates = newItems.map((item, index) => ({
+          id: item.id,
+          sortIndex: index,
+        }))
+        await updateExerciseSortOrderAction(sortOrderUpdates)
+      })
+    }
+  }
+
+  // 新規作成
+  const handleCreate = () => {
+    setExerciseName('')
+    setCreateDialogOpen(true)
+  }
+
+  const handleCreateConfirm = () => {
+    if (!exerciseName.trim()) return
+
+    startTransition(async () => {
+      await createExerciseAction(exerciseName.trim())
+      setCreateDialogOpen(false)
+      setExerciseName('')
+      loadExercises()
+    })
+  }
+
+  // 編集
+  const handleEdit = (exercise: Exercise) => {
+    setSelectedExercise(exercise)
+    setExerciseName(exercise.name)
+    setEditDialogOpen(true)
+  }
+
+  const handleEditConfirm = () => {
+    if (!selectedExercise || !exerciseName.trim()) return
+
+    startTransition(async () => {
+      await updateExerciseAction(selectedExercise.id, exerciseName.trim())
+      setEditDialogOpen(false)
+      setSelectedExercise(null)
+      setExerciseName('')
+      loadExercises()
+    })
+  }
+
+  // 削除
+  const handleDelete = (exercise: Exercise) => {
+    setSelectedExercise(exercise)
+    setDeleteDialogOpen(true)
+  }
+
+  const handleDeleteConfirm = () => {
+    if (!selectedExercise) return
+
+    startTransition(async () => {
+      const canDelete = await canDeleteExerciseAction(selectedExercise.id)
+      if (!canDelete) {
+        setErrorSnackbar('この種目にはトレーニング記録が存在するため削除できません')
+        setDeleteDialogOpen(false)
+        setSelectedExercise(null)
+        return
+      }
+
+      await deleteExerciseAction(selectedExercise.id)
+      setDeleteDialogOpen(false)
+      setSelectedExercise(null)
+      loadExercises()
+    })
+  }
+
+  return (
+    <Box>
+      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
+        <Typography variant="h5" component="h1" fontWeight={600}>
+          種目管理
+        </Typography>
+        <Button
+          variant="contained"
+          color="primary"
+          onClick={handleCreate}
+          disabled={isPending}
+          aria-label="種目を追加"
+          sx={{ minWidth: 44, minHeight: 44 }}
+        >
+          <AddIcon fontSize="medium" />
+        </Button>
+      </Stack>
+
+      {exercises.length === 0 ? (
+        <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+          <Typography color="text.secondary">
+            種目が登録されていません。
+            <br />
+            「追加」ボタンから種目を登録してください。
+          </Typography>
+        </Paper>
+      ) : (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext
+            items={exercises.map((e) => e.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell sx={{ width: 48 }} />
+                    <TableCell>種目名</TableCell>
+                    <TableCell sx={{ width: 48 }} />
+                    <TableCell sx={{ width: 48 }} />
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {exercises.map((exercise) => (
+                    <SortableExerciseItem
+                      key={exercise.id}
+                      exercise={exercise}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </SortableContext>
+        </DndContext>
+      )}
+
+      {/* 新規作成ダイアログ */}
+      <Dialog
+        open={createDialogOpen}
+        onClose={() => setCreateDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>種目を追加</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="種目名"
+            fullWidth
+            value={exerciseName}
+            onChange={(e) => setExerciseName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                handleCreateConfirm()
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setCreateDialogOpen(false)} disabled={isPending}>
+            キャンセル
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateConfirm}
+            disabled={isPending || !exerciseName.trim()}
+          >
+            追加
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 編集ダイアログ */}
+      <Dialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>種目を編集</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="種目名"
+            fullWidth
+            value={exerciseName}
+            onChange={(e) => setExerciseName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.nativeEvent.isComposing) {
+                handleEditConfirm()
+              }
+            }}
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setEditDialogOpen(false)} disabled={isPending}>
+            キャンセル
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleEditConfirm}
+            disabled={isPending || !exerciseName.trim()}
+          >
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 削除確認ダイアログ */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle>削除の確認</DialogTitle>
+        <DialogContent>
+          <Typography>
+            「{selectedExercise?.name}」を削除しますか？
+            <br />
+            この操作は取り消せません。
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2 }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} disabled={isPending}>
+            キャンセル
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDeleteConfirm}
+            disabled={isPending}
+          >
+            削除
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* エラースナックバー */}
+      <Snackbar
+        open={!!errorSnackbar}
+        autoHideDuration={5000}
+        onClose={() => setErrorSnackbar(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert severity="error" onClose={() => setErrorSnackbar(null)}>
+          {errorSnackbar}
+        </Alert>
+      </Snackbar>
+    </Box>
+  )
+}
