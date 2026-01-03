@@ -14,19 +14,36 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     const startDate = new Date(year, month - 1, 1)
     const endDate = new Date(year, month, 0) // 月末日
 
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
+    // セットとメモを並列で取得
+    const [sets, memos] = await Promise.all([
+      prisma.set.findMany({
+        where: {
+          userId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
         },
-      },
-      include: {
-        exercise: true,
-      },
-      orderBy: [{ date: 'desc' }, { sortIndex: 'asc' }],
-    })
+        include: {
+          exercise: true,
+        },
+        orderBy: [{ date: 'desc' }, { sortIndex: 'asc' }],
+      }),
+      prisma.trainingMemo.findMany({
+        where: {
+          userId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: { date: true },
+        distinct: ['date'],
+      }),
+    ])
+
+    // メモがある日付のセット
+    const datesWithMemo = new Set(memos.map((m) => m.date.toISOString().split('T')[0]))
 
     // 日付ごとにグループ化して集約
     const grouped = new Map<string, typeof sets>()
@@ -47,6 +64,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
         exerciseNames,
         totalVolume,
         setCount: dateSets.length,
+        hasMemo: datesWithMemo.has(dateKey),
       })
     }
 

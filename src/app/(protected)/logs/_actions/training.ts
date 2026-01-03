@@ -1,11 +1,13 @@
 'use server'
 
 import { getServerAuthSession } from '@/auth'
-import { trainingService } from '@/server/application/services'
+import { trainingMemoService, trainingService } from '@/server/application/services'
 import type {
   LatestExerciseSets,
   SetInput,
   Training,
+  TrainingMemo,
+  TrainingMemoInput,
   TrainingSummary,
 } from '@/server/domain/entities'
 
@@ -94,4 +96,29 @@ export async function checkTrainingExistsAction(dateStr: string): Promise<boolea
   const date = new Date(dateStr)
   const training = await trainingService.getTrainingByDate(userId, date)
   return training !== null && training.sets.length > 0
+}
+
+// ========================================
+// トレーニングメモ関連のアクション
+// ========================================
+
+/**
+ * 指定日のメモ一覧を取得
+ */
+export async function fetchMemosByDateAction(dateStr: string): Promise<TrainingMemo[]> {
+  const userId = await getAuthenticatedUserId()
+  const date = new Date(dateStr)
+  return trainingMemoService.getMemosByDate(userId, date)
+}
+
+/**
+ * メモを一括保存
+ */
+export async function saveMemosAction(
+  dateStr: string,
+  memos: TrainingMemoInput[],
+): Promise<TrainingMemo[]> {
+  const userId = await getAuthenticatedUserId()
+  const date = new Date(dateStr)
+  return trainingMemoService.saveMemos(userId, date, memos)
 }

@@ -6,6 +6,8 @@ export {
   fetchExerciseHistoryAction,
   fetchLatestExerciseSetsAction,
   checkTrainingExistsAction,
+  fetchMemosByDateAction,
+  saveMemosAction,
 } from './training'
 
 export {

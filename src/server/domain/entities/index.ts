@@ -80,4 +80,21 @@ export type TrainingSummary = {
   exerciseNames: string[]
   totalVolume: number
   setCount: number
+  hasMemo: boolean
+}
+
+/** トレーニングメモ */
+export type TrainingMemo = {
+  id: number
+  userId: number
+  date: Date
+  content: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** トレーニングメモの入力データ（新規作成・更新用） */
+export type TrainingMemoInput = {
+  id?: number
+  content: string
 }

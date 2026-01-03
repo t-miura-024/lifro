@@ -8,6 +8,8 @@ import type {
   LatestExerciseSets,
   SetInput,
   Training,
+  TrainingMemo,
+  TrainingMemoInput,
   TrainingSummary,
 } from '../entities'
 
@@ -97,4 +99,37 @@ export interface IExerciseRepository {
    * 種目に紐づくセットが存在するかチェック
    */
   hasRelatedSets(userId: number, exerciseId: number): Promise<boolean>
+}
+
+/** トレーニングメモリポジトリ */
+export interface ITrainingMemoRepository {
+  /**
+   * 指定日のメモ一覧を取得
+   */
+  findByDate(userId: number, date: Date): Promise<TrainingMemo[]>
+
+  /**
+   * 指定月のメモがある日付一覧を取得
+   */
+  findDatesWithMemoByMonth(userId: number, year: number, month: number): Promise<Date[]>
+
+  /**
+   * メモを作成
+   */
+  create(userId: number, date: Date, content: string): Promise<TrainingMemo>
+
+  /**
+   * メモを更新
+   */
+  update(userId: number, memoId: number, content: string): Promise<TrainingMemo>
+
+  /**
+   * メモを削除
+   */
+  delete(userId: number, memoId: number): Promise<void>
+
+  /**
+   * メモを一括保存（追加・更新・削除）
+   */
+  saveAll(userId: number, date: Date, memos: TrainingMemoInput[]): Promise<TrainingMemo[]>
 }

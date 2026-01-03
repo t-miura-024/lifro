@@ -29,7 +29,17 @@ erDiagram
         TIMESTAMP updated_at "更新日時"
     }
 
+    TRAINING_MEMOS {
+        INTEGER id PK "メモID"
+        INTEGER user_id FK "ユーザーID"
+        DATE date "トレーニング日"
+        TEXT content "メモ内容"
+        TIMESTAMP created_at "作成日時"
+        TIMESTAMP updated_at "更新日時"
+    }
+
     USERS ||--o{ EXERCISES : ""
     USERS ||--o{ SETS : ""
+    USERS ||--o{ TRAINING_MEMOS : ""
     EXERCISES ||--o{ SETS : ""
 ```

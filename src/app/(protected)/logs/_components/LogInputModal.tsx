@@ -1,6 +1,6 @@
 'use client'
 
-import type { Exercise, LatestExerciseSets } from '@/server/domain/entities'
+import type { Exercise, LatestExerciseSets, TrainingMemo } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import {
@@ -11,6 +11,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  Divider,
   FormControl,
   IconButton,
   InputLabel,
@@ -38,7 +39,9 @@ import {
   checkTrainingExistsAction,
   deleteTrainingAction,
   fetchLatestExerciseSetsAction,
+  fetchMemosByDateAction,
   getExercisesAction,
+  saveMemosAction,
   upsertTrainingAction,
 } from '../_actions'
 
@@ -67,8 +70,15 @@ type Props = {
   initialSets?: SetFormData[]
 }
 
+export type MemoFormData = {
+  key: string
+  id?: number
+  content: string
+}
+
 let groupKeyCounter = 0
 let setKeyCounter = 0
+let memoKeyCounter = 0
 
 const emptySet = (exerciseId: number | null, exerciseName: string): SetFormData => ({
   key: `set-${Date.now()}-${setKeyCounter++}`,
@@ -76,6 +86,11 @@ const emptySet = (exerciseId: number | null, exerciseName: string): SetFormData 
   exerciseName,
   weight: '',
   reps: '',
+})
+
+const emptyMemo = (): MemoFormData => ({
+  key: `memo-${Date.now()}-${memoKeyCounter++}`,
+  content: '',
 })
 
 const emptyExerciseGroup = (): ExerciseGroup => ({
@@ -98,6 +113,7 @@ const formatDelta = (current: number, previous: number | null) => {
 export default function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Props) {
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([emptyExerciseGroup()])
   const [exercises, setExercises] = useState<Exercise[]>([])
+  const [memos, setMemos] = useState<MemoFormData[]>([])
   const [isPending, startTransition] = useTransition()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs(initialDate))
@@ -116,6 +132,22 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
     if (open) {
       const excludeDateStr = selectedDate.format('YYYY-MM-DD')
       getExercisesAction().then(setExercises)
+
+      // メモを取得
+      fetchMemosByDateAction(excludeDateStr).then((fetchedMemos) => {
+        if (fetchedMemos.length > 0) {
+          setMemos(
+            fetchedMemos.map((m) => ({
+              key: `memo-${Date.now()}-${memoKeyCounter++}`,
+              id: m.id,
+              content: m.content,
+            })),
+          )
+        } else {
+          setMemos([])
+        }
+      })
+
       if (initialSets && initialSets.length > 0) {
         // 種目単位でグルーピング
         const grouped = new Map<number | string, ExerciseGroup>()
@@ -227,6 +259,21 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
     }
   }
 
+  // メモ操作
+  const handleAddMemo = () => {
+    setMemos([...memos, emptyMemo()])
+  }
+
+  const handleMemoChange = (index: number, content: string) => {
+    const newMemos = [...memos]
+    newMemos[index] = { ...newMemos[index], content }
+    setMemos(newMemos)
+  }
+
+  const handleRemoveMemo = (index: number) => {
+    setMemos(memos.filter((_, i) => i !== index))
+  }
+
   const handleSave = () => {
     startTransition(async () => {
       // エラーをクリア
@@ -273,6 +320,14 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
       })
 
       await upsertTrainingAction(dateStr, setsToSave)
+
+      // メモを保存（空でないメモのみ）
+      const validMemos = memos.filter((m) => m.content.trim() !== '')
+      await saveMemosAction(
+        dateStr,
+        validMemos.map((m) => ({ id: m.id, content: m.content })),
+      )
+
       onSaved(selectedDate.toDate())
       onClose()
     })
@@ -670,6 +725,47 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
             >
               種目を追加
             </Button>
+
+            {/* メモセクション */}
+            <Divider sx={{ my: 2 }} />
+            <Box>
+              <Stack spacing={1}>
+                {memos.map((memo, index) => (
+                  <Stack key={memo.key} direction="row" spacing={1} alignItems="flex-start">
+                    <TextField
+                      fullWidth
+                      multiline
+                      minRows={2}
+                      maxRows={4}
+                      size="small"
+                      placeholder="メモを入力..."
+                      value={memo.content}
+                      onChange={(e) => handleMemoChange(index, e.target.value)}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemoveMemo(index)}
+                      aria-label="メモを削除"
+                      sx={{ mt: 0.5 }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Stack>
+                ))}
+                <Button
+                  startIcon={<AddIcon />}
+                  onClick={handleAddMemo}
+                  variant="text"
+                  size="small"
+                  sx={{
+                    alignSelf: 'flex-start',
+                    borderRadius: 0,
+                  }}
+                >
+                  メモを追加
+                </Button>
+              </Stack>
+            </Box>
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>

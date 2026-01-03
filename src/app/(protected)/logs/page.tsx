@@ -47,6 +47,7 @@ function summaryToRow(summary: TrainingSummary): TrainingRow {
     date: dateStr,
     exercises: summary.exerciseNames,
     volume: summary.totalVolume,
+    hasMemo: summary.hasMemo,
   }
 }
 

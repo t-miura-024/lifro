@@ -8,15 +8,16 @@ datasource db {
 }
 
 model User {
-    id        Int        @id @default(autoincrement())
-    email     String     @unique
-    createdAt DateTime   @default(now()) @map("created_at")
-    updatedAt DateTime   @updatedAt @map("updated_at")
-    exercises Exercise[]
-    sets      Set[]
+    id            Int            @id @default(autoincrement())
+    email         String         @unique
+    createdAt     DateTime       @default(now()) @map("created_at")
+    updatedAt     DateTime       @updatedAt @map("updated_at")
+    exercises     Exercise[]
+    sets          Set[]
+    trainingMemos TrainingMemo[]
     // NextAuth 用
-    accounts  Account[]
-    sessions  Session[]
+    accounts      Account[]
+    sessions      Session[]
 
     @@map("users")
 }
@@ -53,6 +54,21 @@ model Set {
     @@index([userId])
     @@index([exerciseId])
     @@map("sets")
+}
+
+/// トレーニングメモ（日単位）
+model TrainingMemo {
+    id        Int      @id @default(autoincrement())
+    userId    Int      @map("user_id")
+    date      DateTime @db.Date
+    content   String   @db.Text
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
+
+    user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+    @@index([userId, date])
+    @@map("training_memos")
 }
 
 /// NextAuth — OAuth アカウント
