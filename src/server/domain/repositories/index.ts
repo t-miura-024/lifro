@@ -11,6 +11,7 @@ import type {
   TrainingMemo,
   TrainingMemoInput,
   TrainingSummary,
+  YearMonth,
 } from '../entities'
 
 /** トレーニングリポジトリ */
@@ -55,6 +56,11 @@ export interface ITrainingRepository {
     exerciseId: number,
     excludeDate?: Date,
   ): Promise<LatestExerciseSets | null>
+
+  /**
+   * セット情報が存在する年月の一覧を取得（降順）
+   */
+  getAvailableYearMonths(userId: number): Promise<YearMonth[]>
 }
 
 /** 種目の並び順更新用入力 */

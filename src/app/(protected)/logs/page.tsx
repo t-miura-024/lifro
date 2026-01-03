@@ -1,43 +1,42 @@
 'use client'
 
-import type { TrainingSummary } from '@/server/domain/entities'
-import type { Training } from '@/server/domain/entities'
+import type { Training, TrainingSummary, YearMonth } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
-import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
-import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
-  IconButton,
+  FormControl,
+  MenuItem,
   Paper,
+  Select,
+  type SelectChangeEvent,
   Snackbar,
   Stack,
   Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
-import { deleteTrainingAction, fetchTrainingByDateAction, fetchTrainingsAction } from './_actions'
+import { useCallback, useEffect, useState, useTransition } from 'react'
+import {
+  fetchAvailableYearMonthsAction,
+  fetchTrainingByDateAction,
+  fetchTrainingsAction,
+} from './_actions'
 import LogInputModal from './_components/LogInputModal'
 import type { SetFormData } from './_components/LogInputModal'
 import LogsTable from './_components/LogsTable'
 import type { TrainingRow } from './_components/LogsTable'
 
-function formatYearMonth(date: Date) {
-  const y = date.getFullYear()
-  const m = date.getMonth() + 1
-  return `${y}-${String(m).padStart(2, '0')}`
-}
-
 function formatDate(date: Date) {
   return date.toISOString().split('T')[0]
 }
 
-function addMonths(base: Date, diff: number) {
-  const d = new Date(base)
-  d.setDate(1)
-  d.setMonth(d.getMonth() + diff)
-  return d
+function yearMonthToKey(ym: YearMonth): string {
+  return `${ym.year}-${ym.month}`
+}
+
+function formatYearMonthLabel(ym: YearMonth): string {
+  return `${ym.year}年${ym.month}月`
 }
 
 function summaryToRow(summary: TrainingSummary): TrainingRow {
@@ -69,12 +68,11 @@ function trainingToSetFormData(training: Training | null): SetFormData[] {
 }
 
 export default function LogsPage() {
-  const [currentMonth, setCurrentMonth] = useState<Date>(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
+  const [availableYearMonths, setAvailableYearMonths] = useState<YearMonth[]>([])
+  const [selectedYearMonth, setSelectedYearMonth] = useState<YearMonth | null>(null)
   const [rows, setRows] = useState<TrainingRow[]>([])
   const [isLoading, startLoading] = useTransition()
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [initialSets, setInitialSets] = useState<SetFormData[] | undefined>(undefined)
@@ -84,21 +82,38 @@ export default function LogsPage() {
     severity: 'success' | 'error'
   }>({ open: false, message: '', severity: 'success' })
 
-  const ym = useMemo(() => formatYearMonth(currentMonth), [currentMonth])
+  // 初回ロード: 年月一覧を取得
+  useEffect(() => {
+    const loadYearMonths = async () => {
+      const yearMonths = await fetchAvailableYearMonthsAction()
+      setAvailableYearMonths(yearMonths)
+      // 最新の年月を選択（降順なので先頭）
+      if (yearMonths.length > 0) {
+        setSelectedYearMonth(yearMonths[0])
+      }
+      setIsInitialLoading(false)
+    }
+    loadYearMonths()
+  }, [])
 
-  // データを取得
+  // 選択された年月のデータを取得
   const loadData = useCallback(() => {
+    if (!selectedYearMonth) return
     startLoading(async () => {
-      const year = currentMonth.getFullYear()
-      const month = currentMonth.getMonth() + 1
-      const summaries = await fetchTrainingsAction(year, month)
+      const summaries = await fetchTrainingsAction(selectedYearMonth.year, selectedYearMonth.month)
       setRows(summaries.map(summaryToRow))
     })
-  }, [currentMonth])
+  }, [selectedYearMonth])
 
   useEffect(() => {
     loadData()
   }, [loadData])
+
+  // 年月選択変更
+  const handleYearMonthChange = (event: SelectChangeEvent) => {
+    const [year, month] = event.target.value.split('-').map(Number)
+    setSelectedYearMonth({ year, month })
+  }
 
   // 新規追加ボタン
   const handleAddClick = async () => {
@@ -124,16 +139,19 @@ export default function LogsPage() {
     setModalOpen(true)
   }
 
-  // 保存完了時（日付が変更された場合は表示月も更新）
-  const handleSaved = (savedDate: Date) => {
-    const savedMonth = new Date(savedDate.getFullYear(), savedDate.getMonth(), 1)
-    const currentMonthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+  // 保存完了時（年月一覧を更新し、保存された月を選択）
+  const handleSaved = async (savedDate: Date) => {
+    const savedYear = savedDate.getFullYear()
+    const savedMonth = savedDate.getMonth() + 1
 
-    // 保存された日付の月が現在表示中の月と異なる場合、表示月を変更
-    if (savedMonth.getTime() !== currentMonthStart.getTime()) {
-      setCurrentMonth(savedMonth)
-    } else {
-      loadData()
+    // 年月一覧を再取得
+    const yearMonths = await fetchAvailableYearMonthsAction()
+    setAvailableYearMonths(yearMonths)
+
+    // 保存された年月を選択
+    const savedYearMonth = yearMonths.find((ym) => ym.year === savedYear && ym.month === savedMonth)
+    if (savedYearMonth) {
+      setSelectedYearMonth(savedYearMonth)
     }
 
     setSnackbar({
@@ -143,32 +161,37 @@ export default function LogsPage() {
     })
   }
 
+  // 初期ロード中
+  if (isInitialLoading) {
+    return (
+      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
+        <CircularProgress size={32} />
+      </Box>
+    )
+  }
+
   return (
     <Stack spacing={2}>
       <Box display="flex" justifyContent="space-between" alignItems="center" gap={1}>
-        <Stack direction="row" alignItems="center" spacing={1}>
-          <IconButton
-            aria-label="前の月"
-            onClick={() => setCurrentMonth((d) => addMonths(d, -1))}
-            sx={{ minWidth: 44, minHeight: 44 }}
-          >
-            <ArrowBackIosNewIcon fontSize="small" />
-          </IconButton>
-          <Typography
-            variant="subtitle1"
-            fontWeight={700}
-            sx={{ minWidth: 96, textAlign: 'center' }}
-          >
-            {ym}
+        {availableYearMonths.length > 0 && selectedYearMonth ? (
+          <FormControl size="small" sx={{ minWidth: 140 }}>
+            <Select
+              value={yearMonthToKey(selectedYearMonth)}
+              onChange={handleYearMonthChange}
+              sx={{ fontWeight: 700 }}
+            >
+              {availableYearMonths.map((ym) => (
+                <MenuItem key={yearMonthToKey(ym)} value={yearMonthToKey(ym)}>
+                  {formatYearMonthLabel(ym)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        ) : (
+          <Typography variant="subtitle1" color="text.secondary">
+            データがありません
           </Typography>
-          <IconButton
-            aria-label="次の月"
-            onClick={() => setCurrentMonth((d) => addMonths(d, 1))}
-            sx={{ minWidth: 44, minHeight: 44 }}
-          >
-            <ArrowForwardIosIcon fontSize="small" />
-          </IconButton>
-        </Stack>
+        )}
         <Button
           variant="contained"
           color="primary"

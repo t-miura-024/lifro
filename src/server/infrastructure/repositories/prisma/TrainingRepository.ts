@@ -4,6 +4,7 @@ import type {
   SetInput,
   Training,
   TrainingSummary,
+  YearMonth,
 } from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { prisma } from '../../database/prisma/client'
@@ -227,6 +228,32 @@ export class PrismaTrainingRepository implements ITrainingRepository {
         sortIndex: s.sortIndex,
       })),
     }
+  }
+
+  async getAvailableYearMonths(userId: number): Promise<YearMonth[]> {
+    // セットが存在する日付を取得し、年月でグループ化
+    const dates = await prisma.set.findMany({
+      where: { userId },
+      select: { date: true },
+      distinct: ['date'],
+      orderBy: { date: 'desc' },
+    })
+
+    // 年月でユニーク化（降順を維持）
+    const yearMonthSet = new Set<string>()
+    const result: YearMonth[] = []
+
+    for (const { date } of dates) {
+      const year = date.getFullYear()
+      const month = date.getMonth() + 1
+      const key = `${year}-${month}`
+      if (!yearMonthSet.has(key)) {
+        yearMonthSet.add(key)
+        result.push({ year, month })
+      }
+    }
+
+    return result
   }
 }
 

@@ -4,6 +4,7 @@ import type {
   SetInput,
   Training,
   TrainingSummary,
+  YearMonth,
 } from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { trainingRepository } from '@/server/infrastructure/repositories/prisma'
@@ -70,6 +71,13 @@ export class TrainingService {
     excludeDate?: Date,
   ): Promise<LatestExerciseSets | null> {
     return this.repository.getLatestExerciseSets(userId, exerciseId, excludeDate)
+  }
+
+  /**
+   * セット情報が存在する年月の一覧を取得（降順）
+   */
+  async getAvailableYearMonths(userId: number): Promise<YearMonth[]> {
+    return this.repository.getAvailableYearMonths(userId)
   }
 }
 

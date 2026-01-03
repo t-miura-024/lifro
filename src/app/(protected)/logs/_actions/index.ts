@@ -1,4 +1,5 @@
 export {
+  fetchAvailableYearMonthsAction,
   fetchTrainingsAction,
   fetchTrainingByDateAction,
   upsertTrainingAction,

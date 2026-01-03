@@ -98,3 +98,9 @@ export type TrainingMemoInput = {
   id?: number
   content: string
 }
+
+/** 年月（プルダウン選択用） */
+export type YearMonth = {
+  year: number
+  month: number
+}

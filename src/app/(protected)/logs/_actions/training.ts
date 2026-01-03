@@ -9,6 +9,7 @@ import type {
   TrainingMemo,
   TrainingMemoInput,
   TrainingSummary,
+  YearMonth,
 } from '@/server/domain/entities'
 
 /**
@@ -20,6 +21,14 @@ async function getAuthenticatedUserId(): Promise<number> {
     throw new Error('認証が必要です')
   }
   return Number(session.user.id)
+}
+
+/**
+ * セット情報が存在する年月の一覧を取得（降順）
+ */
+export async function fetchAvailableYearMonthsAction(): Promise<YearMonth[]> {
+  const userId = await getAuthenticatedUserId()
+  return trainingService.getAvailableYearMonths(userId)
 }
 
 /**
