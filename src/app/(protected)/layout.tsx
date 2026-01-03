@@ -12,5 +12,5 @@ export default async function ProtectedLayout({
     redirect('/login')
   }
 
-  return <ProtectedShell email={session.user?.email ?? ''}>{children}</ProtectedShell>
+  return <ProtectedShell>{children}</ProtectedShell>
 }

@@ -5,14 +5,11 @@ import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import SettingsIcon from '@mui/icons-material/Settings'
 import {
-  AppBar,
   BottomNavigation,
   BottomNavigationAction,
   Box,
   Container,
   Paper,
-  Toolbar,
-  Typography,
 } from '@mui/material'
 import { usePathname, useRouter } from 'next/navigation'
 
@@ -24,10 +21,8 @@ const navItems = [
 ]
 
 export default function ProtectedShell({
-  email,
   children,
 }: {
-  email: string
   children: React.ReactNode
 }) {
   const pathname = usePathname()
@@ -37,18 +32,6 @@ export default function ProtectedShell({
 
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: '100dvh' }}>
-      <AppBar position="sticky" color="default" elevation={0}>
-        <Toolbar sx={{ gap: 2, minHeight: 56 }}>
-          <Typography variant="h6" sx={{ fontWeight: 700, color: 'primary.main' }}>
-            Lifro
-          </Typography>
-          <Box sx={{ flexGrow: 1 }} />
-          <Typography variant="body2" noWrap sx={{ color: 'text.secondary', maxWidth: 200 }}>
-            {email}
-          </Typography>
-        </Toolbar>
-      </AppBar>
-
       <Container
         maxWidth="sm"
         sx={{
