@@ -128,12 +128,19 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     })
   }
 
-  async getLatestHistory(userId: number, exerciseId: number): Promise<ExerciseHistory | null> {
+  async getLatestHistory(
+    userId: number,
+    exerciseId: number,
+    excludeDate?: Date,
+  ): Promise<ExerciseHistory | null> {
     // 指定種目の最新セットを取得
     const latestSet = await prisma.set.findFirst({
       where: {
         userId,
         exerciseId,
+        ...(excludeDate && {
+          date: { not: excludeDate },
+        }),
       },
       include: {
         exercise: true,
@@ -157,12 +164,16 @@ export class PrismaTrainingRepository implements ITrainingRepository {
   async getLatestExerciseSets(
     userId: number,
     exerciseId: number,
+    excludeDate?: Date,
   ): Promise<LatestExerciseSets | null> {
     // 指定種目の最新実施日を取得
     const latestSet = await prisma.set.findFirst({
       where: {
         userId,
         exerciseId,
+        ...(excludeDate && {
+          date: { not: excludeDate },
+        }),
       },
       orderBy: [{ date: 'desc' }],
     })

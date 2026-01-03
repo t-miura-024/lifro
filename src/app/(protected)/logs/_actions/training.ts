@@ -60,22 +60,28 @@ export async function deleteTrainingAction(dateStr: string): Promise<void> {
 
 /**
  * 種目の前回値を取得
+ * @param excludeDateStr 除外する日付（この日付のセットは対象外）
  */
 export async function fetchExerciseHistoryAction(
   exerciseId: number,
+  excludeDateStr?: string,
 ): Promise<{ weight: number; reps: number } | null> {
   const userId = await getAuthenticatedUserId()
-  const history = await trainingService.getLatestExerciseHistory(userId, exerciseId)
+  const excludeDate = excludeDateStr ? new Date(excludeDateStr) : undefined
+  const history = await trainingService.getLatestExerciseHistory(userId, exerciseId, excludeDate)
   if (!history) return null
   return { weight: history.weight, reps: history.reps }
 }
 
 /**
  * 直近実施日の当該種目の全セットを取得
+ * @param excludeDateStr 除外する日付（この日付のセットは対象外）
  */
 export async function fetchLatestExerciseSetsAction(
   exerciseId: number,
+  excludeDateStr?: string,
 ): Promise<LatestExerciseSets | null> {
   const userId = await getAuthenticatedUserId()
-  return trainingService.getLatestExerciseSets(userId, exerciseId)
+  const excludeDate = excludeDateStr ? new Date(excludeDateStr) : undefined
+  return trainingService.getLatestExerciseSets(userId, exerciseId, excludeDate)
 }

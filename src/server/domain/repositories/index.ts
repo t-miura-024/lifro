@@ -36,13 +36,23 @@ export interface ITrainingRepository {
 
   /**
    * 種目の前回値（直近の記録）を取得
+   * @param excludeDate 除外する日付（この日付のセットは対象外）
    */
-  getLatestHistory(userId: number, exerciseId: number): Promise<ExerciseHistory | null>
+  getLatestHistory(
+    userId: number,
+    exerciseId: number,
+    excludeDate?: Date,
+  ): Promise<ExerciseHistory | null>
 
   /**
    * 直近実施日の当該種目の全セットを取得
+   * @param excludeDate 除外する日付（この日付のセットは対象外）
    */
-  getLatestExerciseSets(userId: number, exerciseId: number): Promise<LatestExerciseSets | null>
+  getLatestExerciseSets(
+    userId: number,
+    exerciseId: number,
+    excludeDate?: Date,
+  ): Promise<LatestExerciseSets | null>
 }
 
 /** 種目の並び順更新用入力 */

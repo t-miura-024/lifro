@@ -97,6 +97,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
   // 種目リストを取得し、初期データを種目単位でグルーピング
   useEffect(() => {
     if (open) {
+      const excludeDateStr = date.toISOString().split('T')[0]
       getExercisesAction().then(setExercises)
       if (initialSets && initialSets.length > 0) {
         // 種目単位でグルーピング
@@ -119,11 +120,14 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         }
         const groups = Array.from(grouped.values())
         setExerciseGroups(groups)
-        // 種目IDがある場合は前回の記録を取得
+        // 種目IDがある場合は前回の記録を取得（当日分は除外）
         Promise.all(
           groups.map(async (group) => {
             if (group.exerciseId) {
-              const latestSets = await fetchLatestExerciseSetsAction(group.exerciseId)
+              const latestSets = await fetchLatestExerciseSetsAction(
+                group.exerciseId,
+                excludeDateStr,
+              )
               group.latestSets = latestSets
             }
           }),
@@ -134,13 +138,14 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         setExerciseGroups([emptyExerciseGroup()])
       }
     }
-  }, [open, initialSets])
+  }, [open, initialSets, date])
 
   // 種目変更時に前回値を取得
   const handleExerciseChange = async (groupIndex: number, exerciseId: number | null) => {
     const newGroups = [...exerciseGroups]
     const group = newGroups[groupIndex]
     const exercise = exercises.find((e) => e.id === exerciseId)
+    const excludeDateStr = date.toISOString().split('T')[0]
 
     if (exercise) {
       group.exerciseId = exercise.id
@@ -151,8 +156,8 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         exerciseId: exercise.id,
         exerciseName: exercise.name,
       }))
-      // 前回値を取得
-      const latestSets = await fetchLatestExerciseSetsAction(exercise.id)
+      // 前回値を取得（当日分は除外）
+      const latestSets = await fetchLatestExerciseSetsAction(exercise.id, excludeDateStr)
       group.latestSets = latestSets
     } else {
       group.exerciseId = null

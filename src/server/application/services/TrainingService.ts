@@ -50,22 +50,26 @@ export class TrainingService {
 
   /**
    * 種目の前回値を取得
+   * @param excludeDate 除外する日付（この日付のセットは対象外）
    */
   async getLatestExerciseHistory(
     userId: number,
     exerciseId: number,
+    excludeDate?: Date,
   ): Promise<ExerciseHistory | null> {
-    return this.repository.getLatestHistory(userId, exerciseId)
+    return this.repository.getLatestHistory(userId, exerciseId, excludeDate)
   }
 
   /**
    * 直近実施日の当該種目の全セットを取得
+   * @param excludeDate 除外する日付（この日付のセットは対象外）
    */
   async getLatestExerciseSets(
     userId: number,
     exerciseId: number,
+    excludeDate?: Date,
   ): Promise<LatestExerciseSets | null> {
-    return this.repository.getLatestExerciseSets(userId, exerciseId)
+    return this.repository.getLatestExerciseSets(userId, exerciseId, excludeDate)
   }
 }
 
