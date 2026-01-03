@@ -1,6 +1,21 @@
 'use client'
 
 import type { Exercise } from '@/server/domain/entities'
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import AddIcon from '@mui/icons-material/Add'
 import {
   Alert,
@@ -23,21 +38,6 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import {
-  DndContext,
-  type DragEndEvent,
-  KeyboardSensor,
-  PointerSensor,
-  closestCenter,
-  useSensor,
-  useSensors,
-} from '@dnd-kit/core'
-import {
-  SortableContext,
-  arrayMove,
-  sortableKeyboardCoordinates,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import {
   canDeleteExerciseAction,

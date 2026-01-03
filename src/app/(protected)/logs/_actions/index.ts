@@ -5,6 +5,7 @@ export {
   deleteTrainingAction,
   fetchExerciseHistoryAction,
   fetchLatestExerciseSetsAction,
+  checkTrainingExistsAction,
 } from './training'
 
 export {

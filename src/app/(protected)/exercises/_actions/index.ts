@@ -65,4 +65,3 @@ export async function deleteExerciseAction(exerciseId: number): Promise<void> {
   const userId = await getAuthenticatedUserId()
   return exerciseService.deleteExercise(userId, exerciseId)
 }
-

@@ -1,6 +1,7 @@
 'use client'
 
 import type { TrainingSummary } from '@/server/domain/entities'
+import type { Training } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
 import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos'
@@ -15,7 +16,6 @@ import {
   Stack,
   Typography,
 } from '@mui/material'
-import type { Training } from '@/server/domain/entities'
 import { useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 import { deleteTrainingAction, fetchTrainingByDateAction, fetchTrainingsAction } from './_actions'
 import LogInputModal from './_components/LogInputModal'
@@ -123,9 +123,18 @@ export default function LogsPage() {
     setModalOpen(true)
   }
 
-  // 保存完了時
-  const handleSaved = () => {
-    loadData()
+  // 保存完了時（日付が変更された場合は表示月も更新）
+  const handleSaved = (savedDate: Date) => {
+    const savedMonth = new Date(savedDate.getFullYear(), savedDate.getMonth(), 1)
+    const currentMonthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
+
+    // 保存された日付の月が現在表示中の月と異なる場合、表示月を変更
+    if (savedMonth.getTime() !== currentMonthStart.getTime()) {
+      setCurrentMonth(savedMonth)
+    } else {
+      loadData()
+    }
+
     setSnackbar({
       open: true,
       message: '保存しました',
@@ -190,7 +199,7 @@ export default function LogsPage() {
           setInitialSets(undefined)
         }}
         onSaved={handleSaved}
-        date={selectedDate}
+        initialDate={selectedDate}
         initialSets={initialSets}
       />
 

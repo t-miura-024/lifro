@@ -4,6 +4,7 @@ import type { Exercise, LatestExerciseSets } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import {
+  Alert,
   Box,
   Button,
   Dialog,
@@ -27,8 +28,14 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { DatePicker } from '@mui/x-date-pickers/DatePicker'
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import dayjs, { type Dayjs } from 'dayjs'
+import 'dayjs/locale/ja'
 import { useEffect, useState, useTransition } from 'react'
 import {
+  checkTrainingExistsAction,
   deleteTrainingAction,
   fetchLatestExerciseSetsAction,
   getExercisesAction,
@@ -55,8 +62,8 @@ export type ExerciseGroup = {
 type Props = {
   open: boolean
   onClose: () => void
-  onSaved: () => void
-  date: Date
+  onSaved: (savedDate: Date) => void
+  initialDate: Date
   initialSets?: SetFormData[]
 }
 
@@ -88,16 +95,26 @@ const formatDelta = (current: number, previous: number | null) => {
   return { text: '±0', color: 'text.disabled' }
 }
 
-export default function LogInputModal({ open, onClose, onSaved, date, initialSets }: Props) {
+export default function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Props) {
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([emptyExerciseGroup()])
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [isPending, startTransition] = useTransition()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs(initialDate))
+  const [dateError, setDateError] = useState<string | null>(null)
+  const today = dayjs()
+
+  // モーダルが開いたときに日付を初期化
+  useEffect(() => {
+    if (open) {
+      setSelectedDate(dayjs(initialDate))
+    }
+  }, [open, initialDate])
 
   // 種目リストを取得し、初期データを種目単位でグルーピング
   useEffect(() => {
     if (open) {
-      const excludeDateStr = date.toISOString().split('T')[0]
+      const excludeDateStr = selectedDate.format('YYYY-MM-DD')
       getExercisesAction().then(setExercises)
       if (initialSets && initialSets.length > 0) {
         // 種目単位でグルーピング
@@ -138,14 +155,14 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         setExerciseGroups([emptyExerciseGroup()])
       }
     }
-  }, [open, initialSets, date])
+  }, [open, initialSets, selectedDate])
 
   // 種目変更時に前回値を取得
   const handleExerciseChange = async (groupIndex: number, exerciseId: number | null) => {
     const newGroups = [...exerciseGroups]
     const group = newGroups[groupIndex]
     const exercise = exercises.find((e) => e.id === exerciseId)
-    const excludeDateStr = date.toISOString().split('T')[0]
+    const excludeDateStr = selectedDate.format('YYYY-MM-DD')
 
     if (exercise) {
       group.exerciseId = exercise.id
@@ -212,6 +229,9 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
 
   const handleSave = () => {
     startTransition(async () => {
+      // エラーをクリア
+      setDateError(null)
+
       // 全グループから有効なセットを収集
       const allSets: SetFormData[] = []
       for (const group of exerciseGroups) {
@@ -222,6 +242,20 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
 
       if (allSets.length === 0) {
         return
+      }
+
+      const dateStr = selectedDate.format('YYYY-MM-DD')
+      const initialDateStr = dayjs(initialDate).format('YYYY-MM-DD')
+
+      // 日付が変更された場合、変更先に既存データがないかチェック
+      if (dateStr !== initialDateStr) {
+        const exists = await checkTrainingExistsAction(dateStr)
+        if (exists) {
+          setDateError(
+            `${selectedDate.format('YYYY年M月D日')} には既にトレーニング記録があります。別の日付を選択してください。`,
+          )
+          return
+        }
       }
 
       const setsToSave = allSets.map((s, index) => {
@@ -238,9 +272,8 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         }
       })
 
-      const dateStr = date.toISOString().split('T')[0]
       await upsertTrainingAction(dateStr, setsToSave)
-      onSaved()
+      onSaved(selectedDate.toDate())
       onClose()
     })
   }
@@ -251,10 +284,10 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
 
   const handleDeleteConfirm = () => {
     startTransition(async () => {
-      const dateStr = date.toISOString().split('T')[0]
+      const dateStr = selectedDate.format('YYYY-MM-DD')
       await deleteTrainingAction(dateStr)
       setDeleteConfirmOpen(false)
-      onSaved()
+      onSaved(selectedDate.toDate())
       onClose()
     })
   }
@@ -265,14 +298,8 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
   // 種目が0件の場合の判定
   const hasNoExercises = exercises.length === 0
 
-  const dateStr = date.toLocaleDateString('ja-JP', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
-
   return (
-    <>
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ja">
       <Dialog
         open={open}
         onClose={onClose}
@@ -284,9 +311,28 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
       >
         <DialogTitle>
           <Box display="flex" justifyContent="space-between" alignItems="center">
-            <Typography variant="h6" component="span">
-              {dateStr}
-            </Typography>
+            <DatePicker
+              value={selectedDate}
+              onChange={(newDate) => {
+                if (newDate) {
+                  setSelectedDate(newDate)
+                  setDateError(null)
+                }
+              }}
+              maxDate={today}
+              format="YYYY年M月D日"
+              slotProps={{
+                textField: {
+                  variant: 'standard',
+                  sx: {
+                    '& .MuiInputBase-input': {
+                      fontSize: '1.25rem',
+                      fontWeight: 500,
+                    },
+                  },
+                },
+              }}
+            />
             {hasExistingData && (
               <IconButton
                 onClick={handleDelete}
@@ -300,6 +346,11 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         </DialogTitle>
         <DialogContent dividers>
           <Stack spacing={3}>
+            {dateError && (
+              <Alert severity="error" onClose={() => setDateError(null)}>
+                {dateError}
+              </Alert>
+            )}
             {exerciseGroups.map((group, groupIndex) => {
               const totalVolume = group.sets.reduce((sum, set) => {
                 const weight = Number.parseFloat(set.weight) || 0
@@ -641,7 +692,7 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
         <DialogTitle>削除の確認</DialogTitle>
         <DialogContent>
           <Typography>
-            {dateStr} の記録を全て削除しますか？
+            {selectedDate.format('YYYY年M月D日')} の記録を全て削除しますか？
             <br />
             この操作は取り消せません。
           </Typography>
@@ -660,6 +711,6 @@ export default function LogInputModal({ open, onClose, onSaved, date, initialSet
           </Button>
         </DialogActions>
       </Dialog>
-    </>
+    </LocalizationProvider>
   )
 }

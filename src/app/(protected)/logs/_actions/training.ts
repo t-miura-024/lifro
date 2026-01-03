@@ -85,3 +85,13 @@ export async function fetchLatestExerciseSetsAction(
   const excludeDate = excludeDateStr ? new Date(excludeDateStr) : undefined
   return trainingService.getLatestExerciseSets(userId, exerciseId, excludeDate)
 }
+
+/**
+ * 指定日にトレーニングが存在するかチェック
+ */
+export async function checkTrainingExistsAction(dateStr: string): Promise<boolean> {
+  const userId = await getAuthenticatedUserId()
+  const date = new Date(dateStr)
+  const training = await trainingService.getTrainingByDate(userId, date)
+  return training !== null && training.sets.length > 0
+}

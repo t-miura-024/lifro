@@ -4,13 +4,7 @@ import BarChartIcon from '@mui/icons-material/BarChart'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import ListAltIcon from '@mui/icons-material/ListAlt'
 import SettingsIcon from '@mui/icons-material/Settings'
-import {
-  BottomNavigation,
-  BottomNavigationAction,
-  Box,
-  Container,
-  Paper,
-} from '@mui/material'
+import { BottomNavigation, BottomNavigationAction, Box, Container, Paper } from '@mui/material'
 import { usePathname, useRouter } from 'next/navigation'
 
 const navItems = [

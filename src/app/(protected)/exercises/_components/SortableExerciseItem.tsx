@@ -1,12 +1,12 @@
 'use client'
 
 import type { Exercise } from '@/server/domain/entities'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import EditIcon from '@mui/icons-material/Edit'
 import { IconButton, Stack, TableCell, TableRow, Typography } from '@mui/material'
-import { useSortable } from '@dnd-kit/sortable'
-import { CSS } from '@dnd-kit/utilities'
 
 type Props = {
   exercise: Exercise
