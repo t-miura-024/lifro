@@ -8,8 +8,8 @@ import { BottomNavigation, BottomNavigationAction, Box, Container, Paper } from 
 import { usePathname, useRouter } from 'next/navigation'
 
 const navItems = [
-  { label: 'ログ', icon: <FitnessCenterIcon />, path: '/logs' },
   { label: '種目', icon: <ListAltIcon />, path: '/exercises' },
+  { label: 'ログ', icon: <FitnessCenterIcon />, path: '/logs' },
   { label: '統計', icon: <BarChartIcon />, path: '/statistics' },
   { label: '設定', icon: <SettingsIcon />, path: '/settings' },
 ]
