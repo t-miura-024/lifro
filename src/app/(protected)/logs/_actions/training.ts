@@ -98,6 +98,25 @@ export async function fetchLatestExerciseSetsAction(
 }
 
 /**
+ * 複数種目の直近実施日の全セットを一括取得
+ * @param excludeDateStr 除外する日付（この日付のセットは対象外）
+ */
+export async function fetchLatestExerciseSetsMultipleAction(
+  exerciseIds: number[],
+  excludeDateStr?: string,
+): Promise<Record<number, LatestExerciseSets>> {
+  const userId = await getAuthenticatedUserId()
+  const excludeDate = excludeDateStr ? new Date(excludeDateStr) : undefined
+  const resultMap = await trainingService.getLatestExerciseSetsMultiple(
+    userId,
+    exerciseIds,
+    excludeDate,
+  )
+  // MapをRecordに変換（Server Actionの戻り値としてシリアライズ可能にする）
+  return Object.fromEntries(resultMap)
+}
+
+/**
  * 指定日にトレーニングが存在するかチェック
  */
 export async function checkTrainingExistsAction(dateStr: string): Promise<boolean> {

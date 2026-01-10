@@ -58,6 +58,16 @@ export interface ITrainingRepository {
   ): Promise<LatestExerciseSets | null>
 
   /**
+   * 複数種目の直近実施日の全セットを一括取得
+   * @param excludeDate 除外する日付（この日付のセットは対象外）
+   */
+  getLatestExerciseSetsMultiple(
+    userId: number,
+    exerciseIds: number[],
+    excludeDate?: Date,
+  ): Promise<Map<number, LatestExerciseSets>>
+
+  /**
    * セット情報が存在する年月の一覧を取得（降順）
    */
   getAvailableYearMonths(userId: number): Promise<YearMonth[]>

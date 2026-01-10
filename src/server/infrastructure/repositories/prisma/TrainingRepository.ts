@@ -230,29 +230,76 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     }
   }
 
-  async getAvailableYearMonths(userId: number): Promise<YearMonth[]> {
-    // セットが存在する日付を取得し、年月でグループ化
-    const dates = await prisma.set.findMany({
-      where: { userId },
-      select: { date: true },
-      distinct: ['date'],
-      orderBy: { date: 'desc' },
+  async getLatestExerciseSetsMultiple(
+    userId: number,
+    exerciseIds: number[],
+    excludeDate?: Date,
+  ): Promise<Map<number, LatestExerciseSets>> {
+    if (exerciseIds.length === 0) {
+      return new Map()
+    }
+
+    // 各種目の最新日付を取得するサブクエリを使用
+    // まず全種目の全セットを取得し、種目ごとに最新日付のものだけをフィルタ
+    const allSets = await prisma.set.findMany({
+      where: {
+        userId,
+        exerciseId: { in: exerciseIds },
+        ...(excludeDate && {
+          date: { not: excludeDate },
+        }),
+      },
+      include: {
+        exercise: true,
+      },
+      orderBy: [{ date: 'desc' }, { sortIndex: 'asc' }],
     })
 
-    // 年月でユニーク化（降順を維持）
-    const yearMonthSet = new Set<string>()
-    const result: YearMonth[] = []
-
-    for (const { date } of dates) {
-      const year = date.getFullYear()
-      const month = date.getMonth() + 1
-      const key = `${year}-${month}`
-      if (!yearMonthSet.has(key)) {
-        yearMonthSet.add(key)
-        result.push({ year, month })
+    // 種目ごとの最新日付を特定
+    const latestDateByExercise = new Map<number, Date>()
+    for (const set of allSets) {
+      if (!latestDateByExercise.has(set.exerciseId)) {
+        latestDateByExercise.set(set.exerciseId, set.date)
       }
     }
 
+    // 最新日付のセットのみをグルーピング
+    const result = new Map<number, LatestExerciseSets>()
+    for (const set of allSets) {
+      const latestDate = latestDateByExercise.get(set.exerciseId)
+      if (!latestDate || set.date.getTime() !== latestDate.getTime()) {
+        continue
+      }
+
+      if (!result.has(set.exerciseId)) {
+        result.set(set.exerciseId, {
+          exerciseId: set.exerciseId,
+          exerciseName: set.exercise.name,
+          date: set.date,
+          sets: [],
+        })
+      }
+      result.get(set.exerciseId)?.sets.push({
+        weight: set.weight,
+        reps: set.reps,
+        sortIndex: set.sortIndex,
+      })
+    }
+
+    return result
+  }
+
+  async getAvailableYearMonths(userId: number): Promise<YearMonth[]> {
+    // SQLの集計でDBレベルで年月をグループ化（データ転送量削減）
+    const result = await prisma.$queryRaw<{ year: number; month: number }[]>`
+      SELECT
+        EXTRACT(YEAR FROM date)::int AS year,
+        EXTRACT(MONTH FROM date)::int AS month
+      FROM sets
+      WHERE user_id = ${userId}
+      GROUP BY year, month
+      ORDER BY year DESC, month DESC
+    `
     return result
   }
 }

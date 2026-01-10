@@ -53,6 +53,8 @@ model Set {
 
     @@index([userId])
     @@index([exerciseId])
+    @@index([userId, date])
+    @@index([userId, exerciseId, date])
     @@map("sets")
 }
 

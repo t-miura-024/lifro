@@ -39,6 +39,7 @@ import {
   checkTrainingExistsAction,
   deleteTrainingAction,
   fetchLatestExerciseSetsAction,
+  fetchLatestExerciseSetsMultipleAction,
   fetchMemosByDateAction,
   getExercisesAction,
   saveMemosAction,
@@ -169,20 +170,22 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         }
         const groups = Array.from(grouped.values())
         setExerciseGroups(groups)
-        // 種目IDがある場合は前回の記録を取得（当日分は除外）
-        Promise.all(
-          groups.map(async (group) => {
-            if (group.exerciseId) {
-              const latestSets = await fetchLatestExerciseSetsAction(
-                group.exerciseId,
-                excludeDateStr,
-              )
-              group.latestSets = latestSets
-            }
-          }),
-        ).then(() => {
-          setExerciseGroups([...groups])
-        })
+        // 種目IDがある場合は前回の記録を一括取得（当日分は除外）
+        const exerciseIds = groups
+          .map((g) => g.exerciseId)
+          .filter((id): id is number => id !== null)
+        if (exerciseIds.length > 0) {
+          fetchLatestExerciseSetsMultipleAction(exerciseIds, excludeDateStr).then(
+            (latestSetsMap) => {
+              for (const group of groups) {
+                if (group.exerciseId && latestSetsMap[group.exerciseId]) {
+                  group.latestSets = latestSetsMap[group.exerciseId]
+                }
+              }
+              setExerciseGroups([...groups])
+            },
+          )
+        }
       } else {
         setExerciseGroups([emptyExerciseGroup()])
       }

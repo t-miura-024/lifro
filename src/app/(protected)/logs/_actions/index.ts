@@ -6,6 +6,7 @@ export {
   deleteTrainingAction,
   fetchExerciseHistoryAction,
   fetchLatestExerciseSetsAction,
+  fetchLatestExerciseSetsMultipleAction,
   checkTrainingExistsAction,
   fetchMemosByDateAction,
   saveMemosAction,
