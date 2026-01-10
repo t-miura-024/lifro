@@ -10,7 +10,6 @@ import {
   Stack,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
 } from '@mui/material'
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
@@ -89,9 +88,6 @@ export default function GlobalFilter({
       <Stack spacing={2}>
         {/* 時間粒度 */}
         <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            時間粒度
-          </Typography>
           <ToggleButtonGroup
             value={granularity}
             exclusive
@@ -107,9 +103,6 @@ export default function GlobalFilter({
 
         {/* 時間範囲 */}
         <Box>
-          <Typography variant="caption" color="text.secondary" sx={{ mb: 1, display: 'block' }}>
-            期間
-          </Typography>
           <FormControl fullWidth size="small">
             <Select
               value={timeRange.preset}

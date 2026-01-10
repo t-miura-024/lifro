@@ -232,10 +232,7 @@ export default function ExerciseList() {
         </Stack>
       </Backdrop>
 
-      <Stack direction="row" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5" component="h1" fontWeight={600}>
-          種目管理
-        </Typography>
+      <Stack direction="row" justifyContent="flex-end" alignItems="center" mb={2}>
         <Button
           variant="contained"
           color="primary"

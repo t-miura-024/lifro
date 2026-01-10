@@ -12,7 +12,7 @@ import type {
 } from '@/server/application/services/StatisticsService'
 import type { Exercise } from '@/server/domain/entities'
 import ScaleIcon from '@mui/icons-material/Scale'
-import { Box, CircularProgress, Grid, Stack, Tab, Tabs, Typography } from '@mui/material'
+import { Box, CircularProgress, Grid, Stack, Tab, Tabs } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import {
   fetchContinuityTabDataAction,
@@ -132,11 +132,7 @@ export default function StatisticsPage() {
   }
 
   return (
-    <Stack spacing={3}>
-      <Typography variant="h5" fontWeight={700}>
-        統計
-      </Typography>
-
+    <Stack spacing={1}>
       {/* グローバルフィルター */}
       <GlobalFilter
         granularity={granularity}
@@ -146,7 +142,7 @@ export default function StatisticsPage() {
       />
 
       {/* タブ */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
+      <Box sx={{ borderBottom: 1, borderColor: 'divider', mt: 1.5, mb: 1 }}>
         <Tabs value={activeTab} onChange={handleTabChange} variant="fullWidth">
           <Tab label="ボリューム" />
           <Tab label="重量" />
@@ -163,7 +159,7 @@ export default function StatisticsPage() {
         <>
           {/* ボリュームタブ */}
           {activeTab === 0 && (
-            <Stack spacing={2}>
+            <Stack spacing={2} sx={{ mt: 2 }}>
               {/* KPIカード */}
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12 }}>

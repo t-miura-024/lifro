@@ -34,10 +34,6 @@ export default function SettingsPage() {
 
   return (
     <Stack spacing={3}>
-      <Typography variant="h5" fontWeight={700}>
-        設定
-      </Typography>
-
       {/* ユーザー情報 */}
       <Paper variant="outlined">
         <Box p={3}>
