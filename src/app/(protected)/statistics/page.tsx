@@ -12,7 +12,7 @@ import type {
 } from '@/server/application/services/StatisticsService'
 import type { Exercise } from '@/server/domain/entities'
 import ScaleIcon from '@mui/icons-material/Scale'
-import { Box, CircularProgress, Grid, Stack, Tab, Tabs } from '@mui/material'
+import { Box, Grid, Paper, Skeleton, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import {
   fetchContinuityTabDataAction,
@@ -131,6 +131,96 @@ export default function StatisticsPage() {
     setActiveTab(newValue)
   }
 
+  // StatsCardスケルトン
+  const renderStatsCardSkeleton = () => (
+    <Paper
+      variant="outlined"
+      sx={{
+        p: 2,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 2,
+      }}
+    >
+      <Skeleton variant="rounded" width={48} height={48} />
+      <Box>
+        <Skeleton variant="text" width={80} height={16} />
+        <Skeleton variant="text" width={100} height={32} />
+      </Box>
+    </Paper>
+  )
+
+  // リストスケルトン（種目別ボリュームなど）
+  const renderListSkeleton = (title: string) => (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Typography variant="subtitle2" gutterBottom>
+        {title}
+      </Typography>
+      <Stack spacing={1.5}>
+        {[1, 2, 3].map((i) => (
+          <Box key={i} sx={{ px: 1, py: 0.75 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.5 }}>
+              <Skeleton variant="text" width={120} />
+              <Skeleton variant="text" width={60} />
+            </Box>
+            <Skeleton variant="rounded" height={4} />
+            <Skeleton variant="text" width={40} height={16} sx={{ mt: 0.5 }} />
+          </Box>
+        ))}
+      </Stack>
+    </Paper>
+  )
+
+  // チャートスケルトン
+  const renderChartSkeleton = (title: string) => (
+    <Paper variant="outlined" sx={{ p: 2 }}>
+      <Typography variant="subtitle2" gutterBottom sx={{ pl: 1 }}>
+        {title}
+      </Typography>
+      <Skeleton variant="rounded" height={200} />
+    </Paper>
+  )
+
+  // ボリュームタブスケルトン
+  const renderVolumeTabSkeleton = () => (
+    <Stack spacing={2} sx={{ mt: 2 }}>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12 }}>{renderStatsCardSkeleton()}</Grid>
+      </Grid>
+      {renderListSkeleton('種目別ボリューム')}
+      {renderChartSkeleton('ボリューム推移')}
+    </Stack>
+  )
+
+  // 重量タブスケルトン
+  const renderWeightTabSkeleton = () => (
+    <Stack spacing={2}>
+      <Skeleton variant="rounded" height={40} />
+      {renderChartSkeleton('最大重量')}
+      {renderChartSkeleton('推定1RM')}
+    </Stack>
+  )
+
+  // 継続タブスケルトン
+  const renderContinuityTabSkeleton = () => (
+    <Stack spacing={2}>
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12 }}>{renderStatsCardSkeleton()}</Grid>
+        <Grid size={{ xs: 6 }}>{renderStatsCardSkeleton()}</Grid>
+        <Grid size={{ xs: 6 }}>{renderStatsCardSkeleton()}</Grid>
+      </Grid>
+      {renderChartSkeleton('トレーニング日数推移')}
+      {renderListSkeleton('種目別トレーニング日数')}
+    </Stack>
+  )
+
+  // 現在のタブに応じたスケルトンを表示
+  const renderSkeleton = () => {
+    if (activeTab === 0) return renderVolumeTabSkeleton()
+    if (activeTab === 1) return renderWeightTabSkeleton()
+    return renderContinuityTabSkeleton()
+  }
+
   return (
     <Stack spacing={1}>
       {/* グローバルフィルター */}
@@ -152,9 +242,7 @@ export default function StatisticsPage() {
 
       {/* タブコンテンツ */}
       {isLoading ? (
-        <Box display="flex" justifyContent="center" alignItems="center" minHeight={300}>
-          <CircularProgress />
-        </Box>
+        renderSkeleton()
       ) : (
         <>
           {/* ボリュームタブ */}

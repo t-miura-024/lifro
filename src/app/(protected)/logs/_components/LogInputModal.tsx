@@ -19,6 +19,7 @@ import {
   Paper,
   Select,
   type SelectChangeEvent,
+  Skeleton,
   Stack,
   Table,
   TableBody,
@@ -116,6 +117,7 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
   const [exercises, setExercises] = useState<Exercise[]>([])
   const [memos, setMemos] = useState<MemoFormData[]>([])
   const [isPending, startTransition] = useTransition()
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs(initialDate))
   const [dateError, setDateError] = useState<string | null>(null)
@@ -131,11 +133,16 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
   // 種目リストを取得し、初期データを種目単位でグルーピング
   useEffect(() => {
     if (open) {
+      setIsInitialLoading(true)
       const excludeDateStr = selectedDate.format('YYYY-MM-DD')
-      getExercisesAction().then(setExercises)
 
-      // メモを取得
-      fetchMemosByDateAction(excludeDateStr).then((fetchedMemos) => {
+      const loadData = async () => {
+        // 種目リストを取得
+        const exercisesData = await getExercisesAction()
+        setExercises(exercisesData)
+
+        // メモを取得
+        const fetchedMemos = await fetchMemosByDateAction(excludeDateStr)
         if (fetchedMemos.length > 0) {
           setMemos(
             fetchedMemos.map((m) => ({
@@ -147,48 +154,52 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         } else {
           setMemos([])
         }
-      })
 
-      if (initialSets && initialSets.length > 0) {
-        // 種目単位でグルーピング
-        const grouped = new Map<number | string, ExerciseGroup>()
-        for (const set of initialSets) {
-          const groupKey = set.exerciseId ?? (set.exerciseName || 'new')
-          if (!grouped.has(groupKey)) {
-            grouped.set(groupKey, {
-              key: `group-${Date.now()}-${groupKeyCounter++}`,
-              exerciseId: set.exerciseId,
-              exerciseName: set.exerciseName,
-              sets: [],
-              latestSets: null,
-            })
+        if (initialSets && initialSets.length > 0) {
+          // 種目単位でグルーピング
+          const grouped = new Map<number | string, ExerciseGroup>()
+          for (const set of initialSets) {
+            const groupKey = set.exerciseId ?? (set.exerciseName || 'new')
+            if (!grouped.has(groupKey)) {
+              grouped.set(groupKey, {
+                key: `group-${Date.now()}-${groupKeyCounter++}`,
+                exerciseId: set.exerciseId,
+                exerciseName: set.exerciseName,
+                sets: [],
+                latestSets: null,
+              })
+            }
+            const group = grouped.get(groupKey)
+            if (group) {
+              group.sets.push(set)
+            }
           }
-          const group = grouped.get(groupKey)
-          if (group) {
-            group.sets.push(set)
-          }
-        }
-        const groups = Array.from(grouped.values())
-        setExerciseGroups(groups)
-        // 種目IDがある場合は前回の記録を一括取得（当日分は除外）
-        const exerciseIds = groups
-          .map((g) => g.exerciseId)
-          .filter((id): id is number => id !== null)
-        if (exerciseIds.length > 0) {
-          fetchLatestExerciseSetsMultipleAction(exerciseIds, excludeDateStr).then(
-            (latestSetsMap) => {
-              for (const group of groups) {
-                if (group.exerciseId && latestSetsMap[group.exerciseId]) {
-                  group.latestSets = latestSetsMap[group.exerciseId]
-                }
+          const groups = Array.from(grouped.values())
+          setExerciseGroups(groups)
+          // 種目IDがある場合は前回の記録を一括取得（当日分は除外）
+          const exerciseIds = groups
+            .map((g) => g.exerciseId)
+            .filter((id): id is number => id !== null)
+          if (exerciseIds.length > 0) {
+            const latestSetsMap = await fetchLatestExerciseSetsMultipleAction(
+              exerciseIds,
+              excludeDateStr,
+            )
+            for (const group of groups) {
+              if (group.exerciseId && latestSetsMap[group.exerciseId]) {
+                group.latestSets = latestSetsMap[group.exerciseId]
               }
-              setExerciseGroups([...groups])
-            },
-          )
+            }
+            setExerciseGroups([...groups])
+          }
+        } else {
+          setExerciseGroups([emptyExerciseGroup()])
         }
-      } else {
-        setExerciseGroups([emptyExerciseGroup()])
+
+        setIsInitialLoading(false)
       }
+
+      loadData()
     }
   }, [open, initialSets, selectedDate])
 
@@ -350,6 +361,75 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
     })
   }
 
+  // スケルトンローディング表示
+  const renderExerciseGroupSkeleton = () => (
+    <Paper variant="outlined" sx={{ p: 2 }} style={{ marginTop: '12px' }}>
+      <Stack spacing={2}>
+        {/* 種目選択スケルトン */}
+        <Skeleton variant="rounded" height={40} />
+        {/* 前回日付スケルトン */}
+        <Skeleton variant="text" width={120} height={20} sx={{ mt: 1 }} />
+        {/* テーブルスケルトン */}
+        <TableContainer style={{ marginTop: '2px' }}>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell align="right" width={120}>
+                  重量 (kg)
+                </TableCell>
+                <TableCell align="right" width={100}>
+                  回数
+                </TableCell>
+                <TableCell align="right" width={120}>
+                  ボリューム
+                </TableCell>
+                <TableCell width={60} />
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {[1, 2, 3].map((i) => (
+                <TableRow key={i}>
+                  <TableCell sx={{ p: 1 }}>
+                    <Stack spacing={0.5}>
+                      <Skeleton variant="text" width="100%" height={24} />
+                      <Skeleton variant="text" width={40} height={16} sx={{ ml: 'auto' }} />
+                    </Stack>
+                  </TableCell>
+                  <TableCell sx={{ p: 1 }}>
+                    <Stack spacing={0.5}>
+                      <Skeleton variant="text" width="100%" height={24} />
+                      <Skeleton variant="text" width={30} height={16} sx={{ ml: 'auto' }} />
+                    </Stack>
+                  </TableCell>
+                  <TableCell align="right" sx={{ p: 1 }}>
+                    <Stack spacing={0.5} alignItems="flex-end">
+                      <Skeleton variant="text" width={60} height={24} />
+                      <Skeleton variant="text" width={40} height={16} />
+                    </Stack>
+                  </TableCell>
+                  <TableCell sx={{ p: 1 }}>
+                    <Skeleton variant="circular" width={28} height={28} />
+                  </TableCell>
+                </TableRow>
+              ))}
+              <TableRow>
+                <TableCell colSpan={2} align="right">
+                  <Typography variant="subtitle2">合計</Typography>
+                </TableCell>
+                <TableCell align="right">
+                  <Skeleton variant="text" width={60} height={24} sx={{ ml: 'auto' }} />
+                </TableCell>
+                <TableCell />
+              </TableRow>
+            </TableBody>
+          </Table>
+        </TableContainer>
+        {/* セット追加ボタンスケルトン */}
+        <Skeleton variant="text" width={100} height={24} sx={{ mx: 'auto' }} />
+      </Stack>
+    </Paper>
+  )
+
   // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
   const hasExistingData = initialSets?.some((set) => set.id !== undefined) ?? false
 
@@ -409,6 +489,15 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
                 {dateError}
               </Alert>
             )}
+            {isInitialLoading ? (
+              <>
+                {renderExerciseGroupSkeleton()}
+                <Skeleton variant="text" width={100} height={24} sx={{ mx: 'auto' }} />
+                <Divider sx={{ my: 2 }} />
+                <Skeleton variant="text" width={100} height={24} />
+              </>
+            ) : (
+              <>
             {exerciseGroups.map((group, groupIndex) => {
               const totalVolume = group.sets.reduce((sum, set) => {
                 const weight = Number.parseFloat(set.weight) || 0
@@ -769,13 +858,19 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
                 </Button>
               </Stack>
             </Box>
+              </>
+            )}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
-          <Button onClick={onClose} disabled={isPending}>
+          <Button onClick={onClose} disabled={isPending || isInitialLoading}>
             キャンセル
           </Button>
-          <Button variant="contained" onClick={handleSave} disabled={isPending}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={isPending || isInitialLoading}
+          >
             {isPending ? '保存中...' : '保存'}
           </Button>
         </DialogActions>

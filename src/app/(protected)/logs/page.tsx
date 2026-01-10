@@ -6,14 +6,20 @@ import {
   Alert,
   Box,
   Button,
-  CircularProgress,
   FormControl,
   MenuItem,
   Paper,
   Select,
   type SelectChangeEvent,
+  Skeleton,
   Snackbar,
   Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
   Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
@@ -161,12 +167,55 @@ export default function LogsPage() {
     })
   }
 
+  // スケルトンローディング表示
+  const renderSkeleton = () => (
+    <TableContainer component={Paper} variant="outlined">
+      <Table size="small">
+        <TableHead>
+          <TableRow>
+            <TableCell width={140}>日付</TableCell>
+            <TableCell>種目</TableCell>
+            <TableCell align="right" width={140}>
+              ボリューム
+            </TableCell>
+            <TableCell width={48} />
+          </TableRow>
+        </TableHead>
+        <TableBody>
+          {[1, 2, 3].map((i) => (
+            <TableRow key={i}>
+              <TableCell>
+                <Skeleton variant="text" width={80} />
+              </TableCell>
+              <TableCell>
+                <Stack direction="row" spacing={1}>
+                  <Skeleton variant="rounded" width={60} height={24} />
+                  <Skeleton variant="rounded" width={70} height={24} />
+                </Stack>
+              </TableCell>
+              <TableCell align="right">
+                <Skeleton variant="text" width={60} sx={{ ml: 'auto' }} />
+              </TableCell>
+              <TableCell>
+                <Skeleton variant="circular" width={24} height={24} />
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </TableContainer>
+  )
+
   // 初期ロード中
   if (isInitialLoading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-        <CircularProgress size={32} />
-      </Box>
+      <Stack spacing={2}>
+        <Box display="flex" justifyContent="space-between" alignItems="center" gap={1}>
+          <Skeleton variant="rounded" width={140} height={40} />
+          <Skeleton variant="rounded" width={44} height={44} />
+        </Box>
+        {renderSkeleton()}
+      </Stack>
     )
   }
 
@@ -202,19 +251,15 @@ export default function LogsPage() {
         </Button>
       </Box>
 
-      <Paper variant="outlined" sx={{ p: 0 }}>
-        {isLoading ? (
-          <Box display="flex" justifyContent="center" alignItems="center" p={4}>
-            <CircularProgress size={32} />
-          </Box>
-        ) : rows.length === 0 ? (
-          <Box p={4} textAlign="center">
-            <Typography color="text.secondary">この月のトレーニング記録はありません</Typography>
-          </Box>
-        ) : (
-          <LogsTable rows={rows} onRowClick={handleRowClick} />
-        )}
-      </Paper>
+      {isLoading ? (
+        renderSkeleton()
+      ) : rows.length === 0 ? (
+        <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>
+          <Typography color="text.secondary">この月のトレーニング記録はありません</Typography>
+        </Paper>
+      ) : (
+        <LogsTable rows={rows} onRowClick={handleRowClick} />
+      )}
 
       <LogInputModal
         open={modalOpen}
