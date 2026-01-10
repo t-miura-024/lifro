@@ -49,6 +49,22 @@ function getStartDateFromPreset(preset: string): Date {
 }
 
 /**
+ * 日付範囲を計算するヘルパー
+ */
+function calculateDateRange(
+  preset?: string,
+  customStartDate?: string,
+  customEndDate?: string,
+  defaultPreset = '1month',
+): { startDate: Date; endDate: Date } {
+  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
+  const startDate = customStartDate
+    ? dayjs(customStartDate).toDate()
+    : getStartDateFromPreset(preset || defaultPreset)
+  return { startDate, endDate }
+}
+
+/**
  * 統計サマリーを取得
  */
 export async function fetchStatsSummaryAction(): Promise<StatsSummary> {
@@ -65,7 +81,116 @@ export async function fetchExercisesForStatsAction(): Promise<Exercise[]> {
 }
 
 // ========================================
-// ボリュームタブ用アクション
+// 統合アクション（タブ単位）
+// ========================================
+
+/**
+ * ボリュームタブ用の統合データ
+ */
+export type VolumeTabData = {
+  totalVolume: number
+  volumeByExercise: ExerciseVolumeByPeriod[]
+  exerciseVolumeTotals: ExerciseVolumeTotal[]
+}
+
+/**
+ * ボリュームタブのデータを一括取得
+ */
+export async function fetchVolumeTabDataAction(
+  granularity: TimeGranularity,
+  preset?: string,
+  customStartDate?: string,
+  customEndDate?: string,
+): Promise<VolumeTabData> {
+  const userId = await getAuthenticatedUserId()
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
+
+  // 並列でデータを取得（重複クエリを解消）
+  const [volumeByExercise, exerciseVolumeTotals] = await Promise.all([
+    statisticsService.getVolumeByExercise(userId, startDate, endDate, granularity),
+    statisticsService.getExerciseVolumeTotals(userId, startDate, endDate),
+  ])
+
+  // totalVolumeはexerciseVolumeTotalsから計算（追加クエリ不要）
+  const totalVolume = exerciseVolumeTotals.reduce((sum, t) => sum + t.volume, 0)
+
+  return {
+    totalVolume,
+    volumeByExercise,
+    exerciseVolumeTotals,
+  }
+}
+
+/**
+ * 重量タブ用の統合データ
+ */
+export type WeightTabData = {
+  maxWeightHistory: MaxWeightRecord[]
+  oneRMHistory: OneRMRecord[]
+}
+
+/**
+ * 重量タブのデータを一括取得
+ */
+export async function fetchWeightTabDataAction(
+  exerciseId: number,
+  granularity: TimeGranularity,
+  preset?: string,
+  customStartDate?: string,
+  customEndDate?: string,
+): Promise<WeightTabData> {
+  const userId = await getAuthenticatedUserId()
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate, '3months')
+
+  // 並列でデータを取得
+  const [maxWeightHistory, oneRMHistory] = await Promise.all([
+    statisticsService.getMaxWeightHistory(userId, exerciseId, startDate, endDate, granularity),
+    statisticsService.getOneRMHistory(userId, exerciseId, startDate, endDate, granularity),
+  ])
+
+  return {
+    maxWeightHistory,
+    oneRMHistory,
+  }
+}
+
+/**
+ * 継続タブ用の統合データ
+ */
+export type ContinuityTabData = {
+  stats: ContinuityStats
+  daysByPeriod: TrainingDaysByPeriod[]
+  exerciseDays: ExerciseTrainingDays[]
+}
+
+/**
+ * 継続タブのデータを一括取得
+ */
+export async function fetchContinuityTabDataAction(
+  granularity: TimeGranularity,
+  preset?: string,
+  customStartDate?: string,
+  customEndDate?: string,
+): Promise<ContinuityTabData> {
+  const userId = await getAuthenticatedUserId()
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
+
+  // 並列でデータを取得
+  const [stats, daysByPeriod, exerciseDays] = await Promise.all([
+    statisticsService.getContinuityStats(userId, startDate, endDate),
+    statisticsService.getTrainingDaysByPeriod(userId, startDate, endDate, granularity),
+    statisticsService.getExerciseTrainingDays(userId, startDate, endDate),
+  ])
+
+  return {
+    stats,
+    daysByPeriod,
+    exerciseDays,
+  }
+}
+
+// ========================================
+// 個別アクション（後方互換性のため残す）
 // ========================================
 
 /**
@@ -78,11 +203,7 @@ export async function fetchVolumeByExerciseAction(
   customEndDate?: string,
 ): Promise<ExerciseVolumeByPeriod[]> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '1month')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
   return statisticsService.getVolumeByExercise(userId, startDate, endDate, granularity)
 }
 
@@ -95,11 +216,7 @@ export async function fetchExerciseVolumeTotalsAction(
   customEndDate?: string,
 ): Promise<ExerciseVolumeTotal[]> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '1month')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
   return statisticsService.getExerciseVolumeTotals(userId, startDate, endDate)
 }
 
@@ -112,18 +229,10 @@ export async function fetchTotalVolumeAction(
   customEndDate?: string,
 ): Promise<number> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '1month')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
   const totals = await statisticsService.getExerciseVolumeTotals(userId, startDate, endDate)
   return totals.reduce((sum, t) => sum + t.volume, 0)
 }
-
-// ========================================
-// 重量タブ用アクション
-// ========================================
 
 /**
  * 種目別の最大重量推移を取得
@@ -136,11 +245,7 @@ export async function fetchMaxWeightHistoryAction(
   customEndDate?: string,
 ): Promise<MaxWeightRecord[]> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '3months')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate, '3months')
   return statisticsService.getMaxWeightHistory(userId, exerciseId, startDate, endDate, granularity)
 }
 
@@ -155,17 +260,9 @@ export async function fetchOneRMHistoryAction(
   customEndDate?: string,
 ): Promise<OneRMRecord[]> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '3months')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate, '3months')
   return statisticsService.getOneRMHistory(userId, exerciseId, startDate, endDate, granularity)
 }
-
-// ========================================
-// 継続タブ用アクション
-// ========================================
 
 /**
  * 継続統計を取得（日数、連続週数、連続月数）
@@ -176,11 +273,7 @@ export async function fetchContinuityStatsAction(
   customEndDate?: string,
 ): Promise<ContinuityStats> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '1month')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
   return statisticsService.getContinuityStats(userId, startDate, endDate)
 }
 
@@ -194,11 +287,7 @@ export async function fetchTrainingDaysByPeriodAction(
   customEndDate?: string,
 ): Promise<TrainingDaysByPeriod[]> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '1month')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
   return statisticsService.getTrainingDaysByPeriod(userId, startDate, endDate, granularity)
 }
 
@@ -211,10 +300,6 @@ export async function fetchExerciseTrainingDaysAction(
   customEndDate?: string,
 ): Promise<ExerciseTrainingDays[]> {
   const userId = await getAuthenticatedUserId()
-  const endDate = customEndDate ? dayjs(customEndDate).toDate() : dayjs().toDate()
-  const startDate = customStartDate
-    ? dayjs(customStartDate).toDate()
-    : getStartDateFromPreset(preset || '1month')
-
+  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate)
   return statisticsService.getExerciseTrainingDays(userId, startDate, endDate)
 }

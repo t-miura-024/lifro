@@ -15,15 +15,10 @@ import ScaleIcon from '@mui/icons-material/Scale'
 import { Box, CircularProgress, Grid, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
 import {
-  fetchContinuityStatsAction,
-  fetchExerciseTrainingDaysAction,
-  fetchExerciseVolumeTotalsAction,
+  fetchContinuityTabDataAction,
   fetchExercisesForStatsAction,
-  fetchMaxWeightHistoryAction,
-  fetchOneRMHistoryAction,
-  fetchTotalVolumeAction,
-  fetchTrainingDaysByPeriodAction,
-  fetchVolumeByExerciseAction,
+  fetchVolumeTabDataAction,
+  fetchWeightTabDataAction,
 } from './_actions'
 import ContinuityTab from './_components/ContinuityTab'
 import ExerciseVolumeList from './_components/ExerciseVolumeList'
@@ -65,42 +60,42 @@ export default function StatisticsPage() {
     }
   }, [selectedExerciseId])
 
-  // ボリュームタブのデータ取得
+  // ボリュームタブのデータ取得（統合アクション使用）
   const loadVolumeData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const [total, byExercise, totals] = await Promise.all([
-      fetchTotalVolumeAction(preset, customStartDate, customEndDate),
-      fetchVolumeByExerciseAction(granularity, preset, customStartDate, customEndDate),
-      fetchExerciseVolumeTotalsAction(preset, customStartDate, customEndDate),
-    ])
-    setTotalVolume(total)
-    setVolumeByExercise(byExercise)
-    setExerciseVolumeTotals(totals)
+    const data = await fetchVolumeTabDataAction(granularity, preset, customStartDate, customEndDate)
+    setTotalVolume(data.totalVolume)
+    setVolumeByExercise(data.volumeByExercise)
+    setExerciseVolumeTotals(data.exerciseVolumeTotals)
   }, [granularity, timeRange])
 
-  // 重量タブのデータ取得
+  // 重量タブのデータ取得（統合アクション使用）
   const loadWeightData = useCallback(async () => {
     if (!selectedExerciseId) return
     const { preset, customStartDate, customEndDate } = timeRange
-    const [maxWeight, oneRM] = await Promise.all([
-      fetchMaxWeightHistoryAction(selectedExerciseId, granularity, preset, customStartDate, customEndDate),
-      fetchOneRMHistoryAction(selectedExerciseId, granularity, preset, customStartDate, customEndDate),
-    ])
-    setMaxWeightHistory(maxWeight)
-    setOneRMHistory(oneRM)
+    const data = await fetchWeightTabDataAction(
+      selectedExerciseId,
+      granularity,
+      preset,
+      customStartDate,
+      customEndDate,
+    )
+    setMaxWeightHistory(data.maxWeightHistory)
+    setOneRMHistory(data.oneRMHistory)
   }, [granularity, timeRange, selectedExerciseId])
 
-  // 継続タブのデータ取得
+  // 継続タブのデータ取得（統合アクション使用）
   const loadContinuityData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const [stats, daysByPeriod, exerciseDays] = await Promise.all([
-      fetchContinuityStatsAction(preset, customStartDate, customEndDate),
-      fetchTrainingDaysByPeriodAction(granularity, preset, customStartDate, customEndDate),
-      fetchExerciseTrainingDaysAction(preset, customStartDate, customEndDate),
-    ])
-    setContinuityStats(stats)
-    setTrainingDaysByPeriod(daysByPeriod)
-    setExerciseTrainingDays(exerciseDays)
+    const data = await fetchContinuityTabDataAction(
+      granularity,
+      preset,
+      customStartDate,
+      customEndDate,
+    )
+    setContinuityStats(data.stats)
+    setTrainingDaysByPeriod(data.daysByPeriod)
+    setExerciseTrainingDays(data.exerciseDays)
   }, [granularity, timeRange])
 
   // 初回ロード

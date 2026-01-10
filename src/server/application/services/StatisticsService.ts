@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/server/infrastructure/database/prisma/client'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
@@ -87,7 +88,21 @@ export class StatisticsService {
   }
 
   /**
-   * 期間内の全期間キーを生成
+   * PostgreSQL用の期間フォーマット文字列を取得（Prisma.rawで使用）
+   */
+  private getPeriodFormatSql(granularity: TimeGranularity): Prisma.Sql {
+    switch (granularity) {
+      case 'day':
+        return Prisma.raw("'YYYY-MM-DD'")
+      case 'week':
+        return Prisma.raw("'IYYY-\"W\"IW'")
+      case 'month':
+        return Prisma.raw("'YYYY-MM'")
+    }
+  }
+
+  /**
+   * 期間内の全期間キーを生成（最適化版）
    */
   private generatePeriodKeys(
     startDate: Date,
@@ -99,13 +114,16 @@ export class StatisticsService {
     const end = dayjs(endDate)
     const seen = new Set<string>()
 
+    // 粒度に応じたステップで進む
+    const step = granularity === 'day' ? 'day' : granularity === 'week' ? 'week' : 'month'
+
     while (current.isBefore(end) || current.isSame(end, 'day')) {
       const key = this.formatPeriodKey(current, granularity)
       if (!seen.has(key)) {
         seen.add(key)
         keys.push(key)
       }
-      current = current.add(1, 'day')
+      current = current.add(1, step)
     }
 
     return keys
@@ -113,6 +131,7 @@ export class StatisticsService {
 
   /**
    * 種目別ボリュームを期間ごとに取得（積み上げグラフ用）
+   * SQL集計版
    */
   async getVolumeByExercise(
     userId: number,
@@ -120,99 +139,83 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<ExerciseVolumeByPeriod[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      include: {
-        exercise: true,
-      },
-      orderBy: { date: 'asc' },
-    })
+    const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 期間 × 種目 でボリュームとセット数を集計
-    const volumeMap = new Map<string, { volume: number; setCount: number; exerciseName: string }>()
-    for (const set of sets) {
-      const periodKey = this.formatPeriodKey(dayjs(set.date), granularity)
-      const mapKey = `${periodKey}:${set.exerciseId}`
-      const existing = volumeMap.get(mapKey) || {
-        volume: 0,
-        setCount: 0,
-        exerciseName: set.exercise.name,
-      }
-      volumeMap.set(mapKey, {
-        volume: existing.volume + set.weight * set.reps,
-        setCount: existing.setCount + 1,
-        exerciseName: set.exercise.name,
-      })
-    }
+    const results = await prisma.$queryRaw<
+      Array<{
+        period: string
+        exercise_id: number
+        exercise_name: string
+        volume: number
+        set_count: bigint
+      }>
+    >`
+      SELECT
+        to_char(s.date, ${periodFormatSql}) as period,
+        s.exercise_id,
+        e.name as exercise_name,
+        SUM(s.weight * s.reps)::float as volume,
+        COUNT(*)::bigint as set_count
+      FROM sets s
+      JOIN exercises e ON e.id = s.exercise_id
+      WHERE s.user_id = ${userId}
+        AND s.date >= ${startDate}
+        AND s.date <= ${endDate}
+      GROUP BY 1, s.exercise_id, e.name
+      ORDER BY period ASC
+    `
 
-    const result: ExerciseVolumeByPeriod[] = []
-    for (const [mapKey, data] of volumeMap.entries()) {
-      const [period, exerciseIdStr] = mapKey.split(':')
-      result.push({
-        period,
-        exerciseId: Number(exerciseIdStr),
-        exerciseName: data.exerciseName,
-        volume: data.volume,
-        setCount: data.setCount,
-      })
-    }
-
-    return result.sort((a, b) => a.period.localeCompare(b.period))
+    return results.map((r) => ({
+      period: r.period,
+      exerciseId: r.exercise_id,
+      exerciseName: r.exercise_name,
+      volume: r.volume,
+      setCount: Number(r.set_count),
+    }))
   }
 
   /**
    * 種目別ボリューム合計を取得（リスト用、ボリューム降順）
+   * SQL集計版
    */
   async getExerciseVolumeTotals(
     userId: number,
     startDate: Date,
     endDate: Date,
   ): Promise<ExerciseVolumeTotal[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      include: {
-        exercise: true,
-      },
-    })
+    const results = await prisma.$queryRaw<
+      Array<{
+        exercise_id: number
+        exercise_name: string
+        volume: number
+        set_count: bigint
+      }>
+    >`
+      SELECT
+        s.exercise_id,
+        e.name as exercise_name,
+        SUM(s.weight * s.reps)::float as volume,
+        COUNT(*)::bigint as set_count
+      FROM sets s
+      JOIN exercises e ON e.id = s.exercise_id
+      WHERE s.user_id = ${userId}
+        AND s.date >= ${startDate}
+        AND s.date <= ${endDate}
+      GROUP BY s.exercise_id, e.name
+      ORDER BY volume DESC
+    `
 
-    const volumeMap = new Map<number, { volume: number; setCount: number; exerciseName: string }>()
-    for (const set of sets) {
-      const existing = volumeMap.get(set.exerciseId) || {
-        volume: 0,
-        setCount: 0,
-        exerciseName: set.exercise.name,
-      }
-      volumeMap.set(set.exerciseId, {
-        volume: existing.volume + set.weight * set.reps,
-        setCount: existing.setCount + 1,
-        exerciseName: set.exercise.name,
-      })
-    }
-
-    return Array.from(volumeMap.entries())
-      .map(([exerciseId, data]) => ({
-        exerciseId,
-        exerciseName: data.exerciseName,
-        volume: data.volume,
-        setCount: data.setCount,
-      }))
-      .sort((a, b) => b.volume - a.volume)
+    return results.map((r) => ({
+      exerciseId: r.exercise_id,
+      exerciseName: r.exercise_name,
+      volume: r.volume,
+      setCount: Number(r.set_count),
+    }))
   }
 
   /**
    * 期間ごとの合計ボリュームを取得
+   * SQL集計版
    */
   async getVolumeByPeriod(
     userId: number,
@@ -220,23 +223,28 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<PeriodVolume[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      orderBy: { date: 'asc' },
-    })
+    const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 期間ごとにボリュームを集計
+    const results = await prisma.$queryRaw<
+      Array<{
+        period: string
+        volume: number
+      }>
+    >`
+      SELECT
+        to_char(date, ${periodFormatSql}) as period,
+        SUM(weight * reps)::float as volume
+      FROM sets
+      WHERE user_id = ${userId}
+        AND date >= ${startDate}
+        AND date <= ${endDate}
+      GROUP BY 1
+    `
+
+    // 結果をMapに変換
     const volumeMap = new Map<string, number>()
-    for (const set of sets) {
-      const periodKey = this.formatPeriodKey(dayjs(set.date), granularity)
-      const volume = set.weight * set.reps
-      volumeMap.set(periodKey, (volumeMap.get(periodKey) || 0) + volume)
+    for (const r of results) {
+      volumeMap.set(r.period, r.volume)
     }
 
     // 期間内の全期間キーを生成（データがない期間は 0）
@@ -249,6 +257,7 @@ export class StatisticsService {
 
   /**
    * 種目別の最大重量推移を取得
+   * SQL集計版
    */
   async getMaxWeightHistory(
     userId: number,
@@ -257,26 +266,30 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<MaxWeightRecord[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        exerciseId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      orderBy: { date: 'asc' },
-    })
+    const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 期間ごとの最大重量を集計
+    const results = await prisma.$queryRaw<
+      Array<{
+        period: string
+        max_weight: number
+      }>
+    >`
+      SELECT
+        to_char(date, ${periodFormatSql}) as period,
+        MAX(weight)::float as max_weight
+      FROM sets
+      WHERE user_id = ${userId}
+        AND exercise_id = ${exerciseId}
+        AND date >= ${startDate}
+        AND date <= ${endDate}
+      GROUP BY 1
+      ORDER BY period ASC
+    `
+
+    // 結果をMapに変換
     const maxWeightMap = new Map<string, number>()
-    for (const set of sets) {
-      const periodKey = this.formatPeriodKey(dayjs(set.date), granularity)
-      const currentMax = maxWeightMap.get(periodKey) || 0
-      if (set.weight > currentMax) {
-        maxWeightMap.set(periodKey, set.weight)
-      }
+    for (const r of results) {
+      maxWeightMap.set(r.period, r.max_weight)
     }
 
     // 期間内の全期間キーを生成
@@ -295,6 +308,7 @@ export class StatisticsService {
   /**
    * 種目別の1RM推移を取得
    * 1RM = weight × (1 + reps / 29.5)
+   * SQL集計版
    */
   async getOneRMHistory(
     userId: number,
@@ -303,27 +317,30 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<OneRMRecord[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        exerciseId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      orderBy: { date: 'asc' },
-    })
+    const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 期間ごとの最大1RMを集計
+    const results = await prisma.$queryRaw<
+      Array<{
+        period: string
+        max_one_rm: number
+      }>
+    >`
+      SELECT
+        to_char(date, ${periodFormatSql}) as period,
+        MAX(weight * (1 + reps / 29.5))::float as max_one_rm
+      FROM sets
+      WHERE user_id = ${userId}
+        AND exercise_id = ${exerciseId}
+        AND date >= ${startDate}
+        AND date <= ${endDate}
+      GROUP BY 1
+      ORDER BY period ASC
+    `
+
+    // 結果をMapに変換
     const oneRMMap = new Map<string, number>()
-    for (const set of sets) {
-      const periodKey = this.formatPeriodKey(dayjs(set.date), granularity)
-      const oneRM = set.weight * (1 + set.reps / 29.5)
-      const currentMax = oneRMMap.get(periodKey) || 0
-      if (oneRM > currentMax) {
-        oneRMMap.set(periodKey, oneRM)
-      }
+    for (const r of results) {
+      oneRMMap.set(r.period, r.max_one_rm)
     }
 
     // 期間内の全期間キーを生成
@@ -341,15 +358,27 @@ export class StatisticsService {
 
   /**
    * 統計サマリーを取得
+   * SQL集計版
    */
   async getSummary(userId: number): Promise<StatsSummary> {
-    // 全セット取得
-    const sets = await prisma.set.findMany({
-      where: { userId },
-      orderBy: { date: 'desc' },
-    })
+    // 集計クエリ
+    const statsResult = await prisma.$queryRaw<
+      Array<{
+        total_volume: number | null
+        total_sets: bigint
+        total_workouts: bigint
+      }>
+    >`
+      SELECT
+        SUM(weight * reps)::float as total_volume,
+        COUNT(*)::bigint as total_sets,
+        COUNT(DISTINCT date)::bigint as total_workouts
+      FROM sets
+      WHERE user_id = ${userId}
+    `
 
-    if (sets.length === 0) {
+    const stats = statsResult[0]
+    if (!stats || stats.total_sets === BigInt(0)) {
       return {
         totalVolume: 0,
         totalSets: 0,
@@ -359,24 +388,21 @@ export class StatisticsService {
       }
     }
 
-    // 総ボリューム
-    const totalVolume = sets.reduce((sum, s) => sum + s.weight * s.reps, 0)
+    // ストリーク計算用に日付のみ取得
+    const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
+      SELECT DISTINCT date
+      FROM sets
+      WHERE user_id = ${userId}
+      ORDER BY date DESC
+    `
 
-    // 総セット数
-    const totalSets = sets.length
-
-    // ユニークな日付数 = トレーニング日数
-    const uniqueDates = new Set(sets.map((s) => dayjs(s.date).format('YYYY-MM-DD')))
-    const totalWorkouts = uniqueDates.size
-
-    // 継続日数の計算
-    const sortedDates = Array.from(uniqueDates).sort().reverse()
+    const sortedDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
     const { currentStreak, maxStreak } = this.calculateStreaks(sortedDates)
 
     return {
-      totalVolume,
-      totalSets,
-      totalWorkouts,
+      totalVolume: stats.total_volume || 0,
+      totalSets: Number(stats.total_sets),
+      totalWorkouts: Number(stats.total_workouts),
       currentStreak,
       maxStreak,
     }
@@ -384,19 +410,21 @@ export class StatisticsService {
 
   /**
    * 継続統計を取得（日数、連続週数、連続月数）
+   * SQL集計版（二重クエリ問題を修正）
    */
   async getContinuityStats(userId: number, startDate: Date, endDate: Date): Promise<ContinuityStats> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    })
+    // 期間内のユニーク日数を取得
+    const totalDaysResult = await prisma.$queryRaw<Array<{ total_days: bigint }>>`
+      SELECT COUNT(DISTINCT date)::bigint as total_days
+      FROM sets
+      WHERE user_id = ${userId}
+        AND date >= ${startDate}
+        AND date <= ${endDate}
+    `
 
-    if (sets.length === 0) {
+    const totalDays = Number(totalDaysResult[0]?.total_days || 0)
+
+    if (totalDays === 0) {
       return {
         totalDays: 0,
         currentStreakWeeks: 0,
@@ -404,16 +432,17 @@ export class StatisticsService {
       }
     }
 
-    // ユニークな日付
-    const uniqueDates = new Set(sets.map((s) => dayjs(s.date).format('YYYY-MM-DD')))
-    const totalDays = uniqueDates.size
+    // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
+    const oneYearAgo = dayjs().subtract(1, 'year').toDate()
+    const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
+      SELECT DISTINCT date
+      FROM sets
+      WHERE user_id = ${userId}
+        AND date >= ${oneYearAgo}
+      ORDER BY date DESC
+    `
 
-    // 全期間のデータを取得して週/月の連続を計算
-    const allSets = await prisma.set.findMany({
-      where: { userId },
-    })
-
-    const allUniqueDates = new Set(allSets.map((s) => dayjs(s.date).format('YYYY-MM-DD')))
+    const allUniqueDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
 
     // 週ごとのトレーニング有無
     const weeksWithTraining = new Set<string>()
@@ -447,6 +476,7 @@ export class StatisticsService {
 
   /**
    * 期間ごとのトレーニング日数を取得（グラフ用）
+   * SQL集計版
    */
   async getTrainingDaysByPeriod(
     userId: number,
@@ -454,75 +484,72 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<TrainingDaysByPeriod[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-    })
+    const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 日付ごとにユニークにしてから期間ごとに日数をカウント
-    const uniqueDates = new Set(sets.map((s) => dayjs(s.date).format('YYYY-MM-DD')))
-    const daysMap = new Map<string, Set<string>>()
+    const results = await prisma.$queryRaw<
+      Array<{
+        period: string
+        days: bigint
+      }>
+    >`
+      SELECT
+        to_char(date, ${periodFormatSql}) as period,
+        COUNT(DISTINCT date)::bigint as days
+      FROM sets
+      WHERE user_id = ${userId}
+        AND date >= ${startDate}
+        AND date <= ${endDate}
+      GROUP BY 1
+    `
 
-    for (const dateStr of uniqueDates) {
-      const date = dayjs(dateStr)
-      const periodKey = this.formatPeriodKey(date, granularity)
-      if (!daysMap.has(periodKey)) {
-        daysMap.set(periodKey, new Set())
-      }
-      daysMap.get(periodKey)!.add(dateStr)
+    // 結果をMapに変換
+    const daysMap = new Map<string, number>()
+    for (const r of results) {
+      daysMap.set(r.period, Number(r.days))
     }
 
     // 期間内の全期間キーを生成
     const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
     return periodKeys.map((period) => ({
       period,
-      days: daysMap.get(period)?.size || 0,
+      days: daysMap.get(period) || 0,
     }))
   }
 
   /**
    * 種目別トレーニング日数を取得（リスト用、日数降順）
+   * SQL集計版
    */
   async getExerciseTrainingDays(
     userId: number,
     startDate: Date,
     endDate: Date,
   ): Promise<ExerciseTrainingDays[]> {
-    const sets = await prisma.set.findMany({
-      where: {
-        userId,
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      include: {
-        exercise: true,
-      },
-    })
+    const results = await prisma.$queryRaw<
+      Array<{
+        exercise_id: number
+        exercise_name: string
+        days: bigint
+      }>
+    >`
+      SELECT
+        s.exercise_id,
+        e.name as exercise_name,
+        COUNT(DISTINCT s.date)::bigint as days
+      FROM sets s
+      JOIN exercises e ON e.id = s.exercise_id
+      WHERE s.user_id = ${userId}
+        AND s.date >= ${startDate}
+        AND s.date <= ${endDate}
+      GROUP BY s.exercise_id, e.name
+      ORDER BY days DESC
+    `
 
-    // 種目ごとにユニークな日付をカウント
-    const exerciseDaysMap = new Map<number, { name: string; dates: Set<string> }>()
-    for (const set of sets) {
-      const dateStr = dayjs(set.date).format('YYYY-MM-DD')
-      if (!exerciseDaysMap.has(set.exerciseId)) {
-        exerciseDaysMap.set(set.exerciseId, { name: set.exercise.name, dates: new Set() })
-      }
-      exerciseDaysMap.get(set.exerciseId)!.dates.add(dateStr)
-    }
-
-    return Array.from(exerciseDaysMap.entries())
-      .map(([exerciseId, data]) => ({
-        exerciseId,
-        exerciseName: data.name,
-        days: data.dates.size,
-      }))
-      .sort((a, b) => b.days - a.days)
+    return results.map((r) => ({
+      exerciseId: r.exercise_id,
+      exerciseName: r.exercise_name,
+      days: Number(r.days),
+    }))
   }
 
   /**
