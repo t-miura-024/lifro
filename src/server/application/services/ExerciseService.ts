@@ -1,5 +1,6 @@
 import type { Exercise } from '@/server/domain/entities'
 import type { ExerciseSortOrderInput, IExerciseRepository } from '@/server/domain/repositories'
+import { cacheService } from '@/server/infrastructure/cache'
 import { exerciseRepository } from '@/server/infrastructure/repositories/prisma'
 
 export class ExerciseService {
@@ -9,7 +10,8 @@ export class ExerciseService {
    * ユーザーの全種目を取得（sortIndex順）
    */
   async getAllExercises(userId: number): Promise<Exercise[]> {
-    return this.repository.findAllByUserId(userId)
+    const cacheKey = cacheService.buildKey(userId, 'exercise', 'getAllExercises')
+    return cacheService.through(cacheKey, () => this.repository.findAllByUserId(userId))
   }
 
   /**
@@ -17,9 +19,10 @@ export class ExerciseService {
    */
   async searchExercises(userId: number, query: string): Promise<Exercise[]> {
     if (!query.trim()) {
-      return this.repository.findAllByUserId(userId)
+      return this.getAllExercises(userId)
     }
-    return this.repository.searchByName(userId, query)
+    const cacheKey = cacheService.buildKey(userId, 'exercise', 'searchExercises', query)
+    return cacheService.through(cacheKey, () => this.repository.searchByName(userId, query))
   }
 
   /**
@@ -30,7 +33,10 @@ export class ExerciseService {
     if (!trimmedName) {
       throw new Error('種目名は必須です')
     }
-    return this.repository.create(userId, trimmedName)
+    const result = await this.repository.create(userId, trimmedName)
+    // キャッシュを無効化
+    await cacheService.invalidateUserDomain(userId, 'exercise')
+    return result
   }
 
   /**
@@ -41,14 +47,19 @@ export class ExerciseService {
     if (!trimmedName) {
       throw new Error('種目名は必須です')
     }
-    return this.repository.update(userId, exerciseId, trimmedName)
+    const result = await this.repository.update(userId, exerciseId, trimmedName)
+    // キャッシュを無効化
+    await cacheService.invalidateUserDomain(userId, 'exercise')
+    return result
   }
 
   /**
    * 種目の並び順を更新
    */
   async updateSortOrder(userId: number, exercises: ExerciseSortOrderInput[]): Promise<void> {
-    return this.repository.updateSortOrder(userId, exercises)
+    await this.repository.updateSortOrder(userId, exercises)
+    // キャッシュを無効化
+    await cacheService.invalidateUserDomain(userId, 'exercise')
   }
 
   /**
@@ -64,7 +75,9 @@ export class ExerciseService {
    * 種目を削除
    */
   async deleteExercise(userId: number, exerciseId: number): Promise<void> {
-    return this.repository.delete(userId, exerciseId)
+    await this.repository.delete(userId, exerciseId)
+    // キャッシュを無効化
+    await cacheService.invalidateUserDomain(userId, 'exercise')
   }
 }
 

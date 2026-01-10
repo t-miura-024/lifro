@@ -8,15 +8,7 @@ import type {
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import DateRangeIcon from '@mui/icons-material/DateRange'
 import EventRepeatIcon from '@mui/icons-material/EventRepeat'
-import {
-  Box,
-  Grid,
-  List,
-  ListItem,
-  Paper,
-  Stack,
-  Typography,
-} from '@mui/material'
+import { Box, Grid, List, ListItem, Paper, Stack, Typography } from '@mui/material'
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import StatsCard from './StatsCard'
 
@@ -110,7 +102,12 @@ export default function ContinuityTab({ stats, daysByPeriod, exerciseDays }: Pro
                 tickLine={false}
                 axisLine={false}
               />
-              <YAxis tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
+              <YAxis
+                tick={{ fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+                allowDecimals={false}
+              />
               <Tooltip
                 formatter={(value) => [`${value}日`, 'トレーニング日数']}
                 labelFormatter={(label) => `${label}`}

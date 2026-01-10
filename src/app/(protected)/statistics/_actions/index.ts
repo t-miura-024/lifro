@@ -140,7 +140,12 @@ export async function fetchWeightTabDataAction(
   customEndDate?: string,
 ): Promise<WeightTabData> {
   const userId = await getAuthenticatedUserId()
-  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate, '3months')
+  const { startDate, endDate } = calculateDateRange(
+    preset,
+    customStartDate,
+    customEndDate,
+    '3months',
+  )
 
   // 並列でデータを取得
   const [maxWeightHistory, oneRMHistory] = await Promise.all([
@@ -245,7 +250,12 @@ export async function fetchMaxWeightHistoryAction(
   customEndDate?: string,
 ): Promise<MaxWeightRecord[]> {
   const userId = await getAuthenticatedUserId()
-  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate, '3months')
+  const { startDate, endDate } = calculateDateRange(
+    preset,
+    customStartDate,
+    customEndDate,
+    '3months',
+  )
   return statisticsService.getMaxWeightHistory(userId, exerciseId, startDate, endDate, granularity)
 }
 
@@ -260,7 +270,12 @@ export async function fetchOneRMHistoryAction(
   customEndDate?: string,
 ): Promise<OneRMRecord[]> {
   const userId = await getAuthenticatedUserId()
-  const { startDate, endDate } = calculateDateRange(preset, customStartDate, customEndDate, '3months')
+  const { startDate, endDate } = calculateDateRange(
+    preset,
+    customStartDate,
+    customEndDate,
+    '3months',
+  )
   return statisticsService.getOneRMHistory(userId, exerciseId, startDate, endDate, granularity)
 }
 

@@ -1,5 +1,6 @@
-import { Prisma } from '@prisma/client'
+import { cacheService } from '@/server/infrastructure/cache'
 import { prisma } from '@/server/infrastructure/database/prisma/client'
+import { Prisma } from '@prisma/client'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
 
@@ -95,7 +96,7 @@ export class StatisticsService {
       case 'day':
         return Prisma.raw("'YYYY-MM-DD'")
       case 'week':
-        return Prisma.raw("'IYYY-\"W\"IW'")
+        return Prisma.raw('\'IYYY-"W"IW\'')
       case 'month':
         return Prisma.raw("'YYYY-MM'")
     }
@@ -139,39 +140,50 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<ExerciseVolumeByPeriod[]> {
-    const periodFormatSql = this.getPeriodFormatSql(granularity)
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getVolumeByExercise',
+      `${startStr}_${endStr}_${granularity}`,
+    )
 
-    const results = await prisma.$queryRaw<
-      Array<{
-        period: string
-        exercise_id: number
-        exercise_name: string
-        volume: number
-        set_count: bigint
-      }>
-    >`
-      SELECT
-        to_char(s.date, ${periodFormatSql}) as period,
-        s.exercise_id,
-        e.name as exercise_name,
-        SUM(s.weight * s.reps)::float as volume,
-        COUNT(*)::bigint as set_count
-      FROM sets s
-      JOIN exercises e ON e.id = s.exercise_id
-      WHERE s.user_id = ${userId}
-        AND s.date >= ${startDate}
-        AND s.date <= ${endDate}
-      GROUP BY 1, s.exercise_id, e.name
-      ORDER BY period ASC
-    `
+    return cacheService.through(cacheKey, async () => {
+      const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    return results.map((r) => ({
-      period: r.period,
-      exerciseId: r.exercise_id,
-      exerciseName: r.exercise_name,
-      volume: r.volume,
-      setCount: Number(r.set_count),
-    }))
+      const results = await prisma.$queryRaw<
+        Array<{
+          period: string
+          exercise_id: number
+          exercise_name: string
+          volume: number
+          set_count: bigint
+        }>
+      >`
+        SELECT
+          to_char(s.date, ${periodFormatSql}) as period,
+          s.exercise_id,
+          e.name as exercise_name,
+          SUM(s.weight * s.reps)::float as volume,
+          COUNT(*)::bigint as set_count
+        FROM sets s
+        JOIN exercises e ON e.id = s.exercise_id
+        WHERE s.user_id = ${userId}
+          AND s.date >= ${startDate}
+          AND s.date <= ${endDate}
+        GROUP BY 1, s.exercise_id, e.name
+        ORDER BY period ASC
+      `
+
+      return results.map((r) => ({
+        period: r.period,
+        exerciseId: r.exercise_id,
+        exerciseName: r.exercise_name,
+        volume: r.volume,
+        setCount: Number(r.set_count),
+      }))
+    })
   }
 
   /**
@@ -183,34 +195,45 @@ export class StatisticsService {
     startDate: Date,
     endDate: Date,
   ): Promise<ExerciseVolumeTotal[]> {
-    const results = await prisma.$queryRaw<
-      Array<{
-        exercise_id: number
-        exercise_name: string
-        volume: number
-        set_count: bigint
-      }>
-    >`
-      SELECT
-        s.exercise_id,
-        e.name as exercise_name,
-        SUM(s.weight * s.reps)::float as volume,
-        COUNT(*)::bigint as set_count
-      FROM sets s
-      JOIN exercises e ON e.id = s.exercise_id
-      WHERE s.user_id = ${userId}
-        AND s.date >= ${startDate}
-        AND s.date <= ${endDate}
-      GROUP BY s.exercise_id, e.name
-      ORDER BY volume DESC
-    `
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getExerciseVolumeTotals',
+      `${startStr}_${endStr}`,
+    )
 
-    return results.map((r) => ({
-      exerciseId: r.exercise_id,
-      exerciseName: r.exercise_name,
-      volume: r.volume,
-      setCount: Number(r.set_count),
-    }))
+    return cacheService.through(cacheKey, async () => {
+      const results = await prisma.$queryRaw<
+        Array<{
+          exercise_id: number
+          exercise_name: string
+          volume: number
+          set_count: bigint
+        }>
+      >`
+        SELECT
+          s.exercise_id,
+          e.name as exercise_name,
+          SUM(s.weight * s.reps)::float as volume,
+          COUNT(*)::bigint as set_count
+        FROM sets s
+        JOIN exercises e ON e.id = s.exercise_id
+        WHERE s.user_id = ${userId}
+          AND s.date >= ${startDate}
+          AND s.date <= ${endDate}
+        GROUP BY s.exercise_id, e.name
+        ORDER BY volume DESC
+      `
+
+      return results.map((r) => ({
+        exerciseId: r.exercise_id,
+        exerciseName: r.exercise_name,
+        volume: r.volume,
+        setCount: Number(r.set_count),
+      }))
+    })
   }
 
   /**
@@ -223,36 +246,47 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<PeriodVolume[]> {
-    const periodFormatSql = this.getPeriodFormatSql(granularity)
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getVolumeByPeriod',
+      `${startStr}_${endStr}_${granularity}`,
+    )
 
-    const results = await prisma.$queryRaw<
-      Array<{
-        period: string
-        volume: number
-      }>
-    >`
-      SELECT
-        to_char(date, ${periodFormatSql}) as period,
-        SUM(weight * reps)::float as volume
-      FROM sets
-      WHERE user_id = ${userId}
-        AND date >= ${startDate}
-        AND date <= ${endDate}
-      GROUP BY 1
-    `
+    return cacheService.through(cacheKey, async () => {
+      const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 結果をMapに変換
-    const volumeMap = new Map<string, number>()
-    for (const r of results) {
-      volumeMap.set(r.period, r.volume)
-    }
+      const results = await prisma.$queryRaw<
+        Array<{
+          period: string
+          volume: number
+        }>
+      >`
+        SELECT
+          to_char(date, ${periodFormatSql}) as period,
+          SUM(weight * reps)::float as volume
+        FROM sets
+        WHERE user_id = ${userId}
+          AND date >= ${startDate}
+          AND date <= ${endDate}
+        GROUP BY 1
+      `
 
-    // 期間内の全期間キーを生成（データがない期間は 0）
-    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-    return periodKeys.map((period) => ({
-      period,
-      volume: volumeMap.get(period) || 0,
-    }))
+      // 結果をMapに変換
+      const volumeMap = new Map<string, number>()
+      for (const r of results) {
+        volumeMap.set(r.period, r.volume)
+      }
+
+      // 期間内の全期間キーを生成（データがない期間は 0）
+      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+      return periodKeys.map((period) => ({
+        period,
+        volume: volumeMap.get(period) || 0,
+      }))
+    })
   }
 
   /**
@@ -266,43 +300,54 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<MaxWeightRecord[]> {
-    const periodFormatSql = this.getPeriodFormatSql(granularity)
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getMaxWeightHistory',
+      `${exerciseId}_${startStr}_${endStr}_${granularity}`,
+    )
 
-    const results = await prisma.$queryRaw<
-      Array<{
-        period: string
-        max_weight: number
-      }>
-    >`
-      SELECT
-        to_char(date, ${periodFormatSql}) as period,
-        MAX(weight)::float as max_weight
-      FROM sets
-      WHERE user_id = ${userId}
-        AND exercise_id = ${exerciseId}
-        AND date >= ${startDate}
-        AND date <= ${endDate}
-      GROUP BY 1
-      ORDER BY period ASC
-    `
+    return cacheService.through(cacheKey, async () => {
+      const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 結果をMapに変換
-    const maxWeightMap = new Map<string, number>()
-    for (const r of results) {
-      maxWeightMap.set(r.period, r.max_weight)
-    }
+      const results = await prisma.$queryRaw<
+        Array<{
+          period: string
+          max_weight: number
+        }>
+      >`
+        SELECT
+          to_char(date, ${periodFormatSql}) as period,
+          MAX(weight)::float as max_weight
+        FROM sets
+        WHERE user_id = ${userId}
+          AND exercise_id = ${exerciseId}
+          AND date >= ${startDate}
+          AND date <= ${endDate}
+        GROUP BY 1
+        ORDER BY period ASC
+      `
 
-    // 期間内の全期間キーを生成
-    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-    const result: MaxWeightRecord[] = []
-    for (const period of periodKeys) {
-      const weight = maxWeightMap.get(period)
-      if (weight !== undefined) {
-        result.push({ period, weight })
+      // 結果をMapに変換
+      const maxWeightMap = new Map<string, number>()
+      for (const r of results) {
+        maxWeightMap.set(r.period, r.max_weight)
       }
-    }
 
-    return result
+      // 期間内の全期間キーを生成
+      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+      const result: MaxWeightRecord[] = []
+      for (const period of periodKeys) {
+        const weight = maxWeightMap.get(period)
+        if (weight !== undefined) {
+          result.push({ period, weight })
+        }
+      }
+
+      return result
+    })
   }
 
   /**
@@ -317,43 +362,54 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<OneRMRecord[]> {
-    const periodFormatSql = this.getPeriodFormatSql(granularity)
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getOneRMHistory',
+      `${exerciseId}_${startStr}_${endStr}_${granularity}`,
+    )
 
-    const results = await prisma.$queryRaw<
-      Array<{
-        period: string
-        max_one_rm: number
-      }>
-    >`
-      SELECT
-        to_char(date, ${periodFormatSql}) as period,
-        MAX(weight * (1 + reps / 29.5))::float as max_one_rm
-      FROM sets
-      WHERE user_id = ${userId}
-        AND exercise_id = ${exerciseId}
-        AND date >= ${startDate}
-        AND date <= ${endDate}
-      GROUP BY 1
-      ORDER BY period ASC
-    `
+    return cacheService.through(cacheKey, async () => {
+      const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 結果をMapに変換
-    const oneRMMap = new Map<string, number>()
-    for (const r of results) {
-      oneRMMap.set(r.period, r.max_one_rm)
-    }
+      const results = await prisma.$queryRaw<
+        Array<{
+          period: string
+          max_one_rm: number
+        }>
+      >`
+        SELECT
+          to_char(date, ${periodFormatSql}) as period,
+          MAX(weight * (1 + reps / 29.5))::float as max_one_rm
+        FROM sets
+        WHERE user_id = ${userId}
+          AND exercise_id = ${exerciseId}
+          AND date >= ${startDate}
+          AND date <= ${endDate}
+        GROUP BY 1
+        ORDER BY period ASC
+      `
 
-    // 期間内の全期間キーを生成
-    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-    const result: OneRMRecord[] = []
-    for (const period of periodKeys) {
-      const oneRM = oneRMMap.get(period)
-      if (oneRM !== undefined) {
-        result.push({ period, oneRM: Math.round(oneRM * 10) / 10 })
+      // 結果をMapに変換
+      const oneRMMap = new Map<string, number>()
+      for (const r of results) {
+        oneRMMap.set(r.period, r.max_one_rm)
       }
-    }
 
-    return result
+      // 期間内の全期間キーを生成
+      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+      const result: OneRMRecord[] = []
+      for (const period of periodKeys) {
+        const oneRM = oneRMMap.get(period)
+        if (oneRM !== undefined) {
+          result.push({ period, oneRM: Math.round(oneRM * 10) / 10 })
+        }
+      }
+
+      return result
+    })
   }
 
   /**
@@ -361,117 +417,136 @@ export class StatisticsService {
    * SQL集計版
    */
   async getSummary(userId: number): Promise<StatsSummary> {
-    // 集計クエリ
-    const statsResult = await prisma.$queryRaw<
-      Array<{
-        total_volume: number | null
-        total_sets: bigint
-        total_workouts: bigint
-      }>
-    >`
-      SELECT
-        SUM(weight * reps)::float as total_volume,
-        COUNT(*)::bigint as total_sets,
-        COUNT(DISTINCT date)::bigint as total_workouts
-      FROM sets
-      WHERE user_id = ${userId}
-    `
+    const cacheKey = cacheService.buildKey(userId, 'statistics', 'getSummary')
 
-    const stats = statsResult[0]
-    if (!stats || stats.total_sets === BigInt(0)) {
-      return {
-        totalVolume: 0,
-        totalSets: 0,
-        totalWorkouts: 0,
-        currentStreak: 0,
-        maxStreak: 0,
+    return cacheService.through(cacheKey, async () => {
+      // 集計クエリ
+      const statsResult = await prisma.$queryRaw<
+        Array<{
+          total_volume: number | null
+          total_sets: bigint
+          total_workouts: bigint
+        }>
+      >`
+        SELECT
+          SUM(weight * reps)::float as total_volume,
+          COUNT(*)::bigint as total_sets,
+          COUNT(DISTINCT date)::bigint as total_workouts
+        FROM sets
+        WHERE user_id = ${userId}
+      `
+
+      const stats = statsResult[0]
+      if (!stats || stats.total_sets === BigInt(0)) {
+        return {
+          totalVolume: 0,
+          totalSets: 0,
+          totalWorkouts: 0,
+          currentStreak: 0,
+          maxStreak: 0,
+        }
       }
-    }
 
-    // ストリーク計算用に日付のみ取得
-    const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
-      SELECT DISTINCT date
-      FROM sets
-      WHERE user_id = ${userId}
-      ORDER BY date DESC
-    `
+      // ストリーク計算用に日付のみ取得
+      const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
+        SELECT DISTINCT date
+        FROM sets
+        WHERE user_id = ${userId}
+        ORDER BY date DESC
+      `
 
-    const sortedDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
-    const { currentStreak, maxStreak } = this.calculateStreaks(sortedDates)
+      const sortedDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
+      const { currentStreak, maxStreak } = this.calculateStreaks(sortedDates)
 
-    return {
-      totalVolume: stats.total_volume || 0,
-      totalSets: Number(stats.total_sets),
-      totalWorkouts: Number(stats.total_workouts),
-      currentStreak,
-      maxStreak,
-    }
+      return {
+        totalVolume: stats.total_volume || 0,
+        totalSets: Number(stats.total_sets),
+        totalWorkouts: Number(stats.total_workouts),
+        currentStreak,
+        maxStreak,
+      }
+    })
   }
 
   /**
    * 継続統計を取得（日数、連続週数、連続月数）
    * SQL集計版（二重クエリ問題を修正）
    */
-  async getContinuityStats(userId: number, startDate: Date, endDate: Date): Promise<ContinuityStats> {
-    // 期間内のユニーク日数を取得
-    const totalDaysResult = await prisma.$queryRaw<Array<{ total_days: bigint }>>`
-      SELECT COUNT(DISTINCT date)::bigint as total_days
-      FROM sets
-      WHERE user_id = ${userId}
-        AND date >= ${startDate}
-        AND date <= ${endDate}
-    `
+  async getContinuityStats(
+    userId: number,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<ContinuityStats> {
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getContinuityStats',
+      `${startStr}_${endStr}`,
+    )
 
-    const totalDays = Number(totalDaysResult[0]?.total_days || 0)
+    return cacheService.through(cacheKey, async () => {
+      // 期間内のユニーク日数を取得
+      const totalDaysResult = await prisma.$queryRaw<Array<{ total_days: bigint }>>`
+        SELECT COUNT(DISTINCT date)::bigint as total_days
+        FROM sets
+        WHERE user_id = ${userId}
+          AND date >= ${startDate}
+          AND date <= ${endDate}
+      `
 
-    if (totalDays === 0) {
-      return {
-        totalDays: 0,
-        currentStreakWeeks: 0,
-        currentStreakMonths: 0,
+      const totalDays = Number(totalDaysResult[0]?.total_days || 0)
+
+      if (totalDays === 0) {
+        return {
+          totalDays: 0,
+          currentStreakWeeks: 0,
+          currentStreakMonths: 0,
+        }
       }
-    }
 
-    // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
-    const oneYearAgo = dayjs().subtract(1, 'year').toDate()
-    const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
-      SELECT DISTINCT date
-      FROM sets
-      WHERE user_id = ${userId}
-        AND date >= ${oneYearAgo}
-      ORDER BY date DESC
-    `
+      // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
+      const oneYearAgo = dayjs().subtract(1, 'year').toDate()
+      const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
+        SELECT DISTINCT date
+        FROM sets
+        WHERE user_id = ${userId}
+          AND date >= ${oneYearAgo}
+        ORDER BY date DESC
+      `
 
-    const allUniqueDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
+      const allUniqueDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
 
-    // 週ごとのトレーニング有無
-    const weeksWithTraining = new Set<string>()
-    for (const dateStr of allUniqueDates) {
-      const date = dayjs(dateStr)
-      weeksWithTraining.add(`${date.isoWeekYear()}-W${String(date.isoWeek()).padStart(2, '0')}`)
-    }
+      // 週ごとのトレーニング有無
+      const weeksWithTraining = new Set<string>()
+      for (const dateStr of allUniqueDates) {
+        const date = dayjs(dateStr)
+        weeksWithTraining.add(`${date.isoWeekYear()}-W${String(date.isoWeek()).padStart(2, '0')}`)
+      }
 
-    // 月ごとのトレーニング有無
-    const monthsWithTraining = new Set<string>()
-    for (const dateStr of allUniqueDates) {
-      const date = dayjs(dateStr)
-      monthsWithTraining.add(date.format('YYYY-MM'))
-    }
+      // 月ごとのトレーニング有無
+      const monthsWithTraining = new Set<string>()
+      for (const dateStr of allUniqueDates) {
+        const date = dayjs(dateStr)
+        monthsWithTraining.add(date.format('YYYY-MM'))
+      }
 
-    const currentStreakWeeks = this.calculatePeriodStreak(
-      Array.from(weeksWithTraining).sort().reverse(),
-      'week',
-    )
-    const currentStreakMonths = this.calculatePeriodStreak(
-      Array.from(monthsWithTraining).sort().reverse(),
-      'month',
-    )
+      const currentStreakWeeks = this.calculatePeriodStreak(
+        Array.from(weeksWithTraining).sort().reverse(),
+        'week',
+      )
+      const currentStreakMonths = this.calculatePeriodStreak(
+        Array.from(monthsWithTraining).sort().reverse(),
+        'month',
+      )
 
-    return {
-      totalDays,
-      currentStreakWeeks,
-      currentStreakMonths,
-    }
+      return {
+        totalDays,
+        currentStreakWeeks,
+        currentStreakMonths,
+      }
+    })
   }
 
   /**
@@ -484,36 +559,47 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<TrainingDaysByPeriod[]> {
-    const periodFormatSql = this.getPeriodFormatSql(granularity)
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getTrainingDaysByPeriod',
+      `${startStr}_${endStr}_${granularity}`,
+    )
 
-    const results = await prisma.$queryRaw<
-      Array<{
-        period: string
-        days: bigint
-      }>
-    >`
-      SELECT
-        to_char(date, ${periodFormatSql}) as period,
-        COUNT(DISTINCT date)::bigint as days
-      FROM sets
-      WHERE user_id = ${userId}
-        AND date >= ${startDate}
-        AND date <= ${endDate}
-      GROUP BY 1
-    `
+    return cacheService.through(cacheKey, async () => {
+      const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-    // 結果をMapに変換
-    const daysMap = new Map<string, number>()
-    for (const r of results) {
-      daysMap.set(r.period, Number(r.days))
-    }
+      const results = await prisma.$queryRaw<
+        Array<{
+          period: string
+          days: bigint
+        }>
+      >`
+        SELECT
+          to_char(date, ${periodFormatSql}) as period,
+          COUNT(DISTINCT date)::bigint as days
+        FROM sets
+        WHERE user_id = ${userId}
+          AND date >= ${startDate}
+          AND date <= ${endDate}
+        GROUP BY 1
+      `
 
-    // 期間内の全期間キーを生成
-    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-    return periodKeys.map((period) => ({
-      period,
-      days: daysMap.get(period) || 0,
-    }))
+      // 結果をMapに変換
+      const daysMap = new Map<string, number>()
+      for (const r of results) {
+        daysMap.set(r.period, Number(r.days))
+      }
+
+      // 期間内の全期間キーを生成
+      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+      return periodKeys.map((period) => ({
+        period,
+        days: daysMap.get(period) || 0,
+      }))
+    })
   }
 
   /**
@@ -525,31 +611,42 @@ export class StatisticsService {
     startDate: Date,
     endDate: Date,
   ): Promise<ExerciseTrainingDays[]> {
-    const results = await prisma.$queryRaw<
-      Array<{
-        exercise_id: number
-        exercise_name: string
-        days: bigint
-      }>
-    >`
-      SELECT
-        s.exercise_id,
-        e.name as exercise_name,
-        COUNT(DISTINCT s.date)::bigint as days
-      FROM sets s
-      JOIN exercises e ON e.id = s.exercise_id
-      WHERE s.user_id = ${userId}
-        AND s.date >= ${startDate}
-        AND s.date <= ${endDate}
-      GROUP BY s.exercise_id, e.name
-      ORDER BY days DESC
-    `
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getExerciseTrainingDays',
+      `${startStr}_${endStr}`,
+    )
 
-    return results.map((r) => ({
-      exerciseId: r.exercise_id,
-      exerciseName: r.exercise_name,
-      days: Number(r.days),
-    }))
+    return cacheService.through(cacheKey, async () => {
+      const results = await prisma.$queryRaw<
+        Array<{
+          exercise_id: number
+          exercise_name: string
+          days: bigint
+        }>
+      >`
+        SELECT
+          s.exercise_id,
+          e.name as exercise_name,
+          COUNT(DISTINCT s.date)::bigint as days
+        FROM sets s
+        JOIN exercises e ON e.id = s.exercise_id
+        WHERE s.user_id = ${userId}
+          AND s.date >= ${startDate}
+          AND s.date <= ${endDate}
+        GROUP BY s.exercise_id, e.name
+        ORDER BY days DESC
+      `
+
+      return results.map((r) => ({
+        exerciseId: r.exercise_id,
+        exerciseName: r.exercise_name,
+        days: Number(r.days),
+      }))
+    })
   }
 
   /**

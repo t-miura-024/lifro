@@ -102,7 +102,9 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
       const toDelete = existingIds.filter((id) => !inputIds.includes(id))
 
       // 更新対象: 入力にidがあるもの
-      const toUpdate = memos.filter((m) => m.id !== undefined && existingIds.includes(m.id as number))
+      const toUpdate = memos.filter(
+        (m) => m.id !== undefined && existingIds.includes(m.id as number),
+      )
 
       // 新規作成対象: 入力にidがないもの
       const toCreate = memos.filter((m) => m.id === undefined)
