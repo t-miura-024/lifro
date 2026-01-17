@@ -1,8 +1,10 @@
 import type {
   ExerciseHistory,
+  ExerciseVolume,
   LatestExerciseSets,
   SetInput,
   Training,
+  TrainingMemo,
   TrainingSummary,
   YearMonth,
 } from '@/server/domain/entities'
@@ -38,13 +40,19 @@ export class PrismaTrainingRepository implements ITrainingRepository {
             lte: endDate,
           },
         },
-        select: { date: true },
-        distinct: ['date'],
+        orderBy: { createdAt: 'asc' },
       }),
     ])
 
-    // メモがある日付のセット
-    const datesWithMemo = new Set(memos.map((m) => m.date.toISOString().split('T')[0]))
+    // 日付ごとにメモをグループ化
+    const memosByDate = new Map<string, TrainingMemo[]>()
+    for (const memo of memos) {
+      const dateKey = memo.date.toISOString().split('T')[0]
+      if (!memosByDate.has(dateKey)) {
+        memosByDate.set(dateKey, [])
+      }
+      memosByDate.get(dateKey)?.push(memo)
+    }
 
     // 日付ごとにグループ化して集約
     const grouped = new Map<string, typeof sets>()
@@ -60,12 +68,30 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     for (const [dateKey, dateSets] of grouped) {
       const exerciseNames = [...new Set(dateSets.map((s) => s.exercise.name))]
       const totalVolume = dateSets.reduce((sum, s) => sum + s.weight * s.reps, 0)
+
+      // 種目ごとのボリュームを集計（sortIndex順を維持）
+      const exerciseVolumeMap = new Map<number, ExerciseVolume>()
+      for (const set of dateSets) {
+        const current = exerciseVolumeMap.get(set.exerciseId)
+        if (current) {
+          current.volume += set.weight * set.reps
+        } else {
+          exerciseVolumeMap.set(set.exerciseId, {
+            exerciseId: set.exerciseId,
+            exerciseName: set.exercise.name,
+            volume: set.weight * set.reps,
+          })
+        }
+      }
+      const exercises = [...exerciseVolumeMap.values()]
+
       summaries.push({
         date: new Date(dateKey),
         exerciseNames,
+        exercises,
         totalVolume,
         setCount: dateSets.length,
-        hasMemo: datesWithMemo.has(dateKey),
+        memos: memosByDate.get(dateKey) || [],
       })
     }
 

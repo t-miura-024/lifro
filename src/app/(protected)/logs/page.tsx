@@ -6,6 +6,8 @@ import {
   Alert,
   Box,
   Button,
+  Card,
+  CardContent,
   FormControl,
   MenuItem,
   Paper,
@@ -14,12 +16,6 @@ import {
   Skeleton,
   Snackbar,
   Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
   Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
@@ -30,8 +26,8 @@ import {
 } from './_actions'
 import LogInputModal from './_components/LogInputModal'
 import type { SetFormData } from './_components/LogInputModal'
-import LogsTable from './_components/LogsTable'
-import type { TrainingRow } from './_components/LogsTable'
+import LogList from './_components/LogList'
+import type { TrainingRow } from './_components/LogList'
 
 function formatDate(date: Date) {
   return date.toISOString().split('T')[0]
@@ -50,9 +46,9 @@ function summaryToRow(summary: TrainingSummary): TrainingRow {
   return {
     id: dateStr,
     date: dateStr,
-    exercises: summary.exerciseNames,
+    exercises: summary.exercises,
     volume: summary.totalVolume,
-    hasMemo: summary.hasMemo,
+    memos: summary.memos,
   }
 }
 
@@ -169,41 +165,28 @@ export default function LogsPage() {
 
   // スケルトンローディング表示
   const renderSkeleton = () => (
-    <TableContainer component={Paper} variant="outlined">
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell width={140}>日付</TableCell>
-            <TableCell>種目</TableCell>
-            <TableCell align="right" width={140}>
-              ボリューム
-            </TableCell>
-            <TableCell width={48} />
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {[1, 2, 3].map((i) => (
-            <TableRow key={i}>
-              <TableCell>
-                <Skeleton variant="text" width={80} />
-              </TableCell>
-              <TableCell>
-                <Stack direction="row" spacing={1}>
-                  <Skeleton variant="rounded" width={60} height={24} />
-                  <Skeleton variant="rounded" width={70} height={24} />
-                </Stack>
-              </TableCell>
-              <TableCell align="right">
-                <Skeleton variant="text" width={60} sx={{ ml: 'auto' }} />
-              </TableCell>
-              <TableCell>
-                <Skeleton variant="circular" width={24} height={24} />
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <Stack spacing={1.5}>
+      {[1, 2, 3].map((i) => (
+        <Card key={i} variant="outlined">
+          <CardContent sx={{ py: 1.5, px: 2, '&:last-child': { pb: 1.5 } }}>
+            {/* ヘッダー */}
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+              <Skeleton variant="text" width={90} height={24} />
+              <Skeleton variant="text" width={70} height={20} />
+            </Box>
+            {/* 種目リスト */}
+            <Stack spacing={0.5}>
+              {[1, 2, 3].map((j) => (
+                <Box key={j} display="flex" justifyContent="space-between" alignItems="center">
+                  <Skeleton variant="text" width={100 + j * 20} height={20} />
+                  <Skeleton variant="text" width={50} height={20} />
+                </Box>
+              ))}
+            </Stack>
+          </CardContent>
+        </Card>
+      ))}
+    </Stack>
   )
 
   // 初期ロード中
@@ -258,7 +241,7 @@ export default function LogsPage() {
           <Typography color="text.secondary">この月のトレーニング記録はありません</Typography>
         </Paper>
       ) : (
-        <LogsTable rows={rows} onRowClick={handleRowClick} />
+        <LogList rows={rows} onRowClick={handleRowClick} />
       )}
 
       <LogInputModal

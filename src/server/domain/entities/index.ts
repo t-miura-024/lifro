@@ -74,13 +74,21 @@ export type LatestExerciseSets = {
   }>
 }
 
+/** 種目ごとのボリューム */
+export type ExerciseVolume = {
+  exerciseId: number
+  exerciseName: string
+  volume: number
+}
+
 /** トレーニングの要約（一覧表示用） */
 export type TrainingSummary = {
   date: Date
   exerciseNames: string[]
+  exercises: ExerciseVolume[]
   totalVolume: number
   setCount: number
-  hasMemo: boolean
+  memos: TrainingMemo[]
 }
 
 /** トレーニングメモ */
