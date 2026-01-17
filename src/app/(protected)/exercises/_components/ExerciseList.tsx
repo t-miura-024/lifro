@@ -96,25 +96,27 @@ export default function ExerciseList() {
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
 
-    if (over && active.id !== over.id) {
-      const oldIndex = exercises.findIndex((item) => item.id === active.id)
-      const newIndex = exercises.findIndex((item) => item.id === over.id)
-      const newItems = arrayMove(exercises, oldIndex, newIndex)
+    if (!over || active.id === over.id) return
 
-      // ローカル状態を即座に更新
-      setExercises(newItems)
+    const oldIndex = exercises.findIndex((item) => item.id === active.id)
+    const newIndex = exercises.findIndex((item) => item.id === over.id)
+    const newItems = arrayMove(exercises, oldIndex, newIndex)
 
-      // 並び順をサーバーに保存
-      setIsSorting(true)
-      startTransition(async () => {
-        const sortOrderUpdates = newItems.map((item, index) => ({
-          id: item.id,
-          sortIndex: index,
-        }))
-        await updateExerciseSortOrderAction(sortOrderUpdates)
-        setIsSorting(false)
-      })
-    }
+    // ローカル状態を即座に更新
+    setExercises(newItems)
+
+    // 変更されたアイテムのみを抽出して並び順を保存
+    const minIndex = Math.min(oldIndex, newIndex)
+    const maxIndex = Math.max(oldIndex, newIndex)
+    const changedItems = newItems
+      .slice(minIndex, maxIndex + 1)
+      .map((item, i) => ({ id: item.id, sortIndex: minIndex + i }))
+
+    setIsSorting(true)
+    startTransition(async () => {
+      await updateExerciseSortOrderAction(changedItems)
+      setIsSorting(false)
+    })
   }
 
   // 新規作成
@@ -135,11 +137,11 @@ export default function ExerciseList() {
   }
 
   // 編集
-  const handleEdit = (exercise: Exercise) => {
+  const handleEdit = useCallback((exercise: Exercise) => {
     setSelectedExercise(exercise)
     setExerciseName(exercise.name)
     setEditDialogOpen(true)
-  }
+  }, [])
 
   const handleEditConfirm = () => {
     if (!selectedExercise || !exerciseName.trim()) return
@@ -154,10 +156,10 @@ export default function ExerciseList() {
   }
 
   // 削除
-  const handleDelete = (exercise: Exercise) => {
+  const handleDelete = useCallback((exercise: Exercise) => {
     setSelectedExercise(exercise)
     setDeleteDialogOpen(true)
-  }
+  }, [])
 
   const handleDeleteConfirm = () => {
     if (!selectedExercise) return

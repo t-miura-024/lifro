@@ -6,7 +6,8 @@ import { CSS } from '@dnd-kit/utilities'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
 import EditIcon from '@mui/icons-material/Edit'
-import { IconButton, Stack, TableCell, TableRow, Typography } from '@mui/material'
+import { IconButton, TableCell, TableRow, Typography } from '@mui/material'
+import { memo } from 'react'
 
 type Props = {
   exercise: Exercise
@@ -14,7 +15,7 @@ type Props = {
   onDelete: (exercise: Exercise) => void
 }
 
-export default function SortableExerciseItem({ exercise, onEdit, onDelete }: Props) {
+export default memo(function SortableExerciseItem({ exercise, onEdit, onDelete }: Props) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exercise.id,
   })
@@ -53,4 +54,4 @@ export default function SortableExerciseItem({ exercise, onEdit, onDelete }: Pro
       </TableCell>
     </TableRow>
   )
-}
+})

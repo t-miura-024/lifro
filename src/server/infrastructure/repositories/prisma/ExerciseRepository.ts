@@ -1,5 +1,6 @@
 import type { Exercise } from '@/server/domain/entities'
 import type { ExerciseSortOrderInput, IExerciseRepository } from '@/server/domain/repositories'
+import { Prisma } from '@prisma/client'
 import { prisma } from '../../database/prisma/client'
 
 export class PrismaExerciseRepository implements IExerciseRepository {
@@ -87,17 +88,21 @@ export class PrismaExerciseRepository implements IExerciseRepository {
   }
 
   async updateSortOrder(userId: number, exercises: ExerciseSortOrderInput[]): Promise<void> {
-    await prisma.$transaction(
-      exercises.map((e) =>
-        prisma.exercise.update({
-          where: {
-            id: e.id,
-            userId, // 所有者チェック
-          },
-          data: { sortIndex: e.sortIndex },
-        }),
-      ),
+    if (exercises.length === 0) return
+
+    // VALUES句を構築: (id, sortIndex), (id, sortIndex), ...
+    // Prisma.join を使用してSQLインジェクションを防ぐ
+    const values = Prisma.join(
+      exercises.map((e) => Prisma.sql`(${e.id}::int, ${e.sortIndex}::int)`),
     )
+
+    // 1回のクエリで一括更新
+    await prisma.$executeRaw`
+      UPDATE exercises AS e
+      SET sort_index = v.sort_index, updated_at = NOW()
+      FROM (VALUES ${values}) AS v(id, sort_index)
+      WHERE e.id = v.id AND e.user_id = ${userId}
+    `
   }
 
   async delete(userId: number, exerciseId: number): Promise<void> {
