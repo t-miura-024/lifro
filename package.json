@@ -42,6 +42,7 @@
     "react-hook-form": "^7.69.0",
     "recharts": "^3.6.0",
     "serwist": "^9.5.0",
+    "superjson": "^2.2.6",
     "zod": "^4.3.4"
   },
   "devDependencies": {

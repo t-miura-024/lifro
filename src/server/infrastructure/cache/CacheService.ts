@@ -1,4 +1,5 @@
 import { Redis } from '@upstash/redis'
+import superjson from 'superjson'
 
 /** キャッシュのデフォルトTTL（秒） */
 const DEFAULT_TTL_SECONDS = 300 // 5分
@@ -52,8 +53,11 @@ export class CacheService {
     }
 
     try {
-      const data = await this.redis.get<T>(key)
-      return data
+      const data = await this.redis.get<Parameters<typeof superjson.deserialize>[0]>(key)
+      if (data === null) {
+        return null
+      }
+      return superjson.deserialize<T>(data)
     } catch (error) {
       console.error('[CacheService] get error:', error)
       return null
@@ -69,7 +73,8 @@ export class CacheService {
     }
 
     try {
-      await this.redis.set(key, value, { ex: ttlSeconds })
+      const serialized = superjson.serialize(value)
+      await this.redis.set(key, serialized, { ex: ttlSeconds })
     } catch (error) {
       console.error('[CacheService] set error:', error)
     }
