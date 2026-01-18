@@ -5,8 +5,7 @@ import type { SoundFile } from '@/constants/sounds'
 import { timerService } from '@/server/application/services'
 import type { Timer, TimerInput } from '@/server/domain/entities'
 import type { TimerSortOrderInput } from '@/server/domain/repositories'
-import { readdir } from 'fs/promises'
-import path from 'path'
+import { headers } from 'next/headers'
 
 /**
  * 認証済みユーザーIDを取得するヘルパー
@@ -69,22 +68,28 @@ export async function deleteTimerAction(timerId: number): Promise<void> {
 
 /**
  * 音声ファイル一覧を取得
- * public/sounds/ フォルダ内の音声ファイルを読み取る
+ * ビルド時に生成された manifest.json を取得
  */
 export async function getSoundFilesAction(): Promise<SoundFile[]> {
   try {
-    const soundsDir = path.join(process.cwd(), 'public/sounds')
-    const files = await readdir(soundsDir)
+    // リクエストヘッダーからホスト情報を取得
+    const headersList = await headers()
+    const host = headersList.get('host') || 'localhost:3000'
+    const protocol = headersList.get('x-forwarded-proto') || 'http'
+    const baseUrl = `${protocol}://${host}`
 
-    return files
-      .filter((f) => /\.(mp3|wav|ogg)$/i.test(f))
-      .sort((a, b) => a.localeCompare(b, 'ja'))
-      .map((f) => ({
-        filename: f,
-        name: f.replace(/\.(mp3|wav|ogg)$/i, ''),
-      }))
+    const response = await fetch(`${baseUrl}/sounds/manifest.json`, {
+      cache: 'no-store',
+    })
+
+    if (!response.ok) {
+      console.error('Failed to fetch sound manifest:', response.status)
+      return []
+    }
+
+    return await response.json()
   } catch (error) {
-    console.error('Failed to read sounds directory:', error)
+    console.error('Failed to fetch sound manifest:', error)
     return []
   }
 }

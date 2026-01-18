@@ -20,6 +20,9 @@
 # PWA (generated service worker)
 /public/sw.js
 
+# Generated sound manifest
+/public/sounds/manifest.json
+
 # production
 /build
 
