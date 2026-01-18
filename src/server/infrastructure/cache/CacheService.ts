@@ -5,7 +5,7 @@ import superjson from 'superjson'
 const DEFAULT_TTL_SECONDS = 300 // 5分
 
 /** キャッシュドメイン */
-export type CacheDomain = 'exercise' | 'training' | 'statistics' | 'memo'
+export type CacheDomain = 'exercise' | 'training' | 'statistics' | 'memo' | 'timer'
 
 /**
  * Redis キャッシュサービス

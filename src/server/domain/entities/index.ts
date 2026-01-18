@@ -112,3 +112,45 @@ export type YearMonth = {
   year: number
   month: number
 }
+
+/** ユニットタイマー（タイマーを構成する個々の時間単位） */
+export type UnitTimer = {
+  id: number
+  timerId: number
+  sortIndex: number
+  duration: number // 秒単位
+  countSound: string | null
+  countSoundLast3Sec: string | null
+  endSound: string | null
+  createdAt: Date
+  updatedAt: Date
+}
+
+/** タイマー */
+export type Timer = {
+  id: number
+  userId: number
+  name: string
+  sortIndex: number
+  createdAt: Date
+  updatedAt: Date
+  unitTimers: UnitTimer[]
+}
+
+/** ユニットタイマーの入力データ（新規作成・更新用） */
+export type UnitTimerInput = {
+  id?: number
+  sortIndex: number
+  duration: number
+  countSound: string | null
+  countSoundLast3Sec: string | null
+  endSound: string | null
+}
+
+/** タイマーの入力データ（新規作成・更新用） */
+export type TimerInput = {
+  id?: number
+  name: string
+  sortIndex: number
+  unitTimers: UnitTimerInput[]
+}

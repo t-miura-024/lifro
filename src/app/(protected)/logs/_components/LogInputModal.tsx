@@ -1,8 +1,10 @@
 'use client'
 
-import type { Exercise, LatestExerciseSets, TrainingMemo } from '@/server/domain/entities'
+import { useTimer } from '@/app/providers/TimerContext'
+import type { Exercise, LatestExerciseSets, Timer, TrainingMemo } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
+import TimerIcon from '@mui/icons-material/Timer'
 import {
   Alert,
   Box,
@@ -15,8 +17,12 @@ import {
   FormControl,
   IconButton,
   InputLabel,
+  List,
+  ListItemButton,
+  ListItemText,
   MenuItem,
   Paper,
+  Popover,
   Select,
   type SelectChangeEvent,
   Skeleton,
@@ -43,6 +49,7 @@ import {
   fetchLatestExerciseSetsMultipleAction,
   fetchMemosByDateAction,
   getExercisesAction,
+  getTimersAction,
   saveMemosAction,
   upsertTrainingAction,
 } from '../_actions'
@@ -122,6 +129,13 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs(initialDate))
   const [dateError, setDateError] = useState<string | null>(null)
   const today = dayjs()
+
+  // タイマー関連の状態
+  const [timerAnchorEl, setTimerAnchorEl] = useState<HTMLButtonElement | null>(null)
+  const [timers, setTimers] = useState<Timer[]>([])
+  const [isLoadingTimers, setIsLoadingTimers] = useState(false)
+  const { startTimer } = useTimer()
+  const isTimerPopoverOpen = Boolean(timerAnchorEl)
 
   // モーダルが開いたときに日付を初期化
   useEffect(() => {
@@ -286,6 +300,41 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
 
   const handleRemoveMemo = (index: number) => {
     setMemos(memos.filter((_, i) => i !== index))
+  }
+
+  // タイマー操作
+  const handleOpenTimerPopover = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    setTimerAnchorEl(event.currentTarget)
+    setIsLoadingTimers(true)
+    try {
+      const loadedTimers = await getTimersAction()
+      setTimers(loadedTimers)
+    } catch (error) {
+      console.error('Failed to load timers:', error)
+    } finally {
+      setIsLoadingTimers(false)
+    }
+  }
+
+  const handleCloseTimerPopover = () => {
+    setTimerAnchorEl(null)
+  }
+
+  const handleSelectTimer = (timer: Timer) => {
+    startTimer(timer)
+    handleCloseTimerPopover()
+  }
+
+  // 時間をフォーマット（秒 → mm:ss）
+  const formatTimerDuration = (seconds: number): string => {
+    const mins = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${mins}:${secs.toString().padStart(2, '0')}`
+  }
+
+  // タイマーの総時間を計算
+  const getTotalTimerDuration = (timer: Timer): number => {
+    return timer.unitTimers.reduce((sum, unit) => sum + unit.duration, 0)
   }
 
   const handleSave = () => {
@@ -471,17 +520,72 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
                 },
               }}
             />
-            {hasExistingData && (
+            <Stack direction="row" spacing={0.5}>
               <IconButton
-                onClick={handleDelete}
+                onClick={handleOpenTimerPopover}
                 disabled={isPending}
-                aria-label="トレーニングを削除"
+                aria-label="タイマーを選択"
+                color="primary"
               >
-                <DeleteIcon />
+                <TimerIcon />
               </IconButton>
-            )}
+              {hasExistingData && (
+                <IconButton
+                  onClick={handleDelete}
+                  disabled={isPending}
+                  aria-label="トレーニングを削除"
+                >
+                  <DeleteIcon />
+                </IconButton>
+              )}
+            </Stack>
           </Box>
         </DialogTitle>
+
+        {/* タイマー選択ポップオーバー */}
+        <Popover
+          open={isTimerPopoverOpen}
+          anchorEl={timerAnchorEl}
+          onClose={handleCloseTimerPopover}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+        >
+          <Box sx={{ width: 280, maxHeight: 300, overflow: 'auto' }}>
+            {isLoadingTimers ? (
+              <Box sx={{ p: 2 }}>
+                <Skeleton variant="text" width="80%" />
+                <Skeleton variant="text" width="60%" />
+                <Skeleton variant="text" width="70%" />
+              </Box>
+            ) : timers.length === 0 ? (
+              <Box sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  タイマーが登録されていません
+                </Typography>
+              </Box>
+            ) : (
+              <List dense disablePadding>
+                {timers.map((timer) => (
+                  <ListItemButton
+                    key={timer.id}
+                    onClick={() => handleSelectTimer(timer)}
+                  >
+                    <ListItemText
+                      primary={timer.name}
+                      secondary={`${formatTimerDuration(getTotalTimerDuration(timer))} / ${timer.unitTimers.length}個のユニット`}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            )}
+          </Box>
+        </Popover>
         <DialogContent dividers>
           <Stack spacing={3}>
             {dateError && (

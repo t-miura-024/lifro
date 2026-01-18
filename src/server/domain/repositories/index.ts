@@ -7,6 +7,8 @@ import type {
   ExerciseHistory,
   LatestExerciseSets,
   SetInput,
+  Timer,
+  TimerInput,
   Training,
   TrainingMemo,
   TrainingMemoInput,
@@ -148,4 +150,43 @@ export interface ITrainingMemoRepository {
    * メモを一括保存（追加・更新・削除）
    */
   saveAll(userId: number, date: Date, memos: TrainingMemoInput[]): Promise<TrainingMemo[]>
+}
+
+/** タイマーの並び順更新用入力 */
+export type TimerSortOrderInput = {
+  id: number
+  sortIndex: number
+}
+
+/** タイマーリポジトリ */
+export interface ITimerRepository {
+  /**
+   * ユーザーの全タイマーを取得（sortIndex順）
+   */
+  findAllByUserId(userId: number): Promise<Timer[]>
+
+  /**
+   * タイマーをIDで取得
+   */
+  findById(userId: number, timerId: number): Promise<Timer | null>
+
+  /**
+   * タイマーを作成（ユニットタイマーも含めて）
+   */
+  create(userId: number, input: TimerInput): Promise<Timer>
+
+  /**
+   * タイマーを更新（ユニットタイマーも含めて）
+   */
+  update(userId: number, timerId: number, input: TimerInput): Promise<Timer>
+
+  /**
+   * タイマーの並び順を一括更新
+   */
+  updateSortOrder(userId: number, timers: TimerSortOrderInput[]): Promise<void>
+
+  /**
+   * タイマーを削除
+   */
+  delete(userId: number, timerId: number): Promise<void>
 }
