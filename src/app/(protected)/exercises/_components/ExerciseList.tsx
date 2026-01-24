@@ -17,11 +17,13 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import AddIcon from '@mui/icons-material/Add'
+import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import {
   Alert,
   Backdrop,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -40,14 +42,29 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import BodyPartEditDialog from './BodyPartEditDialog'
 import SortableExerciseItem from './SortableExerciseItem'
 
-/** APIレスポンスから推論された種目型（DateはJSONでstringになる） */
-type Exercise = InferResponseType<typeof client.api.exercises.$get>[number]
+/** APIレスポンスから推論された種目型 */
+const exercisesWithBodyPartsEndpoint = client.api.exercises['with-body-parts'].$get
+type ExerciseWithBodyParts = InferResponseType<typeof exercisesWithBodyPartsEndpoint>[number]
+
+/** 部位カテゴリの表示名 */
+const categoryLabels: Record<string, string> = {
+  CHEST: '胸',
+  BACK: '背中',
+  SHOULDER: '肩',
+  ARM: '腕',
+  ABS: '腹筋',
+  LEG: '脚',
+}
+
+/** カテゴリの表示順 */
+const categoryOrder = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG']
 
 export default function ExerciseList() {
-  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [exercises, setExercises] = useState<ExerciseWithBodyParts[]>([])
   const [isPending, startTransition] = useTransition()
   const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isSorting, setIsSorting] = useState(false)
@@ -57,7 +74,8 @@ export default function ExerciseList() {
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null)
+  const [bodyPartDialogOpen, setBodyPartDialogOpen] = useState(false)
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseWithBodyParts | null>(null)
   const [exerciseName, setExerciseName] = useState('')
 
   // エラー表示
@@ -70,10 +88,34 @@ export default function ExerciseList() {
     }),
   )
 
+  // カテゴリでグループ化
+  const groupedExercises = useMemo(() => {
+    const groups: Record<string, ExerciseWithBodyParts[]> = {}
+
+    // まず未分類グループを初期化
+    groups.UNCATEGORIZED = []
+
+    // カテゴリ順にグループを初期化
+    for (const category of categoryOrder) {
+      groups[category] = []
+    }
+
+    // 種目をグループに振り分け
+    for (const exercise of exercises) {
+      const category = exercise.primaryCategory || 'UNCATEGORIZED'
+      if (!groups[category]) {
+        groups[category] = []
+      }
+      groups[category].push(exercise)
+    }
+
+    return groups
+  }, [exercises])
+
   // 種目リストを取得
   const loadExercises = useCallback(() => {
     startTransition(async () => {
-      const res = await client.api.exercises.$get()
+      const res = await client.api.exercises['with-body-parts'].$get()
       const data = await res.json()
       setExercises(data)
       if (isInitialLoadRef.current) {
@@ -87,18 +129,30 @@ export default function ExerciseList() {
     loadExercises()
   }, [loadExercises])
 
-  // ドラッグ終了時の処理
-  const handleDragEnd = (event: DragEndEvent) => {
+  // ドラッグ終了時の処理（同一カテゴリ内のみ許可）
+  const handleDragEnd = (event: DragEndEvent, categoryExercises: ExerciseWithBodyParts[]) => {
     const { active, over } = event
 
     if (!over || active.id === over.id) return
 
-    const oldIndex = exercises.findIndex((item) => item.id === active.id)
-    const newIndex = exercises.findIndex((item) => item.id === over.id)
-    const newItems = arrayMove(exercises, oldIndex, newIndex)
+    const oldIndex = categoryExercises.findIndex((item) => item.id === active.id)
+    const newIndex = categoryExercises.findIndex((item) => item.id === over.id)
 
-    // ローカル状態を即座に更新
-    setExercises(newItems)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newItems = arrayMove(categoryExercises, oldIndex, newIndex)
+
+    // ローカル状態を更新
+    setExercises((prev) => {
+      const updated = [...prev]
+      for (let i = 0; i < newItems.length; i++) {
+        const exerciseIndex = updated.findIndex((e) => e.id === newItems[i].id)
+        if (exerciseIndex !== -1) {
+          updated[exerciseIndex] = { ...updated[exerciseIndex], sortIndex: i }
+        }
+      }
+      return updated
+    })
 
     // 変更されたアイテムのみを抽出して並び順を保存
     const minIndex = Math.min(oldIndex, newIndex)
@@ -136,7 +190,7 @@ export default function ExerciseList() {
   }
 
   // 編集
-  const handleEdit = useCallback((exercise: Exercise) => {
+  const handleEdit = useCallback((exercise: ExerciseWithBodyParts) => {
     setSelectedExercise(exercise)
     setExerciseName(exercise.name)
     setEditDialogOpen(true)
@@ -158,7 +212,7 @@ export default function ExerciseList() {
   }
 
   // 削除
-  const handleDelete = useCallback((exercise: Exercise) => {
+  const handleDelete = useCallback((exercise: ExerciseWithBodyParts) => {
     setSelectedExercise(exercise)
     setDeleteDialogOpen(true)
   }, [])
@@ -187,6 +241,12 @@ export default function ExerciseList() {
     })
   }
 
+  // 部位編集
+  const handleBodyPartEdit = useCallback((exercise: ExerciseWithBodyParts) => {
+    setSelectedExercise(exercise)
+    setBodyPartDialogOpen(true)
+  }, [])
+
   // スケルトンローディング表示
   const renderSkeleton = () => (
     <TableContainer component={Paper} variant="outlined">
@@ -195,6 +255,7 @@ export default function ExerciseList() {
           <TableRow>
             <TableCell sx={{ width: 48 }} />
             <TableCell>種目名</TableCell>
+            <TableCell>部位</TableCell>
             <TableCell sx={{ width: 48 }} />
             <TableCell sx={{ width: 48 }} />
           </TableRow>
@@ -208,6 +269,9 @@ export default function ExerciseList() {
               <TableCell>
                 <Skeleton variant="text" width="60%" />
               </TableCell>
+              <TableCell>
+                <Skeleton variant="text" width="40%" />
+              </TableCell>
               <TableCell sx={{ width: 48, p: 1 }}>
                 <Skeleton variant="circular" width={28} height={28} />
               </TableCell>
@@ -220,6 +284,58 @@ export default function ExerciseList() {
       </Table>
     </TableContainer>
   )
+
+  // カテゴリグループをレンダリング
+  const renderCategoryGroup = (category: string, categoryExercises: ExerciseWithBodyParts[]) => {
+    if (categoryExercises.length === 0) return null
+
+    const categoryLabel =
+      category === 'UNCATEGORIZED' ? '未分類' : categoryLabels[category] || category
+
+    return (
+      <Box key={category} sx={{ mb: 3 }}>
+        <Typography
+          variant="subtitle2"
+          sx={{
+            mb: 1,
+            px: 1,
+            py: 0.5,
+            bgcolor: 'action.hover',
+            borderRadius: 1,
+            fontWeight: 'bold',
+          }}
+        >
+          {categoryLabel}
+        </Typography>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={(event) => handleDragEnd(event, categoryExercises)}
+        >
+          <SortableContext
+            items={categoryExercises.map((e) => e.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            <TableContainer component={Paper} variant="outlined">
+              <Table size="small">
+                <TableBody>
+                  {categoryExercises.map((exercise) => (
+                    <SortableExerciseItem
+                      key={exercise.id}
+                      exercise={exercise}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onBodyPartEdit={handleBodyPartEdit}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </SortableContext>
+        </DndContext>
+      </Box>
+    )
+  }
 
   return (
     <Box sx={{ position: 'relative' }}>
@@ -265,35 +381,14 @@ export default function ExerciseList() {
           </Typography>
         </Paper>
       ) : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext
-            items={exercises.map((e) => e.id)}
-            strategy={verticalListSortingStrategy}
-          >
-            <TableContainer component={Paper} variant="outlined">
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ width: 48 }} />
-                    <TableCell>種目名</TableCell>
-                    <TableCell sx={{ width: 48 }} />
-                    <TableCell sx={{ width: 48 }} />
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {exercises.map((exercise) => (
-                    <SortableExerciseItem
-                      key={exercise.id}
-                      exercise={exercise}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                    />
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          </SortableContext>
-        </DndContext>
+        <Box>
+          {/* カテゴリ順にレンダリング */}
+          {categoryOrder.map((category) =>
+            renderCategoryGroup(category, groupedExercises[category] || []),
+          )}
+          {/* 未分類は最後に */}
+          {renderCategoryGroup('UNCATEGORIZED', groupedExercises.UNCATEGORIZED || [])}
+        </Box>
       )}
 
       {/* 新規作成ダイアログ */}
@@ -399,6 +494,24 @@ export default function ExerciseList() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 部位編集ダイアログ */}
+      <BodyPartEditDialog
+        open={bodyPartDialogOpen}
+        onClose={() => {
+          setBodyPartDialogOpen(false)
+          setSelectedExercise(null)
+        }}
+        exerciseId={selectedExercise?.id ?? null}
+        exerciseName={selectedExercise?.name ?? ''}
+        initialBodyParts={
+          selectedExercise?.bodyParts?.map((bp) => ({
+            bodyPartId: bp.bodyPartId,
+            loadRatio: bp.loadRatio,
+          })) ?? []
+        }
+        onSave={loadExercises}
+      />
 
       {/* エラースナックバー */}
       <Snackbar

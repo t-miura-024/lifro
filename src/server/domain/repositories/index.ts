@@ -6,8 +6,12 @@
  */
 
 import type {
+  BodyPart,
+  BodyPartCategory,
   Exercise,
+  ExerciseBodyPart,
   ExerciseHistory,
+  ExerciseWithBodyParts,
   LatestExerciseSets,
   SetInput,
   Timer,
@@ -199,4 +203,50 @@ export interface ITimerRepository {
    * タイマーを削除
    */
   delete(userId: number, timerId: number): Promise<void>
+}
+
+/** 部位リポジトリ */
+export interface IBodyPartRepository {
+  /**
+   * 全部位を取得（カテゴリ・sortIndex順）
+   */
+  findAll(): Promise<BodyPart[]>
+
+  /**
+   * カテゴリ別に部位を取得
+   */
+  findByCategory(category: BodyPartCategory): Promise<BodyPart[]>
+
+  /**
+   * IDで部位を取得
+   */
+  findById(id: number): Promise<BodyPart | null>
+}
+
+/** 種目-部位紐付けの入力データ */
+export type ExerciseBodyPartInput = {
+  bodyPartId: number
+  loadRatio: number // 負荷割合（0-100）
+}
+
+/** 種目-部位リポジトリ（IExerciseRepositoryの拡張） */
+export interface IExerciseBodyPartRepository {
+  /**
+   * 種目の部位紐付けを取得
+   */
+  findByExerciseId(exerciseId: number): Promise<ExerciseBodyPart[]>
+
+  /**
+   * 種目の部位紐付けを一括更新（全置換）
+   */
+  saveAll(
+    userId: number,
+    exerciseId: number,
+    bodyParts: ExerciseBodyPartInput[],
+  ): Promise<ExerciseBodyPart[]>
+
+  /**
+   * ユーザーの全種目を部位情報付きで取得（主要カテゴリ・sortIndex順）
+   */
+  findAllWithBodyParts(userId: number): Promise<ExerciseWithBodyParts[]>
 }

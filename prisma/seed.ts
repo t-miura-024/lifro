@@ -1,6 +1,21 @@
-import { PrismaClient } from '@prisma/client'
+import { type BodyPartCategory, PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()
+
+/**
+ * 部位マスタデータ
+ */
+const bodyPartMasterData: {
+  category: BodyPartCategory
+  parts: string[]
+}[] = [
+  { category: 'CHEST', parts: ['上部', '中部', '下部'] },
+  { category: 'BACK', parts: ['広背筋', '僧帽筋', '脊柱起立筋'] },
+  { category: 'SHOULDER', parts: ['前部', '中部', '後部'] },
+  { category: 'ARM', parts: ['二頭筋', '三頭筋', '前腕筋'] },
+  { category: 'ABS', parts: ['上部', '下部', '横腹'] },
+  { category: 'LEG', parts: ['太もも前', '太もも裏', '臀部', 'ふくらはぎ'] },
+]
 
 /**
  * 初期データ投入スクリプト
@@ -14,6 +29,21 @@ const prisma = new PrismaClient()
  */
 async function main() {
   console.log('🌱 Seeding database...')
+
+  // 部位マスタデータを作成
+  console.log('📍 Seeding body parts...')
+  let sortIndex = 0
+  for (const { category, parts } of bodyPartMasterData) {
+    for (const name of parts) {
+      await prisma.bodyPart.upsert({
+        where: { category_name: { category, name } },
+        update: { sortIndex },
+        create: { category, name, sortIndex },
+      })
+      sortIndex++
+    }
+  }
+  console.log('  ✅ Body parts seeded')
 
   // 開発用ユーザーを作成（存在しない場合のみ）
   const devEmail = process.env.DEV_USER_EMAIL || 'dev@example.com'

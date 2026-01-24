@@ -6,9 +6,12 @@ import { authMiddleware, type AuthEnv } from '@/app/_lib/hono/middleware/auth'
 import { canDelete as exerciseCanDelete } from '@/app/(protected)/exercises/_api/canDelete'
 import { createExercise } from '@/app/(protected)/exercises/_api/createExercise'
 import { deleteExercise } from '@/app/(protected)/exercises/_api/deleteExercise'
+import { getBodyParts } from '@/app/(protected)/exercises/_api/getBodyParts'
 import { getExercises } from '@/app/(protected)/exercises/_api/getExercises'
+import { getExercisesWithBodyParts } from '@/app/(protected)/exercises/_api/getExercisesWithBodyParts'
 import { searchExercises } from '@/app/(protected)/exercises/_api/searchExercises'
 import { updateExercise } from '@/app/(protected)/exercises/_api/updateExercise'
+import { updateExerciseBodyParts } from '@/app/(protected)/exercises/_api/updateExerciseBodyParts'
 import { updateSortOrder as exerciseUpdateSortOrder } from '@/app/(protected)/exercises/_api/updateSortOrder'
 
 // Trainings API
@@ -25,6 +28,8 @@ import { saveMemos } from '@/app/(protected)/logs/_api/saveMemos'
 import { upsertTraining } from '@/app/(protected)/logs/_api/upsertTraining'
 
 // Statistics API
+import { getBodyPartTrainingDays } from '@/app/(protected)/statistics/_api/getBodyPartTrainingDays'
+import { getBodyPartVolumeTotals } from '@/app/(protected)/statistics/_api/getBodyPartVolumeTotals'
 import { getContinuityStats } from '@/app/(protected)/statistics/_api/getContinuityStats'
 import { getContinuityTab } from '@/app/(protected)/statistics/_api/getContinuityTab'
 import { getExercises as getStatisticsExercises } from '@/app/(protected)/statistics/_api/getExercises'
@@ -35,6 +40,7 @@ import { getOneRMHistory } from '@/app/(protected)/statistics/_api/getOneRMHisto
 import { getSummary } from '@/app/(protected)/statistics/_api/getSummary'
 import { getTotalVolume } from '@/app/(protected)/statistics/_api/getTotalVolume'
 import { getTrainingDaysByPeriod } from '@/app/(protected)/statistics/_api/getTrainingDaysByPeriod'
+import { getVolumeByBodyPart } from '@/app/(protected)/statistics/_api/getVolumeByBodyPart'
 import { getVolumeByExercise } from '@/app/(protected)/statistics/_api/getVolumeByExercise'
 import { getVolumeTab } from '@/app/(protected)/statistics/_api/getVolumeTab'
 import { getWeightTab } from '@/app/(protected)/statistics/_api/getWeightTab'
@@ -51,11 +57,14 @@ import { updateTimer } from '@/app/(protected)/timers/_api/updateTimer'
 // Exercises サブアプリ
 const exercisesApp = new Hono<AuthEnv>()
   .use('*', authMiddleware)
+  .route('/', getBodyParts)
+  .route('/', getExercisesWithBodyParts)
   .route('/', searchExercises)
   .route('/', exerciseUpdateSortOrder)
   .route('/', getExercises)
   .route('/', createExercise)
   .route('/', exerciseCanDelete)
+  .route('/', updateExerciseBodyParts)
   .route('/', updateExercise)
   .route('/', deleteExercise)
 
@@ -83,13 +92,16 @@ const statisticsApp = new Hono<AuthEnv>()
   .route('/', getWeightTab)
   .route('/', getContinuityTab)
   .route('/', getVolumeByExercise)
+  .route('/', getVolumeByBodyPart)
   .route('/', getExerciseVolumeTotals)
+  .route('/', getBodyPartVolumeTotals)
   .route('/', getTotalVolume)
   .route('/', getMaxWeightHistory)
   .route('/', getOneRMHistory)
   .route('/', getContinuityStats)
   .route('/', getTrainingDaysByPeriod)
   .route('/', getExerciseTrainingDays)
+  .route('/', getBodyPartTrainingDays)
 
 // Timers サブアプリ
 const timersApp = new Hono<AuthEnv>()

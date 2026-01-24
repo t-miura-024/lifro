@@ -2,6 +2,10 @@
 
 import { client } from '@/app/_lib/hono/client'
 import type {
+  BodyPartGranularity,
+  BodyPartTrainingDays,
+  BodyPartVolumeByPeriod,
+  BodyPartVolumeTotal,
   ContinuityStats,
   ExerciseTrainingDays,
   ExerciseVolumeByPeriod,
@@ -15,9 +19,12 @@ import type { Exercise } from '@/server/domain/entities'
 import ScaleIcon from '@mui/icons-material/Scale'
 import { Box, Grid, Paper, Skeleton, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
+import BodyPartTrainingDaysList from './_components/BodyPartTrainingDays'
+import BodyPartVolumeList from './_components/BodyPartVolumeList'
 import ContinuityTab from './_components/ContinuityTab'
 import ExerciseVolumeList from './_components/ExerciseVolumeList'
 import GlobalFilter, { type TimeRange } from './_components/GlobalFilter'
+import StackedBodyPartVolumeChart from './_components/StackedBodyPartVolumeChart'
 import StackedVolumeChart from './_components/StackedVolumeChart'
 import StatsCard from './_components/StatsCard'
 import WeightTab from './_components/WeightTab'
@@ -44,6 +51,12 @@ export default function StatisticsPage() {
   const [trainingDaysByPeriod, setTrainingDaysByPeriod] = useState<TrainingDaysByPeriod[]>([])
   const [exerciseTrainingDays, setExerciseTrainingDays] = useState<ExerciseTrainingDays[]>([])
 
+  // 部位別統計のデータ
+  const [bodyPartGranularity, setBodyPartGranularity] = useState<BodyPartGranularity>('category')
+  const [bodyPartVolumeTotals, setBodyPartVolumeTotals] = useState<BodyPartVolumeTotal[]>([])
+  const [volumeByBodyPart, setVolumeByBodyPart] = useState<BodyPartVolumeByPeriod[]>([])
+  const [bodyPartTrainingDays, setBodyPartTrainingDays] = useState<BodyPartTrainingDays[]>([])
+
   const [isLoading, startLoading] = useTransition()
 
   // 共通のデータ取得
@@ -59,19 +72,42 @@ export default function StatisticsPage() {
   // ボリュームタブのデータ取得（統合アクション使用）
   const loadVolumeData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const res = await client.api.statistics.volume.$get({
-      query: {
-        granularity,
-        preset,
-        customStartDate,
-        customEndDate,
-      },
-    })
-    const data = await res.json()
+    const [volumeRes, bodyPartVolumeTotalsRes, volumeByBodyPartRes] = await Promise.all([
+      client.api.statistics.volume.$get({
+        query: {
+          granularity,
+          preset,
+          customStartDate,
+          customEndDate,
+        },
+      }),
+      client.api.statistics['body-part-volume-totals'].$get({
+        query: {
+          preset,
+          startDate: customStartDate,
+          endDate: customEndDate,
+          granularity: bodyPartGranularity,
+        },
+      }),
+      client.api.statistics['volume-by-body-part'].$get({
+        query: {
+          granularity,
+          bodyPartGranularity,
+          preset,
+          customStartDate,
+          customEndDate,
+        },
+      }),
+    ])
+    const data = await volumeRes.json()
+    const bodyPartTotalsData = await bodyPartVolumeTotalsRes.json()
+    const volumeByBodyPartData = await volumeByBodyPartRes.json()
     setTotalVolume(data.totalVolume)
     setVolumeByExercise(data.volumeByExercise)
     setExerciseVolumeTotals(data.exerciseVolumeTotals)
-  }, [granularity, timeRange])
+    setBodyPartVolumeTotals(bodyPartTotalsData)
+    setVolumeByBodyPart(volumeByBodyPartData)
+  }, [granularity, timeRange, bodyPartGranularity])
 
   // 重量タブのデータ取得（統合アクション使用）
   const loadWeightData = useCallback(async () => {
@@ -94,19 +130,31 @@ export default function StatisticsPage() {
   // 継続タブのデータ取得（統合アクション使用）
   const loadContinuityData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const res = await client.api.statistics.continuity.$get({
-      query: {
-        granularity,
-        preset,
-        customStartDate,
-        customEndDate,
-      },
-    })
-    const data = await res.json()
+    const [continuityRes, bodyPartDaysRes] = await Promise.all([
+      client.api.statistics.continuity.$get({
+        query: {
+          granularity,
+          preset,
+          customStartDate,
+          customEndDate,
+        },
+      }),
+      client.api.statistics['body-part-training-days'].$get({
+        query: {
+          preset,
+          startDate: customStartDate,
+          endDate: customEndDate,
+          granularity: bodyPartGranularity,
+        },
+      }),
+    ])
+    const data = await continuityRes.json()
+    const bodyPartDaysData = await bodyPartDaysRes.json()
     setContinuityStats(data.stats)
     setTrainingDaysByPeriod(data.daysByPeriod)
     setExerciseTrainingDays(data.exerciseDays)
-  }, [granularity, timeRange])
+    setBodyPartTrainingDays(bodyPartDaysData)
+  }, [granularity, timeRange, bodyPartGranularity])
 
   // 初回ロード
   useEffect(() => {
@@ -197,6 +245,8 @@ export default function StatisticsPage() {
       <Grid container spacing={2}>
         <Grid size={{ xs: 12 }}>{renderStatsCardSkeleton()}</Grid>
       </Grid>
+      {renderListSkeleton('部位別ボリューム')}
+      {renderChartSkeleton('部位別ボリューム推移')}
       {renderListSkeleton('種目別ボリューム')}
       {renderChartSkeleton('ボリューム推移')}
     </Stack>
@@ -276,10 +326,24 @@ export default function StatisticsPage() {
                 </Grid>
               </Grid>
 
+              {/* 部位別ボリュームリスト */}
+              <BodyPartVolumeList
+                data={bodyPartVolumeTotals}
+                granularity={bodyPartGranularity}
+                onGranularityChange={setBodyPartGranularity}
+              />
+
+              {/* 部位別ボリューム推移グラフ */}
+              <StackedBodyPartVolumeChart
+                data={volumeByBodyPart}
+                granularity={bodyPartGranularity}
+                onGranularityChange={setBodyPartGranularity}
+              />
+
               {/* 種目別ボリュームリスト */}
               <ExerciseVolumeList data={exerciseVolumeTotals} />
 
-              {/* 積み上げグラフ */}
+              {/* 種目別ボリューム推移グラフ */}
               <StackedVolumeChart data={volumeByExercise} />
             </Stack>
           )}
@@ -297,11 +361,20 @@ export default function StatisticsPage() {
 
           {/* 継続タブ */}
           {activeTab === 2 && (
-            <ContinuityTab
-              stats={continuityStats}
-              daysByPeriod={trainingDaysByPeriod}
-              exerciseDays={exerciseTrainingDays}
-            />
+            <Stack spacing={2}>
+              <ContinuityTab
+                stats={continuityStats}
+                daysByPeriod={trainingDaysByPeriod}
+                exerciseDays={exerciseTrainingDays}
+              />
+
+              {/* 部位別トレーニング日数 */}
+              <BodyPartTrainingDaysList
+                data={bodyPartTrainingDays}
+                granularity={bodyPartGranularity}
+                onGranularityChange={setBodyPartGranularity}
+              />
+            </Stack>
           )}
         </>
       )}

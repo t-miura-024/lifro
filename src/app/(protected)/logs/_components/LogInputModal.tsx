@@ -1,8 +1,25 @@
 'use client'
 
-import { client } from '@/app/_lib/hono/client'
+import { client, type InferResponseType } from '@/app/_lib/hono/client'
 import { useTimer } from '@/app/providers/TimerContext'
-import type { Exercise, LatestExerciseSets, Timer, TrainingMemo } from '@/server/domain/entities'
+import type { LatestExerciseSets, Timer, TrainingMemo } from '@/server/domain/entities'
+
+/** 部位情報付き種目 */
+const exercisesWithBodyPartsEndpoint = client.api.exercises['with-body-parts'].$get
+type ExerciseWithBodyParts = InferResponseType<typeof exercisesWithBodyPartsEndpoint>[number]
+
+/** 部位カテゴリの表示名 */
+const categoryLabels: Record<string, string> = {
+  CHEST: '胸',
+  BACK: '背中',
+  SHOULDER: '肩',
+  ARM: '腕',
+  ABS: '腹筋',
+  LEG: '脚',
+}
+
+/** カテゴリの表示順 */
+const categoryOrder = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG']
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import TimerIcon from '@mui/icons-material/Timer'
@@ -21,6 +38,7 @@ import {
   List,
   ListItemButton,
   ListItemText,
+  ListSubheader,
   MenuItem,
   Paper,
   Popover,
@@ -117,7 +135,7 @@ const formatDelta = (current: number, previous: number | null) => {
 
 export default function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Props) {
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([emptyExerciseGroup()])
-  const [exercises, setExercises] = useState<Exercise[]>([])
+  const [exercises, setExercises] = useState<ExerciseWithBodyParts[]>([])
   const [memos, setMemos] = useState<MemoFormData[]>([])
   const [isPending, startTransition] = useTransition()
   const [isInitialLoading, setIsInitialLoading] = useState(true)
@@ -200,8 +218,8 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
       const excludeDateStr = selectedDate.format('YYYY-MM-DD')
 
       const loadData = async () => {
-        // 種目リストを取得
-        const exercisesRes = await client.api.exercises.$get()
+        // 種目リストを取得（部位情報付き）
+        const exercisesRes = await client.api.exercises['with-body-parts'].$get()
         const exercisesData = await exercisesRes.json()
         setExercises(exercisesData)
 
@@ -734,11 +752,50 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
                                 },
                               }}
                             >
-                              {exercises.map((exercise) => (
-                                <MenuItem key={exercise.id} value={exercise.id.toString()}>
-                                  {exercise.name}
-                                </MenuItem>
-                              ))}
+                              {/* カテゴリ順に種目をグループ化して表示 */}
+                              {(() => {
+                                const grouped: Record<string, ExerciseWithBodyParts[]> = {}
+                                for (const category of categoryOrder) {
+                                  grouped[category] = []
+                                }
+                                grouped.UNCATEGORIZED = []
+
+                                for (const exercise of exercises) {
+                                  const category = exercise.primaryCategory || 'UNCATEGORIZED'
+                                  if (!grouped[category]) {
+                                    grouped[category] = []
+                                  }
+                                  grouped[category].push(exercise)
+                                }
+
+                                const items: React.ReactNode[] = []
+                                for (const category of [...categoryOrder, 'UNCATEGORIZED']) {
+                                  const categoryExercises = grouped[category]
+                                  if (categoryExercises.length > 0) {
+                                    const label =
+                                      category === 'UNCATEGORIZED'
+                                        ? '未分類'
+                                        : categoryLabels[category] || category
+                                    items.push(
+                                      <ListSubheader key={`header-${category}`} sx={{ lineHeight: '32px' }}>
+                                        {label}
+                                      </ListSubheader>,
+                                    )
+                                    for (const exercise of categoryExercises) {
+                                      items.push(
+                                        <MenuItem
+                                          key={exercise.id}
+                                          value={exercise.id.toString()}
+                                          sx={{ pl: 3 }}
+                                        >
+                                          {exercise.name}
+                                        </MenuItem>,
+                                      )
+                                    }
+                                  }
+                                }
+                                return items
+                              })()}
                             </Select>
                           </FormControl>
                           {exerciseGroups.length > 1 && (

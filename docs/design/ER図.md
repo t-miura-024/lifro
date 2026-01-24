@@ -25,6 +25,25 @@ erDiagram
         INTEGER id PK "エクササイズID"
         INTEGER user_id FK "ユーザーID"
         VARCHAR name "種目名"
+        INTEGER sort_index "並び順"
+        TIMESTAMP created_at "作成日時"
+        TIMESTAMP updated_at "更新日時"
+    }
+
+    BODY_PARTS {
+        INTEGER id PK "部位ID"
+        ENUM category "部位カテゴリ"
+        VARCHAR name "部位名"
+        INTEGER sort_index "並び順"
+        TIMESTAMP created_at "作成日時"
+        TIMESTAMP updated_at "更新日時"
+    }
+
+    EXERCISE_BODY_PARTS {
+        INTEGER id PK "ID"
+        INTEGER exercise_id FK "種目ID"
+        INTEGER body_part_id FK "部位ID"
+        INTEGER load_ratio "負荷割合"
         TIMESTAMP created_at "作成日時"
         TIMESTAMP updated_at "更新日時"
     }
@@ -50,6 +69,7 @@ erDiagram
     UNIT_TIMERS {
         INTEGER id PK "ユニットタイマーID"
         INTEGER timer_id FK "タイマーID"
+        VARCHAR name "ユニットタイマー名"
         INTEGER sort_index "並び順"
         INTEGER duration "時間（秒）"
         VARCHAR count_sound "カウント音"
@@ -64,5 +84,7 @@ erDiagram
     USERS ||--o{ TRAINING_MEMOS : ""
     USERS ||--o{ TIMERS : ""
     EXERCISES ||--o{ SETS : ""
+    EXERCISES ||--o{ EXERCISE_BODY_PARTS : ""
+    BODY_PARTS ||--o{ EXERCISE_BODY_PARTS : ""
     TIMERS ||--o{ UNIT_TIMERS : ""
 ```

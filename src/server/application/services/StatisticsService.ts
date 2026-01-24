@@ -73,6 +73,35 @@ export type ExerciseTrainingDays = {
   days: number
 }
 
+/** 部位別ボリューム合計（リスト用） */
+export type BodyPartVolumeTotal = {
+  bodyPartId: number
+  category: string
+  bodyPartName: string
+  volume: number
+  setCount: number
+}
+
+/** 部位別ボリュームデータ（グラフ用） */
+export type BodyPartVolumeByPeriod = {
+  period: string
+  bodyPartId: number
+  category: string
+  bodyPartName: string
+  volume: number
+}
+
+/** 部位別トレーニング日数（リスト用） */
+export type BodyPartTrainingDays = {
+  bodyPartId: number
+  category: string
+  bodyPartName: string
+  days: number
+}
+
+/** 部位統計の集計粒度 */
+export type BodyPartGranularity = 'category' | 'bodyPart'
+
 export class StatisticsService {
   /**
    * 日付を期間キーに変換
@@ -760,6 +789,264 @@ export class StatisticsService {
     maxStreak = Math.max(maxStreak, streak)
 
     return { currentStreak, maxStreak }
+  }
+
+  /**
+   * 部位別ボリューム合計を取得（リスト用、ボリューム降順）
+   * カテゴリ単位または部位単位で集計可能
+   */
+  async getBodyPartVolumeTotals(
+    userId: number,
+    startDate: Date,
+    endDate: Date,
+    granularity: BodyPartGranularity,
+  ): Promise<BodyPartVolumeTotal[]> {
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getBodyPartVolumeTotals',
+      `${startStr}_${endStr}_${granularity}`,
+    )
+
+    return cacheService.through(cacheKey, async () => {
+      if (granularity === 'category') {
+        // カテゴリ単位で集計
+        const results = await prisma.$queryRaw<
+          Array<{
+            category: string
+            volume: number
+            set_count: bigint
+          }>
+        >`
+          SELECT
+            bp.category,
+            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume,
+            COUNT(*)::bigint as set_count
+          FROM sets s
+          JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
+          JOIN body_parts bp ON bp.id = ebp.body_part_id
+          WHERE s.user_id = ${userId}
+            AND s.date >= ${startDate}
+            AND s.date <= ${endDate}
+          GROUP BY bp.category
+          ORDER BY volume DESC
+        `
+
+        return results.map((r) => ({
+          bodyPartId: 0, // カテゴリ集計時は0
+          category: r.category,
+          bodyPartName: '', // カテゴリ集計時は空
+          volume: r.volume,
+          setCount: Number(r.set_count),
+        }))
+      }
+      // 部位単位で集計
+      const results = await prisma.$queryRaw<
+        Array<{
+          body_part_id: number
+          category: string
+          body_part_name: string
+          volume: number
+          set_count: bigint
+        }>
+      >`
+          SELECT
+            bp.id as body_part_id,
+            bp.category,
+            bp.name as body_part_name,
+            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume,
+            COUNT(*)::bigint as set_count
+          FROM sets s
+          JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
+          JOIN body_parts bp ON bp.id = ebp.body_part_id
+          WHERE s.user_id = ${userId}
+            AND s.date >= ${startDate}
+            AND s.date <= ${endDate}
+          GROUP BY bp.id, bp.category, bp.name
+          ORDER BY volume DESC
+        `
+
+      return results.map((r) => ({
+        bodyPartId: r.body_part_id,
+        category: r.category,
+        bodyPartName: r.body_part_name,
+        volume: r.volume,
+        setCount: Number(r.set_count),
+      }))
+    })
+  }
+
+  /**
+   * 部位別ボリュームを期間ごとに取得（積み上げグラフ用）
+   * カテゴリ単位または部位単位で集計可能
+   */
+  async getVolumeByBodyPart(
+    userId: number,
+    startDate: Date,
+    endDate: Date,
+    timeGranularity: TimeGranularity,
+    bodyPartGranularity: BodyPartGranularity,
+  ): Promise<BodyPartVolumeByPeriod[]> {
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getVolumeByBodyPart',
+      `${startStr}_${endStr}_${timeGranularity}_${bodyPartGranularity}`,
+    )
+
+    return cacheService.through(cacheKey, async () => {
+      const periodFormatSql = this.getPeriodFormatSql(timeGranularity)
+
+      if (bodyPartGranularity === 'category') {
+        // カテゴリ単位で集計
+        const results = await prisma.$queryRaw<
+          Array<{
+            period: string
+            category: string
+            volume: number
+          }>
+        >`
+          SELECT
+            to_char(s.date, ${periodFormatSql}) as period,
+            bp.category,
+            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume
+          FROM sets s
+          JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
+          JOIN body_parts bp ON bp.id = ebp.body_part_id
+          WHERE s.user_id = ${userId}
+            AND s.date >= ${startDate}
+            AND s.date <= ${endDate}
+          GROUP BY 1, bp.category
+          ORDER BY period ASC
+        `
+
+        return results.map((r) => ({
+          period: r.period,
+          bodyPartId: 0,
+          category: r.category,
+          bodyPartName: '',
+          volume: r.volume,
+        }))
+      }
+      // 部位単位で集計
+      const results = await prisma.$queryRaw<
+        Array<{
+          period: string
+          body_part_id: number
+          category: string
+          body_part_name: string
+          volume: number
+        }>
+      >`
+          SELECT
+            to_char(s.date, ${periodFormatSql}) as period,
+            bp.id as body_part_id,
+            bp.category,
+            bp.name as body_part_name,
+            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume
+          FROM sets s
+          JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
+          JOIN body_parts bp ON bp.id = ebp.body_part_id
+          WHERE s.user_id = ${userId}
+            AND s.date >= ${startDate}
+            AND s.date <= ${endDate}
+          GROUP BY 1, bp.id, bp.category, bp.name
+          ORDER BY period ASC
+        `
+
+      return results.map((r) => ({
+        period: r.period,
+        bodyPartId: r.body_part_id,
+        category: r.category,
+        bodyPartName: r.body_part_name,
+        volume: r.volume,
+      }))
+    })
+  }
+
+  /**
+   * 部位別トレーニング日数を取得（リスト用、日数降順）
+   * カテゴリ単位または部位単位で集計可能
+   */
+  async getBodyPartTrainingDays(
+    userId: number,
+    startDate: Date,
+    endDate: Date,
+    granularity: BodyPartGranularity,
+  ): Promise<BodyPartTrainingDays[]> {
+    const startStr = startDate.toISOString().split('T')[0]
+    const endStr = endDate.toISOString().split('T')[0]
+    const cacheKey = cacheService.buildKey(
+      userId,
+      'statistics',
+      'getBodyPartTrainingDays',
+      `${startStr}_${endStr}_${granularity}`,
+    )
+
+    return cacheService.through(cacheKey, async () => {
+      if (granularity === 'category') {
+        // カテゴリ単位で集計
+        const results = await prisma.$queryRaw<
+          Array<{
+            category: string
+            days: bigint
+          }>
+        >`
+          SELECT
+            bp.category,
+            COUNT(DISTINCT s.date)::bigint as days
+          FROM sets s
+          JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
+          JOIN body_parts bp ON bp.id = ebp.body_part_id
+          WHERE s.user_id = ${userId}
+            AND s.date >= ${startDate}
+            AND s.date <= ${endDate}
+          GROUP BY bp.category
+          ORDER BY days DESC
+        `
+
+        return results.map((r) => ({
+          bodyPartId: 0,
+          category: r.category,
+          bodyPartName: '',
+          days: Number(r.days),
+        }))
+      }
+      // 部位単位で集計
+      const results = await prisma.$queryRaw<
+        Array<{
+          body_part_id: number
+          category: string
+          body_part_name: string
+          days: bigint
+        }>
+      >`
+          SELECT
+            bp.id as body_part_id,
+            bp.category,
+            bp.name as body_part_name,
+            COUNT(DISTINCT s.date)::bigint as days
+          FROM sets s
+          JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
+          JOIN body_parts bp ON bp.id = ebp.body_part_id
+          WHERE s.user_id = ${userId}
+            AND s.date >= ${startDate}
+            AND s.date <= ${endDate}
+          GROUP BY bp.id, bp.category, bp.name
+          ORDER BY days DESC
+        `
+
+      return results.map((r) => ({
+        bodyPartId: r.body_part_id,
+        category: r.category,
+        bodyPartName: r.body_part_name,
+        days: Number(r.days),
+      }))
+    })
   }
 }
 

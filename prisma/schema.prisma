@@ -31,11 +31,56 @@ model Exercise {
     createdAt DateTime @default(now()) @map("created_at")
     updatedAt DateTime @updatedAt @map("updated_at")
 
-    user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-    sets Set[]
+    user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+    sets              Set[]
+    exerciseBodyParts ExerciseBodyPart[]
 
     @@index([userId])
     @@map("exercises")
+}
+
+/// 部位大カテゴリ
+enum BodyPartCategory {
+    CHEST // 胸
+    BACK // 背中
+    SHOULDER // 肩
+    ARM // 腕
+    ABS // 腹筋
+    LEG // 脚
+}
+
+/// 部位マスタ
+model BodyPart {
+    id        Int              @id @default(autoincrement())
+    category  BodyPartCategory
+    name      String
+    sortIndex Int              @default(0) @map("sort_index")
+    createdAt DateTime         @default(now()) @map("created_at")
+    updatedAt DateTime         @updatedAt @map("updated_at")
+
+    exerciseBodyParts ExerciseBodyPart[]
+
+    @@unique([category, name])
+    @@index([category])
+    @@map("body_parts")
+}
+
+/// 種目-部位中間テーブル
+model ExerciseBodyPart {
+    id         Int      @id @default(autoincrement())
+    exerciseId Int      @map("exercise_id")
+    bodyPartId Int      @map("body_part_id")
+    loadRatio  Int      @map("load_ratio") // 負荷割合（0-100）
+    createdAt  DateTime @default(now()) @map("created_at")
+    updatedAt  DateTime @updatedAt @map("updated_at")
+
+    exercise Exercise @relation(fields: [exerciseId], references: [id], onDelete: Cascade)
+    bodyPart BodyPart @relation(fields: [bodyPartId], references: [id], onDelete: Cascade)
+
+    @@unique([exerciseId, bodyPartId])
+    @@index([exerciseId])
+    @@index([bodyPartId])
+    @@map("exercise_body_parts")
 }
 
 model Set {
@@ -129,7 +174,7 @@ model Timer {
 model UnitTimer {
     id                 Int      @id @default(autoincrement())
     timerId            Int      @map("timer_id")
-    name               String?  /// 名前（任意）
+    name               String? /// 名前（任意）
     sortIndex          Int      @default(0) @map("sort_index")
     duration           Int /// 秒単位
     countSound         String?  @map("count_sound")

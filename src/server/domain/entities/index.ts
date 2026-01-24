@@ -14,6 +14,50 @@ export type User = {
   updatedAt: string // ISO 8601
 }
 
+/** 部位大カテゴリ */
+export type BodyPartCategory = 'CHEST' | 'BACK' | 'SHOULDER' | 'ARM' | 'ABS' | 'LEG'
+
+/** 部位大カテゴリの表示名 */
+export const BodyPartCategoryLabels: Record<BodyPartCategory, string> = {
+  CHEST: '胸',
+  BACK: '背中',
+  SHOULDER: '肩',
+  ARM: '腕',
+  ABS: '腹筋',
+  LEG: '脚',
+}
+
+/** 部位大カテゴリの表示順 */
+export const BodyPartCategoryOrder: BodyPartCategory[] = [
+  'CHEST',
+  'BACK',
+  'SHOULDER',
+  'ARM',
+  'ABS',
+  'LEG',
+]
+
+/** 部位 */
+export type BodyPart = {
+  id: number
+  category: BodyPartCategory
+  name: string
+  sortIndex: number
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
+}
+
+/** 種目-部位の紐付け */
+export type ExerciseBodyPart = {
+  id: number
+  exerciseId: number
+  bodyPartId: number
+  loadRatio: number // 負荷割合（0-100）
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
+  bodyPart?: BodyPart
+}
+
 /** 種目 */
 export type Exercise = {
   id: number
@@ -22,6 +66,13 @@ export type Exercise = {
   sortIndex: number
   createdAt: string // ISO 8601
   updatedAt: string // ISO 8601
+  bodyParts?: ExerciseBodyPart[]
+}
+
+/** 種目（部位情報付き） */
+export type ExerciseWithBodyParts = Exercise & {
+  bodyParts: ExerciseBodyPart[]
+  primaryCategory: BodyPartCategory | null
 }
 
 /** セット（トレーニングの最小単位） */
