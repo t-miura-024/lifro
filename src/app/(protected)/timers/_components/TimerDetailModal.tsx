@@ -51,6 +51,16 @@ type Props = {
 
 let unitKeyCounter = 0
 
+// 分と秒の選択肢
+const MINUTES_OPTIONS = Array.from({ length: 100 }, (_, i) => ({
+  value: String(i),
+  label: String(i),
+}))
+const SECONDS_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
+  value: String(i),
+  label: String(i),
+}))
+
 function createEmptyUnit(): UnitTimerFormData {
   return {
     key: `unit-${Date.now()}-${unitKeyCounter++}`,
@@ -277,27 +287,39 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
 
                       {/* 時間入力 */}
                       <Stack direction="row" spacing={1} alignItems="center">
-                        <TextField
-                          type="number"
-                          label="分"
-                          size="small"
-                          value={unit.minutes}
-                          onChange={(e) => handleUnitChange(index, 'minutes', e.target.value)}
-                          inputProps={{ min: 0, max: 99 }}
-                          sx={{ width: 80 }}
-                          error={!isValidTime(unit)}
-                        />
+                        <FormControl size="small" sx={{ width: 80 }} error={!isValidTime(unit)}>
+                          <InputLabel>分</InputLabel>
+                          <Select
+                            value={unit.minutes}
+                            label="分"
+                            onChange={(e: SelectChangeEvent) =>
+                              handleUnitChange(index, 'minutes', e.target.value)
+                            }
+                          >
+                            {MINUTES_OPTIONS.map((opt) => (
+                              <MenuItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                         <Typography>:</Typography>
-                        <TextField
-                          type="number"
-                          label="秒"
-                          size="small"
-                          value={unit.seconds}
-                          onChange={(e) => handleUnitChange(index, 'seconds', e.target.value)}
-                          inputProps={{ min: 0, max: 59 }}
-                          sx={{ width: 80 }}
-                          error={!isValidTime(unit)}
-                        />
+                        <FormControl size="small" sx={{ width: 80 }} error={!isValidTime(unit)}>
+                          <InputLabel>秒</InputLabel>
+                          <Select
+                            value={unit.seconds}
+                            label="秒"
+                            onChange={(e: SelectChangeEvent) =>
+                              handleUnitChange(index, 'seconds', e.target.value)
+                            }
+                          >
+                            {SECONDS_OPTIONS.map((opt) => (
+                              <MenuItem key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </FormControl>
                       </Stack>
 
                       {/* 音声設定 */}
