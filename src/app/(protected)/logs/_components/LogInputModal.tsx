@@ -42,7 +42,7 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/ja'
-import { useEffect, useState, useTransition } from 'react'
+import { useEffect, useMemo, useState, useTransition } from 'react'
 
 export type SetFormData = {
   key: string // unique key for React rendering
@@ -73,6 +73,12 @@ export type MemoFormData = {
   key: string
   id?: number
   content: string
+}
+
+type BaselineState = {
+  exerciseGroups: { exerciseId: number | null; sets: { weight: string; reps: string }[] }[]
+  memos: { content: string }[]
+  selectedDate: string
 }
 
 let groupKeyCounter = 0
@@ -125,6 +131,59 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
   const [timers, setTimers] = useState<Timer[]>([])
   const [isLoadingTimers, setIsLoadingTimers] = useState(false)
   const { startTimer } = useTimer()
+
+  // 変更検知用のベースライン状態
+  const [baseline, setBaseline] = useState<BaselineState | null>(null)
+
+  // 変更があるかどうかを判定
+  const hasChanges = useMemo(() => {
+    if (!baseline) return false
+
+    // 日付の比較
+    if (selectedDate.format('YYYY-MM-DD') !== baseline.selectedDate) {
+      return true
+    }
+
+    // 種目グループの比較
+    if (exerciseGroups.length !== baseline.exerciseGroups.length) {
+      return true
+    }
+    for (let i = 0; i < exerciseGroups.length; i++) {
+      const current = exerciseGroups[i]
+      const base = baseline.exerciseGroups[i]
+      if (current.exerciseId !== base.exerciseId) {
+        return true
+      }
+      if (current.sets.length !== base.sets.length) {
+        return true
+      }
+      for (let j = 0; j < current.sets.length; j++) {
+        const currentSet = current.sets[j]
+        const baseSet = base.sets[j]
+        if (currentSet.weight !== baseSet.weight || currentSet.reps !== baseSet.reps) {
+          return true
+        }
+      }
+    }
+
+    // メモの比較
+    if (memos.length !== baseline.memos.length) {
+      return true
+    }
+    for (let i = 0; i < memos.length; i++) {
+      if (memos[i].content !== baseline.memos[i].content) {
+        return true
+      }
+    }
+
+    return false
+  }, [baseline, exerciseGroups, memos, selectedDate])
+
+  // 必須入力が満たされているかどうかを判定（少なくとも1つの種目が選択されている）
+  const isRequiredFieldsFilled = useMemo(() => {
+    return exerciseGroups.some((group) => group.exerciseId !== null)
+  }, [exerciseGroups])
+
   const isTimerPopoverOpen = Boolean(timerAnchorEl)
 
   // モーダルが開いたときに日付を初期化
@@ -151,18 +210,19 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
           param: { date: excludeDateStr },
         })
         const fetchedMemos = await memosRes.json()
+        let loadedMemos: MemoFormData[] = []
         if (fetchedMemos.length > 0) {
-          setMemos(
-            fetchedMemos.map((m) => ({
-              key: `memo-${Date.now()}-${memoKeyCounter++}`,
-              id: m.id,
-              content: m.content,
-            })),
-          )
+          loadedMemos = fetchedMemos.map((m) => ({
+            key: `memo-${Date.now()}-${memoKeyCounter++}`,
+            id: m.id,
+            content: m.content,
+          }))
+          setMemos(loadedMemos)
         } else {
           setMemos([])
         }
 
+        let loadedGroups: ExerciseGroup[] = []
         if (initialSets && initialSets.length > 0) {
           // 種目単位でグルーピング
           const grouped = new Map<number | string, ExerciseGroup>()
@@ -184,6 +244,7 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
           }
           const groups = Array.from(grouped.values())
           setExerciseGroups(groups)
+          loadedGroups = groups
           // 種目IDがある場合は前回の記録を一括取得（当日分は除外）
           const exerciseIds = groups
             .map((g) => g.exerciseId)
@@ -201,10 +262,23 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
               }
             }
             setExerciseGroups([...groups])
+            loadedGroups = [...groups]
           }
         } else {
-          setExerciseGroups([emptyExerciseGroup()])
+          const initialGroup = emptyExerciseGroup()
+          setExerciseGroups([initialGroup])
+          loadedGroups = [initialGroup]
         }
+
+        // ベースラインを設定
+        setBaseline({
+          exerciseGroups: loadedGroups.map((g) => ({
+            exerciseId: g.exerciseId,
+            sets: g.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
+          })),
+          memos: loadedMemos.map((m) => ({ content: m.content })),
+          selectedDate: excludeDateStr,
+        })
 
         setIsInitialLoading(false)
       }
@@ -398,8 +472,17 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         json: { memos: validMemos.map((m) => ({ id: m.id, content: m.content })) },
       })
 
+      // 保存後にベースラインを更新
+      setBaseline({
+        exerciseGroups: exerciseGroups.map((g) => ({
+          exerciseId: g.exerciseId,
+          sets: g.sets.map((s) => ({ weight: s.weight, reps: s.reps })),
+        })),
+        memos: memos.map((m) => ({ content: m.content })),
+        selectedDate: dateStr,
+      })
+
       onSaved(selectedDate.toDate())
-      onClose()
     })
   }
 
@@ -974,9 +1057,13 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={onClose} disabled={isPending || isInitialLoading}>
-            キャンセル
+            閉じる
           </Button>
-          <Button variant="contained" onClick={handleSave} disabled={isPending || isInitialLoading}>
+          <Button
+            variant="contained"
+            onClick={handleSave}
+            disabled={isPending || isInitialLoading || !hasChanges || !isRequiredFieldsFilled}
+          >
             {isPending ? '保存中...' : '保存'}
           </Button>
         </DialogActions>
