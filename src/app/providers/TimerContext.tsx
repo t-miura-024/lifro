@@ -1,7 +1,7 @@
 'use client'
 
 import type { Timer } from '@/server/domain/entities'
-import { initAudioContext, playSound } from '@/utils/soundPlayer'
+import { audioScheduler, initAudioContext } from '@/utils/soundPlayer'
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 
@@ -37,7 +37,12 @@ const initialState: TimerState = {
 export function TimerProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TimerState>(initialState)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
-  const lastTickRef = useRef<number>(0)
+
+  // ドリフト補正のための絶対時間基準
+  // startTimeRef: 現在のユニットが開始した時刻
+  // elapsedSecondsRef: 音を鳴らした秒数（累積ドリフトを防ぐため）
+  const startTimeRef = useRef<number>(0)
+  const elapsedSecondsRef = useRef<number>(0)
   const isTransitioningRef = useRef<boolean>(false) // 遷移中フラグ
 
   // クリーンアップ
@@ -61,8 +66,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       }
 
       const nextUnit = prev.timer.unitTimers[nextIndex]
-      // 新しいユニット開始時に lastTickRef をリセット
-      lastTickRef.current = Date.now()
+      // 新しいユニット開始時に時間基準をリセット
+      startTimeRef.current = Date.now()
+      elapsedSecondsRef.current = 0
+
+      // 次のユニットのサウンドをプリロード
+      audioScheduler.preloadSounds([
+        nextUnit.countSound,
+        nextUnit.countSoundLast3Sec,
+        nextUnit.endSound,
+      ])
 
       return {
         ...prev,
@@ -76,14 +89,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
   // タイマーのtick処理
   const tick = useCallback(() => {
     const now = Date.now()
-    const elapsed = now - lastTickRef.current
+    // 絶対時間基準で経過秒数を計算（ドリフト補正）
+    const totalElapsedMs = now - startTimeRef.current
+    const totalElapsedSeconds = Math.floor(totalElapsedMs / 1000)
 
-    // 経過秒数を計算（1秒単位）
-    const elapsedSeconds = Math.floor(elapsed / 1000)
-    if (elapsedSeconds === 0) return // 1秒未満なら何もしない
+    // 前回チェック時から秒数が進んでいなければ何もしない
+    if (totalElapsedSeconds <= elapsedSecondsRef.current) return
 
-    // 1秒以上経過したときだけ lastTickRef を更新
-    lastTickRef.current = now
+    // 経過した秒数（複数秒進んでいる可能性がある）
+    const secondsToProcess = totalElapsedSeconds - elapsedSecondsRef.current
+    elapsedSecondsRef.current = totalElapsedSeconds
 
     setState((prev) => {
       if (prev.status !== 'playing' || !prev.timer) return prev
@@ -92,29 +107,28 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       const currentUnit = prev.timer.unitTimers[prev.currentUnitIndex]
       if (!currentUnit) return prev
 
-      const newRemaining = Math.max(0, prev.remainingSeconds - elapsedSeconds)
+      const newRemaining = Math.max(0, prev.remainingSeconds - secondsToProcess)
 
-      // 副作用をスケジュール（setState の外で実行）
-      // カウント音を再生（残り4秒以上で毎秒）
-      if (newRemaining > 3 && prev.remainingSeconds !== newRemaining) {
-        setTimeout(() => playSound(currentUnit.countSound), 0)
-      }
+      // サウンド再生のスケジューリング
+      // Web Audio API を使用して正確なタイミングで再生
+      for (let i = 1; i <= secondsToProcess; i++) {
+        const remainingAtThisTick = prev.remainingSeconds - i
 
-      // 終了3秒前の音を再生（残り3秒、2秒、1秒）
-      if (newRemaining <= 3 && newRemaining > 0 && prev.remainingSeconds !== newRemaining) {
-        setTimeout(() => playSound(currentUnit.countSoundLast3Sec), 0)
-      }
-
-      // ユニットタイマー終了（既に0の場合は処理しない）
-      if (newRemaining === 0 && prev.remainingSeconds > 0) {
-        isTransitioningRef.current = true
-        setTimeout(() => {
-          playSound(currentUnit.endSound)
+        if (remainingAtThisTick > 3) {
+          // カウント音（残り4秒以上）
+          audioScheduler.playNow(currentUnit.countSound)
+        } else if (remainingAtThisTick > 0 && remainingAtThisTick <= 3) {
+          // 終了3秒前の音（残り3秒、2秒、1秒）
+          audioScheduler.playNow(currentUnit.countSoundLast3Sec)
+        } else if (remainingAtThisTick === 0) {
+          // ユニットタイマー終了
+          isTransitioningRef.current = true
+          audioScheduler.playNow(currentUnit.endSound)
           setTimeout(() => {
             moveToNextUnit()
             isTransitioningRef.current = false
           }, 500)
-        }, 0)
+        }
       }
 
       return {
@@ -136,6 +150,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
       isTransitioningRef.current = false // 遷移フラグをリセット
 
       const firstUnit = timer.unitTimers[0]
+
+      // サウンドをプリロード
+      audioScheduler.preloadSounds([
+        firstUnit.countSound,
+        firstUnit.countSoundLast3Sec,
+        firstUnit.endSound,
+      ])
+
       setState({
         status: 'playing',
         timer,
@@ -144,7 +166,9 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         totalDuration: firstUnit.duration,
       })
 
-      lastTickRef.current = Date.now()
+      // 絶対時間基準を設定
+      startTimeRef.current = Date.now()
+      elapsedSecondsRef.current = 0
       intervalRef.current = setInterval(tick, 100) // 100msごとにチェック
     },
     [clearTimer, tick],
@@ -161,11 +185,16 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
   // 再開
   const resume = useCallback(() => {
-    setState((prev) => ({
-      ...prev,
-      status: 'playing',
-    }))
-    lastTickRef.current = Date.now()
+    setState((prev) => {
+      // 再開時に時間基準をリセット（残り時間から逆算）
+      const elapsed = prev.totalDuration - prev.remainingSeconds
+      startTimeRef.current = Date.now() - elapsed * 1000
+      elapsedSecondsRef.current = elapsed
+      return {
+        ...prev,
+        status: 'playing',
+      }
+    })
     intervalRef.current = setInterval(tick, 100)
   }, [tick])
 
