@@ -10,6 +10,7 @@ import type {
 } from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { prisma } from '../../database/prisma/client'
+import { parseDate, toDateString, toISOString } from './helper'
 
 export class PrismaTrainingRepository implements ITrainingRepository {
   async findByMonth(userId: number, year: number, month: number): Promise<TrainingSummary[]> {
@@ -44,20 +45,27 @@ export class PrismaTrainingRepository implements ITrainingRepository {
       }),
     ])
 
-    // 日付ごとにメモをグループ化
+    // 日付ごとにメモをグループ化（string型に変換）
     const memosByDate = new Map<string, TrainingMemo[]>()
     for (const memo of memos) {
-      const dateKey = memo.date.toISOString().split('T')[0]
+      const dateKey = toDateString(memo.date)
       if (!memosByDate.has(dateKey)) {
         memosByDate.set(dateKey, [])
       }
-      memosByDate.get(dateKey)?.push(memo)
+      memosByDate.get(dateKey)?.push({
+        id: memo.id,
+        userId: memo.userId,
+        date: toDateString(memo.date),
+        content: memo.content,
+        createdAt: toISOString(memo.createdAt),
+        updatedAt: toISOString(memo.updatedAt),
+      })
     }
 
     // 日付ごとにグループ化して集約
     const grouped = new Map<string, typeof sets>()
     for (const set of sets) {
-      const dateKey = set.date.toISOString().split('T')[0]
+      const dateKey = toDateString(set.date)
       if (!grouped.has(dateKey)) {
         grouped.set(dateKey, [])
       }
@@ -86,7 +94,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
       const exercises = [...exerciseVolumeMap.values()]
 
       summaries.push({
-        date: new Date(dateKey),
+        date: dateKey, // string型
         exerciseNames,
         exercises,
         totalVolume,
@@ -98,11 +106,12 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     return summaries
   }
 
-  async findByDate(userId: number, date: Date): Promise<Training | null> {
+  async findByDate(userId: number, date: string): Promise<Training | null> {
+    const dateObj = parseDate(date)
     const sets = await prisma.set.findMany({
       where: {
         userId,
-        date,
+        date: dateObj,
       },
       include: {
         exercise: true,
@@ -115,7 +124,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     }
 
     return {
-      date,
+      date, // string型をそのまま返す
       userId,
       sets: sets.map((s) => ({
         id: s.id,
@@ -123,28 +132,30 @@ export class PrismaTrainingRepository implements ITrainingRepository {
         userId: s.userId,
         weight: s.weight,
         reps: s.reps,
-        date: s.date,
+        date: toDateString(s.date),
         sortIndex: s.sortIndex,
-        createdAt: s.createdAt,
-        updatedAt: s.updatedAt,
+        createdAt: toISOString(s.createdAt),
+        updatedAt: toISOString(s.updatedAt),
         exercise: {
           id: s.exercise.id,
           userId: s.exercise.userId,
           name: s.exercise.name,
           sortIndex: s.exercise.sortIndex,
-          createdAt: s.exercise.createdAt,
-          updatedAt: s.exercise.updatedAt,
+          createdAt: toISOString(s.exercise.createdAt),
+          updatedAt: toISOString(s.exercise.updatedAt),
         },
       })),
     }
   }
 
-  async save(userId: number, date: Date, sets: SetInput[]): Promise<Training> {
+  async save(userId: number, date: string, sets: SetInput[]): Promise<Training> {
+    const dateObj = parseDate(date)
+
     // トランザクションで既存セットの削除と新規セットの作成を行う
     await prisma.$transaction(async (tx) => {
       // 既存のセットを削除
       await tx.set.deleteMany({
-        where: { userId, date },
+        where: { userId, date: dateObj },
       })
 
       // 新規セットを作成
@@ -155,7 +166,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
             userId,
             weight: s.weight,
             reps: s.reps,
-            date,
+            date: dateObj,
             sortIndex: s.sortIndex,
           })),
         })
@@ -167,24 +178,27 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     return result ?? { date, userId, sets: [] }
   }
 
-  async deleteByDate(userId: number, date: Date): Promise<void> {
+  async deleteByDate(userId: number, date: string): Promise<void> {
+    const dateObj = parseDate(date)
     await prisma.set.deleteMany({
-      where: { userId, date },
+      where: { userId, date: dateObj },
     })
   }
 
   async getLatestHistory(
     userId: number,
     exerciseId: number,
-    excludeDate?: Date,
+    excludeDate?: string,
   ): Promise<ExerciseHistory | null> {
+    const excludeDateObj = excludeDate ? parseDate(excludeDate) : undefined
+
     // 指定種目の最新セットを取得
     const latestSet = await prisma.set.findFirst({
       where: {
         userId,
         exerciseId,
-        ...(excludeDate && {
-          date: { not: excludeDate },
+        ...(excludeDateObj && {
+          date: { not: excludeDateObj },
         }),
       },
       include: {
@@ -202,22 +216,24 @@ export class PrismaTrainingRepository implements ITrainingRepository {
       exerciseName: latestSet.exercise.name,
       weight: latestSet.weight,
       reps: latestSet.reps,
-      date: latestSet.date,
+      date: toDateString(latestSet.date),
     }
   }
 
   async getLatestExerciseSets(
     userId: number,
     exerciseId: number,
-    excludeDate?: Date,
+    excludeDate?: string,
   ): Promise<LatestExerciseSets | null> {
+    const excludeDateObj = excludeDate ? parseDate(excludeDate) : undefined
+
     // 指定種目の最新実施日を取得
     const latestSet = await prisma.set.findFirst({
       where: {
         userId,
         exerciseId,
-        ...(excludeDate && {
-          date: { not: excludeDate },
+        ...(excludeDateObj && {
+          date: { not: excludeDateObj },
         }),
       },
       orderBy: [{ date: 'desc' }],
@@ -247,7 +263,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
     return {
       exerciseId: sets[0].exerciseId,
       exerciseName: sets[0].exercise.name,
-      date: sets[0].date,
+      date: toDateString(sets[0].date),
       sets: sets.map((s) => ({
         weight: s.weight,
         reps: s.reps,
@@ -259,11 +275,13 @@ export class PrismaTrainingRepository implements ITrainingRepository {
   async getLatestExerciseSetsMultiple(
     userId: number,
     exerciseIds: number[],
-    excludeDate?: Date,
+    excludeDate?: string,
   ): Promise<Map<number, LatestExerciseSets>> {
     if (exerciseIds.length === 0) {
       return new Map()
     }
+
+    const excludeDateObj = excludeDate ? parseDate(excludeDate) : undefined
 
     // 各種目の最新日付を取得するサブクエリを使用
     // まず全種目の全セットを取得し、種目ごとに最新日付のものだけをフィルタ
@@ -271,8 +289,8 @@ export class PrismaTrainingRepository implements ITrainingRepository {
       where: {
         userId,
         exerciseId: { in: exerciseIds },
-        ...(excludeDate && {
-          date: { not: excludeDate },
+        ...(excludeDateObj && {
+          date: { not: excludeDateObj },
         }),
       },
       include: {
@@ -301,7 +319,7 @@ export class PrismaTrainingRepository implements ITrainingRepository {
         result.set(set.exerciseId, {
           exerciseId: set.exerciseId,
           exerciseName: set.exercise.name,
-          date: set.date,
+          date: toDateString(set.date),
           sets: [],
         })
       }

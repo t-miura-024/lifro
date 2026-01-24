@@ -1,5 +1,6 @@
 'use client'
 
+import { client } from '@/app/_lib/hono/client'
 import { useTimer } from '@/app/providers/TimerContext'
 import type { Exercise, LatestExerciseSets, Timer, TrainingMemo } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
@@ -42,17 +43,6 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/ja'
 import { useEffect, useState, useTransition } from 'react'
-import {
-  checkTrainingExistsAction,
-  deleteTrainingAction,
-  fetchLatestExerciseSetsAction,
-  fetchLatestExerciseSetsMultipleAction,
-  fetchMemosByDateAction,
-  getExercisesAction,
-  getTimersAction,
-  saveMemosAction,
-  upsertTrainingAction,
-} from '../_actions'
 
 export type SetFormData = {
   key: string // unique key for React rendering
@@ -152,11 +142,15 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
 
       const loadData = async () => {
         // 種目リストを取得
-        const exercisesData = await getExercisesAction()
+        const exercisesRes = await client.api.exercises.$get()
+        const exercisesData = await exercisesRes.json()
         setExercises(exercisesData)
 
         // メモを取得
-        const fetchedMemos = await fetchMemosByDateAction(excludeDateStr)
+        const memosRes = await client.api.trainings[':date'].memos.$get({
+          param: { date: excludeDateStr },
+        })
+        const fetchedMemos = await memosRes.json()
         if (fetchedMemos.length > 0) {
           setMemos(
             fetchedMemos.map((m) => ({
@@ -195,10 +189,12 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
             .map((g) => g.exerciseId)
             .filter((id): id is number => id !== null)
           if (exerciseIds.length > 0) {
-            const latestSetsMap = await fetchLatestExerciseSetsMultipleAction(
-              exerciseIds,
-              excludeDateStr,
-            )
+            const latestSetsRes = await client.api.trainings.exercises[
+              'latest-sets-multiple'
+            ].$post({
+              json: { exerciseIds, excludeDate: excludeDateStr },
+            })
+            const latestSetsMap = await latestSetsRes.json()
             for (const group of groups) {
               if (group.exerciseId && latestSetsMap[group.exerciseId]) {
                 group.latestSets = latestSetsMap[group.exerciseId]
@@ -234,7 +230,11 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         exerciseName: exercise.name,
       }))
       // 前回値を取得（当日分は除外）
-      const latestSets = await fetchLatestExerciseSetsAction(exercise.id, excludeDateStr)
+      const res = await client.api.trainings.exercises[':exerciseId']['latest-sets'].$get({
+        param: { exerciseId: String(exercise.id) },
+        query: { excludeDate: excludeDateStr },
+      })
+      const latestSets = await res.json()
       group.latestSets = latestSets
     } else {
       group.exerciseId = null
@@ -307,7 +307,8 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
     setTimerAnchorEl(event.currentTarget)
     setIsLoadingTimers(true)
     try {
-      const loadedTimers = await getTimersAction()
+      const res = await client.api.timers.$get()
+      const loadedTimers = await res.json()
       setTimers(loadedTimers)
     } catch (error) {
       console.error('Failed to load timers:', error)
@@ -359,7 +360,10 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
 
       // 日付が変更された場合、変更先に既存データがないかチェック
       if (dateStr !== initialDateStr) {
-        const exists = await checkTrainingExistsAction(dateStr)
+        const existsRes = await client.api.trainings[':date'].exists.$get({
+          param: { date: dateStr },
+        })
+        const { exists } = await existsRes.json()
         if (exists) {
           setDateError(
             `${selectedDate.format('YYYY年M月D日')} には既にトレーニング記録があります。別の日付を選択してください。`,
@@ -382,14 +386,17 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         }
       })
 
-      await upsertTrainingAction(dateStr, setsToSave)
+      await client.api.trainings[':date'].$put({
+        param: { date: dateStr },
+        json: { sets: setsToSave },
+      })
 
       // メモを保存（空でないメモのみ）
       const validMemos = memos.filter((m) => m.content.trim() !== '')
-      await saveMemosAction(
-        dateStr,
-        validMemos.map((m) => ({ id: m.id, content: m.content })),
-      )
+      await client.api.trainings[':date'].memos.$put({
+        param: { date: dateStr },
+        json: { memos: validMemos.map((m) => ({ id: m.id, content: m.content })) },
+      })
 
       onSaved(selectedDate.toDate())
       onClose()
@@ -403,7 +410,9 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
   const handleDeleteConfirm = () => {
     startTransition(async () => {
       const dateStr = selectedDate.format('YYYY-MM-DD')
-      await deleteTrainingAction(dateStr)
+      await client.api.trainings[':date'].$delete({
+        param: { date: dateStr },
+      })
       setDeleteConfirmOpen(false)
       onSaved(selectedDate.toDate())
       onClose()
@@ -572,10 +581,7 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
             ) : (
               <List dense disablePadding>
                 {timers.map((timer) => (
-                  <ListItemButton
-                    key={timer.id}
-                    onClick={() => handleSelectTimer(timer)}
-                  >
+                  <ListItemButton key={timer.id} onClick={() => handleSelectTimer(timer)}>
                     <ListItemText
                       primary={timer.name}
                       secondary={`${formatTimerDuration(getTotalTimerDuration(timer))} / ${timer.unitTimers.length}個のユニット`}
@@ -602,366 +608,366 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
               </>
             ) : (
               <>
-            {exerciseGroups.map((group, groupIndex) => {
-              const totalVolume = group.sets.reduce((sum, set) => {
-                const weight = Number.parseFloat(set.weight) || 0
-                const reps = Number.parseInt(set.reps, 10) || 0
-                return sum + weight * reps
-              }, 0)
-              const previousTotalVolume = group.latestSets
-                ? group.latestSets.sets.reduce((sum, set) => sum + set.weight * set.reps, 0)
-                : null
-              const totalVolumeDelta = formatDelta(totalVolume, previousTotalVolume)
+                {exerciseGroups.map((group, groupIndex) => {
+                  const totalVolume = group.sets.reduce((sum, set) => {
+                    const weight = Number.parseFloat(set.weight) || 0
+                    const reps = Number.parseInt(set.reps, 10) || 0
+                    return sum + weight * reps
+                  }, 0)
+                  const previousTotalVolume = group.latestSets
+                    ? group.latestSets.sets.reduce((sum, set) => sum + set.weight * set.reps, 0)
+                    : null
+                  const totalVolumeDelta = formatDelta(totalVolume, previousTotalVolume)
 
-              return (
-                <Paper
-                  key={group.key}
-                  variant="outlined"
-                  sx={{
-                    p: 2,
-                  }}
-                  style={{ marginTop: '12px' }}
-                >
-                  <Stack spacing={2}>
-                    <Stack direction="row" alignItems="center" spacing={1}>
-                      <FormControl fullWidth size="small" disabled={hasNoExercises}>
-                        <InputLabel id={`exercise-label-${groupIndex}`}>
-                          {hasNoExercises ? '種目を登録してください' : '種目'}
-                        </InputLabel>
-                        <Select
-                          labelId={`exercise-label-${groupIndex}`}
-                          value={group.exerciseId?.toString() || ''}
-                          label={hasNoExercises ? '種目を登録してください' : '種目'}
-                          onChange={(e: SelectChangeEvent) => {
-                            const value = e.target.value
-                            handleExerciseChange(
-                              groupIndex,
-                              value ? Number.parseInt(value, 10) : null,
-                            )
-                          }}
-                          sx={{
-                            '& .MuiOutlinedInput-notchedOutline': {
-                              borderRadius: 0,
-                            },
-                          }}
-                        >
-                          {exercises.map((exercise) => (
-                            <MenuItem key={exercise.id} value={exercise.id.toString()}>
-                              {exercise.name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                      {exerciseGroups.length > 1 && (
-                        <IconButton
-                          size="small"
-                          onClick={() => handleRemoveExerciseGroup(groupIndex)}
-                          aria-label="種目を削除"
-                          sx={{ flexShrink: 0 }}
-                        >
-                          <DeleteIcon fontSize="small" />
-                        </IconButton>
-                      )}
-                    </Stack>
-                    {group.latestSets && (
-                      <Box style={{ marginTop: '6px' }}>
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'text.secondary' }}
-                          style={{ fontSize: '0.875rem' }}
-                        >
-                          前回：{group.latestSets.date.toLocaleDateString('ja-JP')}
-                        </Typography>
-                      </Box>
-                    )}
+                  return (
+                    <Paper
+                      key={group.key}
+                      variant="outlined"
+                      sx={{
+                        p: 2,
+                      }}
+                      style={{ marginTop: '12px' }}
+                    >
+                      <Stack spacing={2}>
+                        <Stack direction="row" alignItems="center" spacing={1}>
+                          <FormControl fullWidth size="small" disabled={hasNoExercises}>
+                            <InputLabel id={`exercise-label-${groupIndex}`}>
+                              {hasNoExercises ? '種目を登録してください' : '種目'}
+                            </InputLabel>
+                            <Select
+                              labelId={`exercise-label-${groupIndex}`}
+                              value={group.exerciseId?.toString() || ''}
+                              label={hasNoExercises ? '種目を登録してください' : '種目'}
+                              onChange={(e: SelectChangeEvent) => {
+                                const value = e.target.value
+                                handleExerciseChange(
+                                  groupIndex,
+                                  value ? Number.parseInt(value, 10) : null,
+                                )
+                              }}
+                              sx={{
+                                '& .MuiOutlinedInput-notchedOutline': {
+                                  borderRadius: 0,
+                                },
+                              }}
+                            >
+                              {exercises.map((exercise) => (
+                                <MenuItem key={exercise.id} value={exercise.id.toString()}>
+                                  {exercise.name}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </FormControl>
+                          {exerciseGroups.length > 1 && (
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveExerciseGroup(groupIndex)}
+                              aria-label="種目を削除"
+                              sx={{ flexShrink: 0 }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </Stack>
+                        {group.latestSets && (
+                          <Box style={{ marginTop: '6px' }}>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: 'text.secondary' }}
+                              style={{ fontSize: '0.875rem' }}
+                            >
+                              前回：{dayjs(group.latestSets.date).format('YYYY年M月D日')}
+                            </Typography>
+                          </Box>
+                        )}
 
-                    <TableContainer style={{ marginTop: '2px' }}>
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell align="right" width={120}>
-                              重量 (kg)
-                            </TableCell>
-                            <TableCell align="right" width={100}>
-                              回数
-                            </TableCell>
-                            <TableCell align="right" width={120}>
-                              ボリューム
-                            </TableCell>
-                            <TableCell width={60} />
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {group.sets.map((set, setIndex) => {
-                            const weight = Number.parseFloat(set.weight) || 0
-                            const reps = Number.parseInt(set.reps, 10) || 0
-                            const volume = weight * reps
-                            const previousSet = group.latestSets?.sets[setIndex] || null
-                            const previousWeight = previousSet?.weight ?? null
-                            const previousReps = previousSet?.reps ?? null
-                            const previousVolume = previousSet
-                              ? previousSet.weight * previousSet.reps
-                              : null
-                            const weightDelta = formatDelta(weight, previousWeight)
-                            const repsDelta = formatDelta(reps, previousReps)
-                            const volumeDelta = formatDelta(volume, previousVolume)
-                            return (
-                              <TableRow key={set.key}>
-                                <TableCell sx={{ p: 0 }}>
-                                  <Stack spacing={0.5}>
-                                    <TextField
-                                      type="number"
-                                      size="small"
-                                      value={set.weight}
-                                      onChange={(e) =>
-                                        handleSetChange(
-                                          groupIndex,
-                                          setIndex,
-                                          'weight',
-                                          e.target.value,
-                                        )
-                                      }
-                                      inputProps={{ min: 0, step: 0.5 }}
-                                      sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                          borderRadius: 0,
-                                        },
-                                        '& .MuiOutlinedInput-notchedOutline': {
-                                          border: 'none',
-                                        },
-                                        '& .MuiInputBase-input': {
-                                          textAlign: 'right',
-                                          padding: 0,
-                                          '&::-webkit-outer-spin-button': {
-                                            WebkitAppearance: 'none',
-                                            margin: 0,
-                                          },
-                                          '&::-webkit-inner-spin-button': {
-                                            WebkitAppearance: 'none',
-                                            margin: 0,
-                                          },
-                                          '&[type=number]': {
-                                            MozAppearance: 'textfield',
-                                          },
-                                        },
-                                      }}
-                                      fullWidth
-                                    />
-                                    {group.latestSets && (
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          textAlign: 'right',
-                                          color: weightDelta.color,
-                                          fontSize: '0.7rem',
-                                        }}
-                                        style={{ marginTop: 0 }}
-                                      >
-                                        {weightDelta.text}
-                                      </Typography>
-                                    )}
-                                  </Stack>
+                        <TableContainer style={{ marginTop: '2px' }}>
+                          <Table size="small">
+                            <TableHead>
+                              <TableRow>
+                                <TableCell align="right" width={120}>
+                                  重量 (kg)
                                 </TableCell>
-                                <TableCell sx={{ p: 0 }}>
-                                  <Stack spacing={0.5}>
-                                    <TextField
-                                      type="number"
-                                      size="small"
-                                      value={set.reps}
-                                      onChange={(e) =>
-                                        handleSetChange(
-                                          groupIndex,
-                                          setIndex,
-                                          'reps',
-                                          e.target.value,
-                                        )
-                                      }
-                                      inputProps={{ min: 0, step: 1 }}
-                                      sx={{
-                                        '& .MuiOutlinedInput-root': {
-                                          borderRadius: 0,
-                                        },
-                                        '& .MuiOutlinedInput-notchedOutline': {
-                                          border: 'none',
-                                        },
-                                        '& .MuiInputBase-input': {
-                                          textAlign: 'right',
-                                          padding: 0,
-                                          '&::-webkit-outer-spin-button': {
-                                            WebkitAppearance: 'none',
-                                            margin: 0,
-                                          },
-                                          '&::-webkit-inner-spin-button': {
-                                            WebkitAppearance: 'none',
-                                            margin: 0,
-                                          },
-                                          '&[type=number]': {
-                                            MozAppearance: 'textfield',
-                                          },
-                                        },
-                                      }}
-                                      fullWidth
-                                    />
-                                    {group.latestSets && (
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          textAlign: 'right',
-                                          color: repsDelta.color,
-                                          fontSize: '0.7rem',
-                                        }}
-                                        style={{ marginTop: 0 }}
-                                      >
-                                        {repsDelta.text}
-                                      </Typography>
-                                    )}
-                                  </Stack>
+                                <TableCell align="right" width={100}>
+                                  回数
+                                </TableCell>
+                                <TableCell align="right" width={120}>
+                                  ボリューム
+                                </TableCell>
+                                <TableCell width={60} />
+                              </TableRow>
+                            </TableHead>
+                            <TableBody>
+                              {group.sets.map((set, setIndex) => {
+                                const weight = Number.parseFloat(set.weight) || 0
+                                const reps = Number.parseInt(set.reps, 10) || 0
+                                const volume = weight * reps
+                                const previousSet = group.latestSets?.sets[setIndex] || null
+                                const previousWeight = previousSet?.weight ?? null
+                                const previousReps = previousSet?.reps ?? null
+                                const previousVolume = previousSet
+                                  ? previousSet.weight * previousSet.reps
+                                  : null
+                                const weightDelta = formatDelta(weight, previousWeight)
+                                const repsDelta = formatDelta(reps, previousReps)
+                                const volumeDelta = formatDelta(volume, previousVolume)
+                                return (
+                                  <TableRow key={set.key}>
+                                    <TableCell sx={{ p: 0 }}>
+                                      <Stack spacing={0.5}>
+                                        <TextField
+                                          type="number"
+                                          size="small"
+                                          value={set.weight}
+                                          onChange={(e) =>
+                                            handleSetChange(
+                                              groupIndex,
+                                              setIndex,
+                                              'weight',
+                                              e.target.value,
+                                            )
+                                          }
+                                          inputProps={{ min: 0, step: 0.5 }}
+                                          sx={{
+                                            '& .MuiOutlinedInput-root': {
+                                              borderRadius: 0,
+                                            },
+                                            '& .MuiOutlinedInput-notchedOutline': {
+                                              border: 'none',
+                                            },
+                                            '& .MuiInputBase-input': {
+                                              textAlign: 'right',
+                                              padding: 0,
+                                              '&::-webkit-outer-spin-button': {
+                                                WebkitAppearance: 'none',
+                                                margin: 0,
+                                              },
+                                              '&::-webkit-inner-spin-button': {
+                                                WebkitAppearance: 'none',
+                                                margin: 0,
+                                              },
+                                              '&[type=number]': {
+                                                MozAppearance: 'textfield',
+                                              },
+                                            },
+                                          }}
+                                          fullWidth
+                                        />
+                                        {group.latestSets && (
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              textAlign: 'right',
+                                              color: weightDelta.color,
+                                              fontSize: '0.7rem',
+                                            }}
+                                            style={{ marginTop: 0 }}
+                                          >
+                                            {weightDelta.text}
+                                          </Typography>
+                                        )}
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell sx={{ p: 0 }}>
+                                      <Stack spacing={0.5}>
+                                        <TextField
+                                          type="number"
+                                          size="small"
+                                          value={set.reps}
+                                          onChange={(e) =>
+                                            handleSetChange(
+                                              groupIndex,
+                                              setIndex,
+                                              'reps',
+                                              e.target.value,
+                                            )
+                                          }
+                                          inputProps={{ min: 0, step: 1 }}
+                                          sx={{
+                                            '& .MuiOutlinedInput-root': {
+                                              borderRadius: 0,
+                                            },
+                                            '& .MuiOutlinedInput-notchedOutline': {
+                                              border: 'none',
+                                            },
+                                            '& .MuiInputBase-input': {
+                                              textAlign: 'right',
+                                              padding: 0,
+                                              '&::-webkit-outer-spin-button': {
+                                                WebkitAppearance: 'none',
+                                                margin: 0,
+                                              },
+                                              '&::-webkit-inner-spin-button': {
+                                                WebkitAppearance: 'none',
+                                                margin: 0,
+                                              },
+                                              '&[type=number]': {
+                                                MozAppearance: 'textfield',
+                                              },
+                                            },
+                                          }}
+                                          fullWidth
+                                        />
+                                        {group.latestSets && (
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              textAlign: 'right',
+                                              color: repsDelta.color,
+                                              fontSize: '0.7rem',
+                                            }}
+                                            style={{ marginTop: 0 }}
+                                          >
+                                            {repsDelta.text}
+                                          </Typography>
+                                        )}
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell align="right">
+                                      <Stack spacing={0.5} alignItems="flex-end">
+                                        <Typography>
+                                          {volume > 0 ? volume.toLocaleString() : '-'}
+                                        </Typography>
+                                        {group.latestSets && (
+                                          <Typography
+                                            variant="caption"
+                                            sx={{
+                                              color: volumeDelta.color,
+                                              fontSize: '0.7rem',
+                                            }}
+                                            style={{ marginTop: 0 }}
+                                          >
+                                            {volumeDelta.text}
+                                          </Typography>
+                                        )}
+                                      </Stack>
+                                    </TableCell>
+                                    <TableCell>
+                                      {group.sets.length > 1 && (
+                                        <IconButton
+                                          size="small"
+                                          onClick={() => handleRemoveSet(groupIndex, setIndex)}
+                                          aria-label="セットを削除"
+                                        >
+                                          <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                )
+                              })}
+                              <TableRow>
+                                <TableCell colSpan={2} align="right">
+                                  <Typography variant="subtitle2">合計</Typography>
                                 </TableCell>
                                 <TableCell align="right">
                                   <Stack spacing={0.5} alignItems="flex-end">
-                                    <Typography>
-                                      {volume > 0 ? volume.toLocaleString() : '-'}
+                                    <Typography variant="subtitle2">
+                                      {totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
                                     </Typography>
                                     {group.latestSets && (
                                       <Typography
                                         variant="caption"
                                         sx={{
-                                          color: volumeDelta.color,
+                                          color: totalVolumeDelta.color,
                                           fontSize: '0.7rem',
                                         }}
                                         style={{ marginTop: 0 }}
                                       >
-                                        {volumeDelta.text}
+                                        {totalVolumeDelta.text}
                                       </Typography>
                                     )}
                                   </Stack>
                                 </TableCell>
-                                <TableCell>
-                                  {group.sets.length > 1 && (
-                                    <IconButton
-                                      size="small"
-                                      onClick={() => handleRemoveSet(groupIndex, setIndex)}
-                                      aria-label="セットを削除"
-                                    >
-                                      <DeleteIcon fontSize="small" />
-                                    </IconButton>
-                                  )}
-                                </TableCell>
+                                <TableCell />
                               </TableRow>
-                            )
-                          })}
-                          <TableRow>
-                            <TableCell colSpan={2} align="right">
-                              <Typography variant="subtitle2">合計</Typography>
-                            </TableCell>
-                            <TableCell align="right">
-                              <Stack spacing={0.5} alignItems="flex-end">
-                                <Typography variant="subtitle2">
-                                  {totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
-                                </Typography>
-                                {group.latestSets && (
-                                  <Typography
-                                    variant="caption"
-                                    sx={{
-                                      color: totalVolumeDelta.color,
-                                      fontSize: '0.7rem',
-                                    }}
-                                    style={{ marginTop: 0 }}
-                                  >
-                                    {totalVolumeDelta.text}
-                                  </Typography>
-                                )}
-                              </Stack>
-                            </TableCell>
-                            <TableCell />
-                          </TableRow>
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
+                            </TableBody>
+                          </Table>
+                        </TableContainer>
 
-                    <Button
-                      startIcon={<AddIcon />}
-                      onClick={() => handleAddSet(groupIndex)}
-                      variant="text"
-                      size="small"
-                      fullWidth
-                      sx={{
-                        borderRadius: 0,
-                        my: 0,
-                        py: 0,
-                        minHeight: 'auto',
-                        '& .MuiButton-startIcon': {
-                          marginRight: 1,
-                        },
-                      }}
-                      style={{ marginTop: '4px' }}
-                    >
-                      セットを追加
-                    </Button>
-                  </Stack>
-                </Paper>
-              )
-            })}
+                        <Button
+                          startIcon={<AddIcon />}
+                          onClick={() => handleAddSet(groupIndex)}
+                          variant="text"
+                          size="small"
+                          fullWidth
+                          sx={{
+                            borderRadius: 0,
+                            my: 0,
+                            py: 0,
+                            minHeight: 'auto',
+                            '& .MuiButton-startIcon': {
+                              marginRight: 1,
+                            },
+                          }}
+                          style={{ marginTop: '4px' }}
+                        >
+                          セットを追加
+                        </Button>
+                      </Stack>
+                    </Paper>
+                  )
+                })}
 
-            <Button
-              startIcon={<AddIcon />}
-              onClick={handleAddExerciseGroup}
-              variant="text"
-              fullWidth
-              sx={{
-                borderRadius: 0,
-                my: 0,
-                py: 0,
-                minHeight: 'auto',
-                '& .MuiButton-startIcon': {
-                  marginRight: 1,
-                },
-              }}
-              style={{ marginTop: '4px' }}
-            >
-              種目を追加
-            </Button>
-
-            {/* メモセクション */}
-            <Divider sx={{ my: 2 }} />
-            <Box>
-              <Stack spacing={1}>
-                {memos.map((memo, index) => (
-                  <Stack key={memo.key} direction="row" spacing={1} alignItems="flex-start">
-                    <TextField
-                      fullWidth
-                      multiline
-                      minRows={2}
-                      maxRows={4}
-                      size="small"
-                      placeholder="メモを入力..."
-                      value={memo.content}
-                      onChange={(e) => handleMemoChange(index, e.target.value)}
-                    />
-                    <IconButton
-                      size="small"
-                      onClick={() => handleRemoveMemo(index)}
-                      aria-label="メモを削除"
-                      sx={{ mt: 0.5 }}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </Stack>
-                ))}
                 <Button
                   startIcon={<AddIcon />}
-                  onClick={handleAddMemo}
+                  onClick={handleAddExerciseGroup}
                   variant="text"
-                  size="small"
+                  fullWidth
                   sx={{
-                    alignSelf: 'flex-start',
                     borderRadius: 0,
+                    my: 0,
+                    py: 0,
+                    minHeight: 'auto',
+                    '& .MuiButton-startIcon': {
+                      marginRight: 1,
+                    },
                   }}
+                  style={{ marginTop: '4px' }}
                 >
-                  メモを追加
+                  種目を追加
                 </Button>
-              </Stack>
-            </Box>
+
+                {/* メモセクション */}
+                <Divider sx={{ my: 2 }} />
+                <Box>
+                  <Stack spacing={1}>
+                    {memos.map((memo, index) => (
+                      <Stack key={memo.key} direction="row" spacing={1} alignItems="flex-start">
+                        <TextField
+                          fullWidth
+                          multiline
+                          minRows={2}
+                          maxRows={4}
+                          size="small"
+                          placeholder="メモを入力..."
+                          value={memo.content}
+                          onChange={(e) => handleMemoChange(index, e.target.value)}
+                        />
+                        <IconButton
+                          size="small"
+                          onClick={() => handleRemoveMemo(index)}
+                          aria-label="メモを削除"
+                          sx={{ mt: 0.5 }}
+                        >
+                          <DeleteIcon fontSize="small" />
+                        </IconButton>
+                      </Stack>
+                    ))}
+                    <Button
+                      startIcon={<AddIcon />}
+                      onClick={handleAddMemo}
+                      variant="text"
+                      size="small"
+                      sx={{
+                        alignSelf: 'flex-start',
+                        borderRadius: 0,
+                      }}
+                    >
+                      メモを追加
+                    </Button>
+                  </Stack>
+                </Box>
               </>
             )}
           </Stack>
@@ -970,11 +976,7 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
           <Button onClick={onClose} disabled={isPending || isInitialLoading}>
             キャンセル
           </Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={isPending || isInitialLoading}
-          >
+          <Button variant="contained" onClick={handleSave} disabled={isPending || isInitialLoading}>
             {isPending ? '保存中...' : '保存'}
           </Button>
         </DialogActions>

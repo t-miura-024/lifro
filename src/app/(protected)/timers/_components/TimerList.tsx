@@ -1,5 +1,6 @@
 'use client'
 
+import { client } from '@/app/_lib/hono/client'
 import { useTimer } from '@/app/providers/TimerContext'
 import type { Timer } from '@/server/domain/entities'
 import {
@@ -29,7 +30,6 @@ import {
   Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
-import { getTimersAction, updateTimerSortOrderAction } from '../_actions'
 import SortableTimerItem from './SortableTimerItem'
 import TimerDetailModal from './TimerDetailModal'
 
@@ -57,7 +57,8 @@ export default function TimerList() {
   // タイマーリストを取得
   const loadTimers = useCallback(() => {
     startTransition(async () => {
-      const data = await getTimersAction()
+      const res = await client.api.timers.$get()
+      const data = await res.json()
       setTimers(data)
       if (isInitialLoadRef.current) {
         setIsInitialLoading(false)
@@ -92,7 +93,9 @@ export default function TimerList() {
 
     setIsSorting(true)
     startTransition(async () => {
-      await updateTimerSortOrderAction(changedItems)
+      await client.api.timers['sort-order'].$put({
+        json: { timers: changedItems },
+      })
       setIsSorting(false)
     })
   }

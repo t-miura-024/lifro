@@ -2,6 +2,7 @@ import type { Timer, TimerInput, UnitTimer } from '@/server/domain/entities'
 import type { ITimerRepository, TimerSortOrderInput } from '@/server/domain/repositories'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../database/prisma/client'
+import { toISOString } from './helper'
 
 // Prismaの型からドメインエンティティへの変換
 type PrismaTimer = {
@@ -35,8 +36,8 @@ function toUnitTimer(u: PrismaUnitTimer): UnitTimer {
     countSound: u.countSound,
     countSoundLast3Sec: u.countSoundLast3Sec,
     endSound: u.endSound,
-    createdAt: u.createdAt,
-    updatedAt: u.updatedAt,
+    createdAt: toISOString(u.createdAt),
+    updatedAt: toISOString(u.updatedAt),
   }
 }
 
@@ -46,11 +47,9 @@ function toTimer(t: PrismaTimer): Timer {
     userId: t.userId,
     name: t.name,
     sortIndex: t.sortIndex,
-    createdAt: t.createdAt,
-    updatedAt: t.updatedAt,
-    unitTimers: t.unitTimers
-      .map(toUnitTimer)
-      .sort((a, b) => a.sortIndex - b.sortIndex),
+    createdAt: toISOString(t.createdAt),
+    updatedAt: toISOString(t.updatedAt),
+    unitTimers: t.unitTimers.map(toUnitTimer).sort((a, b) => a.sortIndex - b.sortIndex),
   }
 }
 

@@ -1,6 +1,6 @@
 'use client'
 
-import type { Exercise } from '@/server/domain/entities'
+import { client, type InferResponseType } from '@/app/_lib/hono/client'
 import {
   DndContext,
   type DragEndEvent,
@@ -27,7 +27,6 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
-  IconButton,
   Paper,
   Skeleton,
   Snackbar,
@@ -42,15 +41,10 @@ import {
   Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
-import {
-  canDeleteExerciseAction,
-  createExerciseAction,
-  deleteExerciseAction,
-  getExercisesAction,
-  updateExerciseAction,
-  updateExerciseSortOrderAction,
-} from '../_actions'
 import SortableExerciseItem from './SortableExerciseItem'
+
+/** APIレスポンスから推論された種目型（DateはJSONでstringになる） */
+type Exercise = InferResponseType<typeof client.api.exercises.$get>[number]
 
 export default function ExerciseList() {
   const [exercises, setExercises] = useState<Exercise[]>([])
@@ -79,7 +73,8 @@ export default function ExerciseList() {
   // 種目リストを取得
   const loadExercises = useCallback(() => {
     startTransition(async () => {
-      const data = await getExercisesAction()
+      const res = await client.api.exercises.$get()
+      const data = await res.json()
       setExercises(data)
       if (isInitialLoadRef.current) {
         setIsInitialLoading(false)
@@ -114,7 +109,9 @@ export default function ExerciseList() {
 
     setIsSorting(true)
     startTransition(async () => {
-      await updateExerciseSortOrderAction(changedItems)
+      await client.api.exercises['sort-order'].$put({
+        json: { exercises: changedItems },
+      })
       setIsSorting(false)
     })
   }
@@ -129,7 +126,9 @@ export default function ExerciseList() {
     if (!exerciseName.trim()) return
 
     startTransition(async () => {
-      await createExerciseAction(exerciseName.trim())
+      await client.api.exercises.$post({
+        json: { name: exerciseName.trim() },
+      })
       setCreateDialogOpen(false)
       setExerciseName('')
       loadExercises()
@@ -147,7 +146,10 @@ export default function ExerciseList() {
     if (!selectedExercise || !exerciseName.trim()) return
 
     startTransition(async () => {
-      await updateExerciseAction(selectedExercise.id, exerciseName.trim())
+      await client.api.exercises[':id'].$put({
+        param: { id: String(selectedExercise.id) },
+        json: { name: exerciseName.trim() },
+      })
       setEditDialogOpen(false)
       setSelectedExercise(null)
       setExerciseName('')
@@ -165,7 +167,10 @@ export default function ExerciseList() {
     if (!selectedExercise) return
 
     startTransition(async () => {
-      const canDelete = await canDeleteExerciseAction(selectedExercise.id)
+      const canDeleteRes = await client.api.exercises[':id']['can-delete'].$get({
+        param: { id: String(selectedExercise.id) },
+      })
+      const { canDelete } = await canDeleteRes.json()
       if (!canDelete) {
         setErrorSnackbar('この種目にはトレーニング記録が存在するため削除できません')
         setDeleteDialogOpen(false)
@@ -173,7 +178,9 @@ export default function ExerciseList() {
         return
       }
 
-      await deleteExerciseAction(selectedExercise.id)
+      await client.api.exercises[':id'].$delete({
+        param: { id: String(selectedExercise.id) },
+      })
       setDeleteDialogOpen(false)
       setSelectedExercise(null)
       loadExercises()

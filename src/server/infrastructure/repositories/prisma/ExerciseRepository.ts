@@ -2,6 +2,7 @@ import type { Exercise } from '@/server/domain/entities'
 import type { ExerciseSortOrderInput, IExerciseRepository } from '@/server/domain/repositories'
 import { Prisma } from '@prisma/client'
 import { prisma } from '../../database/prisma/client'
+import { toISOString } from './helper'
 
 export class PrismaExerciseRepository implements IExerciseRepository {
   async findAllByUserId(userId: number): Promise<Exercise[]> {
@@ -15,8 +16,8 @@ export class PrismaExerciseRepository implements IExerciseRepository {
       userId: e.userId,
       name: e.name,
       sortIndex: e.sortIndex,
-      createdAt: e.createdAt,
-      updatedAt: e.updatedAt,
+      createdAt: toISOString(e.createdAt),
+      updatedAt: toISOString(e.updatedAt),
     }))
   }
 
@@ -37,8 +38,8 @@ export class PrismaExerciseRepository implements IExerciseRepository {
       userId: e.userId,
       name: e.name,
       sortIndex: e.sortIndex,
-      createdAt: e.createdAt,
-      updatedAt: e.updatedAt,
+      createdAt: toISOString(e.createdAt),
+      updatedAt: toISOString(e.updatedAt),
     }))
   }
 
@@ -63,8 +64,8 @@ export class PrismaExerciseRepository implements IExerciseRepository {
       userId: exercise.userId,
       name: exercise.name,
       sortIndex: exercise.sortIndex,
-      createdAt: exercise.createdAt,
-      updatedAt: exercise.updatedAt,
+      createdAt: toISOString(exercise.createdAt),
+      updatedAt: toISOString(exercise.updatedAt),
     }
   }
 
@@ -82,8 +83,8 @@ export class PrismaExerciseRepository implements IExerciseRepository {
       userId: exercise.userId,
       name: exercise.name,
       sortIndex: exercise.sortIndex,
-      createdAt: exercise.createdAt,
-      updatedAt: exercise.updatedAt,
+      createdAt: toISOString(exercise.createdAt),
+      updatedAt: toISOString(exercise.updatedAt),
     }
   }
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { client } from '@/app/_lib/hono/client'
 import type {
   ContinuityStats,
   ExerciseTrainingDays,
@@ -14,12 +15,6 @@ import type { Exercise } from '@/server/domain/entities'
 import ScaleIcon from '@mui/icons-material/Scale'
 import { Box, Grid, Paper, Skeleton, Stack, Tab, Tabs, Typography } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
-import {
-  fetchContinuityTabDataAction,
-  fetchExercisesForStatsAction,
-  fetchVolumeTabDataAction,
-  fetchWeightTabDataAction,
-} from './_actions'
 import ContinuityTab from './_components/ContinuityTab'
 import ExerciseVolumeList from './_components/ExerciseVolumeList'
 import GlobalFilter, { type TimeRange } from './_components/GlobalFilter'
@@ -53,7 +48,8 @@ export default function StatisticsPage() {
 
   // 共通のデータ取得
   const loadExercises = useCallback(async () => {
-    const data = await fetchExercisesForStatsAction()
+    const res = await client.api.statistics.exercises.$get()
+    const data = await res.json()
     setExercises(data)
     if (data.length > 0 && selectedExerciseId === null) {
       setSelectedExerciseId(data[0].id)
@@ -63,7 +59,15 @@ export default function StatisticsPage() {
   // ボリュームタブのデータ取得（統合アクション使用）
   const loadVolumeData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const data = await fetchVolumeTabDataAction(granularity, preset, customStartDate, customEndDate)
+    const res = await client.api.statistics.volume.$get({
+      query: {
+        granularity,
+        preset,
+        customStartDate,
+        customEndDate,
+      },
+    })
+    const data = await res.json()
     setTotalVolume(data.totalVolume)
     setVolumeByExercise(data.volumeByExercise)
     setExerciseVolumeTotals(data.exerciseVolumeTotals)
@@ -73,13 +77,16 @@ export default function StatisticsPage() {
   const loadWeightData = useCallback(async () => {
     if (!selectedExerciseId) return
     const { preset, customStartDate, customEndDate } = timeRange
-    const data = await fetchWeightTabDataAction(
-      selectedExerciseId,
-      granularity,
-      preset,
-      customStartDate,
-      customEndDate,
-    )
+    const res = await client.api.statistics.weight.$get({
+      query: {
+        exerciseId: String(selectedExerciseId),
+        granularity,
+        preset,
+        customStartDate,
+        customEndDate,
+      },
+    })
+    const data = await res.json()
     setMaxWeightHistory(data.maxWeightHistory)
     setOneRMHistory(data.oneRMHistory)
   }, [granularity, timeRange, selectedExerciseId])
@@ -87,12 +94,15 @@ export default function StatisticsPage() {
   // 継続タブのデータ取得（統合アクション使用）
   const loadContinuityData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const data = await fetchContinuityTabDataAction(
-      granularity,
-      preset,
-      customStartDate,
-      customEndDate,
-    )
+    const res = await client.api.statistics.continuity.$get({
+      query: {
+        granularity,
+        preset,
+        customStartDate,
+        customEndDate,
+      },
+    })
+    const data = await res.json()
     setContinuityStats(data.stats)
     setTrainingDaysByPeriod(data.daysByPeriod)
     setExerciseTrainingDays(data.exerciseDays)

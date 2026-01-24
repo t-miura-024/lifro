@@ -1,6 +1,5 @@
 'use client'
 
-import type { Exercise } from '@/server/domain/entities'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -9,13 +8,23 @@ import EditIcon from '@mui/icons-material/Edit'
 import { IconButton, TableCell, TableRow, Typography } from '@mui/material'
 import { memo } from 'react'
 
-type Props = {
-  exercise: Exercise
-  onEdit: (exercise: Exercise) => void
-  onDelete: (exercise: Exercise) => void
+/** コンポーネントで使用する種目の最小型（Date/string両対応） */
+type ExerciseItem = {
+  id: number
+  name: string
 }
 
-export default memo(function SortableExerciseItem({ exercise, onEdit, onDelete }: Props) {
+type Props<T extends ExerciseItem> = {
+  exercise: T
+  onEdit: (exercise: T) => void
+  onDelete: (exercise: T) => void
+}
+
+function SortableExerciseItemInner<T extends ExerciseItem>({
+  exercise,
+  onEdit,
+  onDelete,
+}: Props<T>) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exercise.id,
   })
@@ -54,4 +63,7 @@ export default memo(function SortableExerciseItem({ exercise, onEdit, onDelete }
       </TableCell>
     </TableRow>
   )
-})
+}
+
+// ジェネリックコンポーネントをmemoで包む
+export default memo(SortableExerciseItemInner) as typeof SortableExerciseItemInner

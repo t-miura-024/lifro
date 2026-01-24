@@ -1,5 +1,8 @@
 /**
  * リポジトリインターフェース定義
+ *
+ * 日付パラメータについて:
+ * - date: YYYY-MM-DD形式の文字列
  */
 
 import type {
@@ -25,48 +28,51 @@ export interface ITrainingRepository {
 
   /**
    * 特定日のトレーニング詳細を取得
+   * @param date YYYY-MM-DD形式
    */
-  findByDate(userId: number, date: Date): Promise<Training | null>
+  findByDate(userId: number, date: string): Promise<Training | null>
 
   /**
    * トレーニング（セット群）を保存
    * - 既存セットの更新、新規セットの追加、削除されたセットの削除を行う
+   * @param date YYYY-MM-DD形式
    */
-  save(userId: number, date: Date, sets: SetInput[]): Promise<Training>
+  save(userId: number, date: string, sets: SetInput[]): Promise<Training>
 
   /**
    * 特定日のトレーニングを削除
+   * @param date YYYY-MM-DD形式
    */
-  deleteByDate(userId: number, date: Date): Promise<void>
+  deleteByDate(userId: number, date: string): Promise<void>
 
   /**
    * 種目の前回値（直近の記録）を取得
-   * @param excludeDate 除外する日付（この日付のセットは対象外）
+   * @param excludeDate 除外する日付（YYYY-MM-DD形式、この日付のセットは対象外）
    */
   getLatestHistory(
     userId: number,
     exerciseId: number,
-    excludeDate?: Date,
+    excludeDate?: string,
   ): Promise<ExerciseHistory | null>
 
   /**
    * 直近実施日の当該種目の全セットを取得
-   * @param excludeDate 除外する日付（この日付のセットは対象外）
+   * @param excludeDate 除外する日付（YYYY-MM-DD形式、この日付のセットは対象外）
    */
   getLatestExerciseSets(
     userId: number,
     exerciseId: number,
-    excludeDate?: Date,
+    excludeDate?: string,
   ): Promise<LatestExerciseSets | null>
 
   /**
    * 複数種目の直近実施日の全セットを一括取得
-   * @param excludeDate 除外する日付（この日付のセットは対象外）
+   * @param excludeDate 除外する日付（YYYY-MM-DD形式、この日付のセットは対象外）
    */
   getLatestExerciseSetsMultiple(
     userId: number,
     exerciseIds: number[],
-    excludeDate?: Date,
+    excludeDate?: string,
   ): Promise<Map<number, LatestExerciseSets>>
 
   /**
@@ -123,18 +129,21 @@ export interface IExerciseRepository {
 export interface ITrainingMemoRepository {
   /**
    * 指定日のメモ一覧を取得
+   * @param date YYYY-MM-DD形式
    */
-  findByDate(userId: number, date: Date): Promise<TrainingMemo[]>
+  findByDate(userId: number, date: string): Promise<TrainingMemo[]>
 
   /**
    * 指定月のメモがある日付一覧を取得
+   * @returns YYYY-MM-DD形式の日付配列
    */
-  findDatesWithMemoByMonth(userId: number, year: number, month: number): Promise<Date[]>
+  findDatesWithMemoByMonth(userId: number, year: number, month: number): Promise<string[]>
 
   /**
    * メモを作成
+   * @param date YYYY-MM-DD形式
    */
-  create(userId: number, date: Date, content: string): Promise<TrainingMemo>
+  create(userId: number, date: string, content: string): Promise<TrainingMemo>
 
   /**
    * メモを更新
@@ -148,8 +157,9 @@ export interface ITrainingMemoRepository {
 
   /**
    * メモを一括保存（追加・更新・削除）
+   * @param date YYYY-MM-DD形式
    */
-  saveAll(userId: number, date: Date, memos: TrainingMemoInput[]): Promise<TrainingMemo[]>
+  saveAll(userId: number, date: string, memos: TrainingMemoInput[]): Promise<TrainingMemo[]>
 }
 
 /** タイマーの並び順更新用入力 */

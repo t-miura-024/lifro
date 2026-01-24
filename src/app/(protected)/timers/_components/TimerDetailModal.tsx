@@ -1,5 +1,6 @@
 'use client'
 
+import { client } from '@/app/_lib/hono/client'
 import {
   DEFAULT_COUNT_SOUND,
   DEFAULT_COUNT_SOUND_LAST_3_SEC,
@@ -30,12 +31,6 @@ import {
   Typography,
 } from '@mui/material'
 import { useEffect, useState, useTransition } from 'react'
-import {
-  createTimerAction,
-  deleteTimerAction,
-  getSoundFilesAction,
-  updateTimerAction,
-} from '../_actions'
 
 type UnitTimerFormData = {
   key: string
@@ -108,7 +103,10 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
   // 音声ファイル一覧を取得
   useEffect(() => {
     if (open) {
-      getSoundFilesAction().then(setSoundFiles)
+      client.api.timers.sounds.$get().then(async (res) => {
+        const data = await res.json()
+        setSoundFiles(data)
+      })
     }
   }, [open])
 
@@ -164,16 +162,21 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
 
     startTransition(async () => {
       if (isEditMode && timer) {
-        await updateTimerAction(timer.id, {
-          name: name.trim(),
-          sortIndex: timer.sortIndex,
-          unitTimers: unitTimerInputs,
+        await client.api.timers[':id'].$put({
+          param: { id: String(timer.id) },
+          json: {
+            name: name.trim(),
+            sortIndex: timer.sortIndex,
+            unitTimers: unitTimerInputs,
+          },
         })
       } else {
-        await createTimerAction({
-          name: name.trim(),
-          sortIndex: 0,
-          unitTimers: unitTimerInputs,
+        await client.api.timers.$post({
+          json: {
+            name: name.trim(),
+            sortIndex: 0,
+            unitTimers: unitTimerInputs,
+          },
         })
       }
       onSaved()
@@ -189,7 +192,9 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
     if (!timer) return
 
     startTransition(async () => {
-      await deleteTimerAction(timer.id)
+      await client.api.timers[':id'].$delete({
+        param: { id: String(timer.id) },
+      })
       setDeleteConfirmOpen(false)
       onSaved()
     })

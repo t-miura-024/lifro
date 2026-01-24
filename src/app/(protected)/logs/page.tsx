@@ -1,5 +1,6 @@
 'use client'
 
+import { client } from '@/app/_lib/hono/client'
 import type { Training, TrainingSummary, YearMonth } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import {
@@ -19,18 +20,14 @@ import {
   Typography,
 } from '@mui/material'
 import { useCallback, useEffect, useState, useTransition } from 'react'
-import {
-  fetchAvailableYearMonthsAction,
-  fetchTrainingByDateAction,
-  fetchTrainingsAction,
-} from './_actions'
 import LogInputModal from './_components/LogInputModal'
 import type { SetFormData } from './_components/LogInputModal'
 import LogList from './_components/LogList'
 import type { TrainingRow } from './_components/LogList'
 
-function formatDate(date: Date) {
-  return date.toISOString().split('T')[0]
+function formatDateForDisplay(dateStr: string): string {
+  // YYYY-MM-DD → そのまま使用（または必要に応じてフォーマット）
+  return dateStr
 }
 
 function yearMonthToKey(ym: YearMonth): string {
@@ -42,10 +39,9 @@ function formatYearMonthLabel(ym: YearMonth): string {
 }
 
 function summaryToRow(summary: TrainingSummary): TrainingRow {
-  const dateStr = formatDate(summary.date)
   return {
-    id: dateStr,
-    date: dateStr,
+    id: summary.date,
+    date: summary.date,
     exercises: summary.exercises,
     volume: summary.totalVolume,
     memos: summary.memos,
@@ -87,7 +83,8 @@ export default function LogsPage() {
   // 初回ロード: 年月一覧を取得
   useEffect(() => {
     const loadYearMonths = async () => {
-      const yearMonths = await fetchAvailableYearMonthsAction()
+      const res = await client.api.trainings['year-months'].$get()
+      const yearMonths = await res.json()
       setAvailableYearMonths(yearMonths)
       // 最新の年月を選択（降順なので先頭）
       if (yearMonths.length > 0) {
@@ -102,7 +99,13 @@ export default function LogsPage() {
   const loadData = useCallback(() => {
     if (!selectedYearMonth) return
     startLoading(async () => {
-      const summaries = await fetchTrainingsAction(selectedYearMonth.year, selectedYearMonth.month)
+      const res = await client.api.trainings.$get({
+        query: {
+          year: String(selectedYearMonth.year),
+          month: String(selectedYearMonth.month),
+        },
+      })
+      const summaries = await res.json()
       setRows(summaries.map(summaryToRow))
     })
   }, [selectedYearMonth])
@@ -121,8 +124,11 @@ export default function LogsPage() {
   const handleAddClick = async () => {
     const today = new Date()
     setSelectedDate(today)
-    const dateStr = formatDate(today)
-    const training = await fetchTrainingByDateAction(dateStr)
+    const dateStr = today.toISOString().split('T')[0]
+    const res = await client.api.trainings[':date'].$get({
+      param: { date: dateStr },
+    })
+    const training = await res.json()
     // 当日のデータが存在する場合は詳細モーダルを表示、存在しない場合は新規作成
     if (training && training.sets.length > 0) {
       setInitialSets(trainingToSetFormData(training))
@@ -136,7 +142,10 @@ export default function LogsPage() {
   const handleRowClick = async (dateStr: string) => {
     const date = new Date(dateStr)
     setSelectedDate(date)
-    const training = await fetchTrainingByDateAction(dateStr)
+    const res = await client.api.trainings[':date'].$get({
+      param: { date: dateStr },
+    })
+    const training = await res.json()
     setInitialSets(trainingToSetFormData(training))
     setModalOpen(true)
   }
@@ -147,7 +156,8 @@ export default function LogsPage() {
     const savedMonth = savedDate.getMonth() + 1
 
     // 年月一覧を再取得
-    const yearMonths = await fetchAvailableYearMonthsAction()
+    const res = await client.api.trainings['year-months'].$get()
+    const yearMonths = await res.json()
     setAvailableYearMonths(yearMonths)
 
     // 保存された年月を選択

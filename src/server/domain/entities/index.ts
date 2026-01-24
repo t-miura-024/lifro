@@ -1,13 +1,17 @@
 /**
  * ドメインエンティティの型定義
+ *
+ * 日付フィールドの型について:
+ * - date: YYYY-MM-DD形式の文字列
+ * - createdAt/updatedAt: ISO 8601形式の文字列 (YYYY-MM-DDTHH:mm:ss.sssZ)
  */
 
 /** ユーザー */
 export type User = {
   id: number
   email: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
 }
 
 /** 種目 */
@@ -16,8 +20,8 @@ export type Exercise = {
   userId: number
   name: string
   sortIndex: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
 }
 
 /** セット（トレーニングの最小単位） */
@@ -27,10 +31,10 @@ export type TrainingSet = {
   userId: number
   weight: number
   reps: number
-  date: Date
+  date: string // YYYY-MM-DD
   sortIndex: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
   exercise?: Exercise
 }
 
@@ -39,7 +43,7 @@ export type TrainingSet = {
  * - DBには存在しない、アプリケーション層で使用する集約オブジェクト
  */
 export type Training = {
-  date: Date
+  date: string // YYYY-MM-DD
   userId: number
   sets: TrainingSet[]
 }
@@ -59,14 +63,14 @@ export type ExerciseHistory = {
   exerciseName: string
   weight: number
   reps: number
-  date: Date
+  date: string // YYYY-MM-DD
 }
 
 /** 直近実施日の当該種目の全セット */
 export type LatestExerciseSets = {
   exerciseId: number
   exerciseName: string
-  date: Date
+  date: string // YYYY-MM-DD
   sets: Array<{
     weight: number
     reps: number
@@ -83,7 +87,7 @@ export type ExerciseVolume = {
 
 /** トレーニングの要約（一覧表示用） */
 export type TrainingSummary = {
-  date: Date
+  date: string // YYYY-MM-DD
   exerciseNames: string[]
   exercises: ExerciseVolume[]
   totalVolume: number
@@ -95,10 +99,10 @@ export type TrainingSummary = {
 export type TrainingMemo = {
   id: number
   userId: number
-  date: Date
+  date: string // YYYY-MM-DD
   content: string
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
 }
 
 /** トレーニングメモの入力データ（新規作成・更新用） */
@@ -122,8 +126,8 @@ export type UnitTimer = {
   countSound: string | null
   countSoundLast3Sec: string | null
   endSound: string | null
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
 }
 
 /** タイマー */
@@ -132,8 +136,8 @@ export type Timer = {
   userId: number
   name: string
   sortIndex: number
-  createdAt: Date
-  updatedAt: Date
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
   unitTimers: UnitTimer[]
 }
 

@@ -1,13 +1,15 @@
 import type { TrainingMemo, TrainingMemoInput } from '@/server/domain/entities'
 import type { ITrainingMemoRepository } from '@/server/domain/repositories'
 import { prisma } from '../../database/prisma/client'
+import { parseDate, toDateString, toISOString } from './helper'
 
 export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
-  async findByDate(userId: number, date: Date): Promise<TrainingMemo[]> {
+  async findByDate(userId: number, date: string): Promise<TrainingMemo[]> {
+    const dateObj = parseDate(date)
     const memos = await prisma.trainingMemo.findMany({
       where: {
         userId,
-        date,
+        date: dateObj,
       },
       orderBy: { createdAt: 'asc' },
     })
@@ -15,14 +17,14 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
     return memos.map((m) => ({
       id: m.id,
       userId: m.userId,
-      date: m.date,
+      date: toDateString(m.date),
       content: m.content,
-      createdAt: m.createdAt,
-      updatedAt: m.updatedAt,
+      createdAt: toISOString(m.createdAt),
+      updatedAt: toISOString(m.updatedAt),
     }))
   }
 
-  async findDatesWithMemoByMonth(userId: number, year: number, month: number): Promise<Date[]> {
+  async findDatesWithMemoByMonth(userId: number, year: number, month: number): Promise<string[]> {
     const startDate = new Date(year, month - 1, 1)
     const endDate = new Date(year, month, 0)
 
@@ -38,14 +40,15 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
       distinct: ['date'],
     })
 
-    return memos.map((m) => m.date)
+    return memos.map((m) => toDateString(m.date))
   }
 
-  async create(userId: number, date: Date, content: string): Promise<TrainingMemo> {
+  async create(userId: number, date: string, content: string): Promise<TrainingMemo> {
+    const dateObj = parseDate(date)
     const memo = await prisma.trainingMemo.create({
       data: {
         userId,
-        date,
+        date: dateObj,
         content,
       },
     })
@@ -53,10 +56,10 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
     return {
       id: memo.id,
       userId: memo.userId,
-      date: memo.date,
+      date: toDateString(memo.date),
       content: memo.content,
-      createdAt: memo.createdAt,
-      updatedAt: memo.updatedAt,
+      createdAt: toISOString(memo.createdAt),
+      updatedAt: toISOString(memo.updatedAt),
     }
   }
 
@@ -72,10 +75,10 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
     return {
       id: memo.id,
       userId: memo.userId,
-      date: memo.date,
+      date: toDateString(memo.date),
       content: memo.content,
-      createdAt: memo.createdAt,
-      updatedAt: memo.updatedAt,
+      createdAt: toISOString(memo.createdAt),
+      updatedAt: toISOString(memo.updatedAt),
     }
   }
 
@@ -88,11 +91,13 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
     })
   }
 
-  async saveAll(userId: number, date: Date, memos: TrainingMemoInput[]): Promise<TrainingMemo[]> {
+  async saveAll(userId: number, date: string, memos: TrainingMemoInput[]): Promise<TrainingMemo[]> {
+    const dateObj = parseDate(date)
+
     return await prisma.$transaction(async (tx) => {
       // 既存のメモを取得
       const existingMemos = await tx.trainingMemo.findMany({
-        where: { userId, date },
+        where: { userId, date: dateObj },
       })
 
       const existingIds = existingMemos.map((m) => m.id)
@@ -135,7 +140,7 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
         await tx.trainingMemo.createMany({
           data: toCreate.map((m) => ({
             userId,
-            date,
+            date: dateObj,
             content: m.content,
           })),
         })
@@ -143,17 +148,17 @@ export class PrismaTrainingMemoRepository implements ITrainingMemoRepository {
 
       // 最新のメモ一覧を取得して返す
       const result = await tx.trainingMemo.findMany({
-        where: { userId, date },
+        where: { userId, date: dateObj },
         orderBy: { createdAt: 'asc' },
       })
 
       return result.map((m) => ({
         id: m.id,
         userId: m.userId,
-        date: m.date,
+        date: toDateString(m.date),
         content: m.content,
-        createdAt: m.createdAt,
-        updatedAt: m.updatedAt,
+        createdAt: toISOString(m.createdAt),
+        updatedAt: toISOString(m.updatedAt),
       }))
     })
   }
