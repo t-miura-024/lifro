@@ -17,6 +17,7 @@ import VolumeUpIcon from '@mui/icons-material/VolumeUp'
 import {
   Box,
   Button,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -114,8 +115,33 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
   const [isPending, startTransition] = useTransition()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [soundFiles, setSoundFiles] = useState<SoundFile[]>([])
+  const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
 
   const isEditMode = timer !== null
+
+  // 展開/折りたたみのトグル
+  const toggleExpanded = (key: string) => {
+    setExpandedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  // サマリー表示用: 音声ファイル名を取得
+  const getSoundDisplayName = (filename: string): string => {
+    if (filename === SOUND_NONE) return 'なし'
+    const file = soundFiles.find((f) => f.filename === filename)
+    return file?.name ?? filename.replace(/\.[^.]+$/, '')
+  }
+
+  // サマリー表示用: 時間をフォーマット
+  const formatDuration = (minutes: string, seconds: string): string => {
+    const m = Number.parseInt(minutes, 10) || 0
+    const s = Number.parseInt(seconds, 10) || 0
+    return `${m}:${s.toString().padStart(2, '0')}`
+  }
 
   // 音声ファイル一覧を取得
   useEffect(() => {
@@ -271,11 +297,21 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
               <Typography variant="subtitle2" gutterBottom>
                 ユニットタイマー
               </Typography>
-              <Stack spacing={2}>
+              <Stack spacing={1.5}>
                 {unitTimers.map((unit, index) => (
-                  <Paper key={unit.key} variant="outlined" sx={{ p: 2 }}>
-                    <Stack spacing={2}>
-                      {/* ヘッダー */}
+                  <Paper
+                    key={unit.key}
+                    variant="outlined"
+                    sx={{
+                      p: 1.5,
+                      cursor: 'pointer',
+                      '&:hover': { bgcolor: 'action.hover' },
+                    }}
+                    onClick={() => toggleExpanded(unit.key)}
+                  >
+                    {/* サマリービュー（常に表示） */}
+                    <Stack spacing={0.5}>
+                      {/* 1行目: ドラッグ・名前・時間・削除 */}
                       <Stack direction="row" alignItems="center" spacing={1}>
                         <IconButton
                           size="small"
@@ -285,17 +321,29 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
                         >
                           <DragIndicatorIcon fontSize="small" />
                         </IconButton>
-                        <TextField
-                          size="small"
-                          placeholder="名前なし"
-                          value={unit.name}
-                          onChange={(e) => handleUnitChange(index, 'name', e.target.value)}
-                          sx={{ flex: 1 }}
-                        />
+                        <Typography
+                          sx={{
+                            flex: 1,
+                            fontWeight: 500,
+                            color: unit.name ? 'text.primary' : 'text.secondary',
+                          }}
+                        >
+                          {unit.name || '名前なし'}
+                        </Typography>
+                        <Typography
+                          variant="body2"
+                          color={isValidTime(unit) ? 'text.secondary' : 'error'}
+                          sx={{ fontFamily: 'monospace' }}
+                        >
+                          {formatDuration(unit.minutes, unit.seconds)}
+                        </Typography>
                         {unitTimers.length > 1 && (
                           <IconButton
                             size="small"
-                            onClick={() => handleRemoveUnit(index)}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleRemoveUnit(index)
+                            }}
                             aria-label="ユニットタイマーを削除"
                           >
                             <DeleteIcon fontSize="small" />
@@ -303,163 +351,187 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
                         )}
                       </Stack>
 
-                      {/* 時間入力 */}
-                      <Stack direction="row" spacing={1} alignItems="center">
-                        <FormControl size="small" sx={{ width: 80 }} error={!isValidTime(unit)}>
-                          <InputLabel>分</InputLabel>
-                          <Select
-                            value={unit.minutes}
-                            label="分"
-                            onChange={(e: SelectChangeEvent) =>
-                              handleUnitChange(index, 'minutes', e.target.value)
-                            }
-                          >
-                            {MINUTES_OPTIONS.map((opt) => (
-                              <MenuItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                        <Typography>:</Typography>
-                        <FormControl size="small" sx={{ width: 80 }} error={!isValidTime(unit)}>
-                          <InputLabel>秒</InputLabel>
-                          <Select
-                            value={unit.seconds}
-                            label="秒"
-                            onChange={(e: SelectChangeEvent) =>
-                              handleUnitChange(index, 'seconds', e.target.value)
-                            }
-                          >
-                            {SECONDS_OPTIONS.map((opt) => (
-                              <MenuItem key={opt.value} value={opt.value}>
-                                {opt.label}
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Stack>
-
-                      {/* 音声設定 */}
-                      <Stack spacing={1.5}>
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>カウント音</InputLabel>
-                          <Select
-                            value={unit.countSound}
-                            label="カウント音"
-                            onChange={(e: SelectChangeEvent) =>
-                              handleUnitChange(index, 'countSound', e.target.value)
-                            }
-                            renderValue={(value) => {
-                              if (value === SOUND_NONE) return 'なし'
-                              const file = soundFiles.find((f) => f.filename === value)
-                              return file?.name ?? value.replace(/\.[^.]+$/, '')
-                            }}
-                          >
-                            <MenuItem value={SOUND_NONE}>なし</MenuItem>
-                            {soundFiles.map((file) => (
-                              <MenuItem key={file.filename} value={file.filename}>
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    width: '100%',
-                                  }}
-                                >
-                                  <span>{file.name}</span>
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => handlePlaySound(e, file.filename)}
-                                    sx={{ ml: 1 }}
-                                  >
-                                    <VolumeUpIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>終了3秒前の音</InputLabel>
-                          <Select
-                            value={unit.countSoundLast3Sec}
-                            label="終了3秒前の音"
-                            onChange={(e: SelectChangeEvent) =>
-                              handleUnitChange(index, 'countSoundLast3Sec', e.target.value)
-                            }
-                            renderValue={(value) => {
-                              if (value === SOUND_NONE) return 'なし'
-                              const file = soundFiles.find((f) => f.filename === value)
-                              return file?.name ?? value.replace(/\.[^.]+$/, '')
-                            }}
-                          >
-                            <MenuItem value={SOUND_NONE}>なし</MenuItem>
-                            {soundFiles.map((file) => (
-                              <MenuItem key={file.filename} value={file.filename}>
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    width: '100%',
-                                  }}
-                                >
-                                  <span>{file.name}</span>
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => handlePlaySound(e, file.filename)}
-                                    sx={{ ml: 1 }}
-                                  >
-                                    <VolumeUpIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>終了音</InputLabel>
-                          <Select
-                            value={unit.endSound}
-                            label="終了音"
-                            onChange={(e: SelectChangeEvent) =>
-                              handleUnitChange(index, 'endSound', e.target.value)
-                            }
-                            renderValue={(value) => {
-                              if (value === SOUND_NONE) return 'なし'
-                              const file = soundFiles.find((f) => f.filename === value)
-                              return file?.name ?? value.replace(/\.[^.]+$/, '')
-                            }}
-                          >
-                            <MenuItem value={SOUND_NONE}>なし</MenuItem>
-                            {soundFiles.map((file) => (
-                              <MenuItem key={file.filename} value={file.filename}>
-                                <Box
-                                  sx={{
-                                    display: 'flex',
-                                    justifyContent: 'space-between',
-                                    alignItems: 'center',
-                                    width: '100%',
-                                  }}
-                                >
-                                  <span>{file.name}</span>
-                                  <IconButton
-                                    size="small"
-                                    onClick={(e) => handlePlaySound(e, file.filename)}
-                                    sx={{ ml: 1 }}
-                                  >
-                                    <VolumeUpIcon fontSize="small" />
-                                  </IconButton>
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        </FormControl>
-                      </Stack>
+                      {/* 2行目: 音声設定サマリー */}
+                      <Typography variant="caption" color="text.secondary" sx={{ pl: 5 }}>
+                        カウント: {getSoundDisplayName(unit.countSound)} | 3秒前:{' '}
+                        {getSoundDisplayName(unit.countSoundLast3Sec)} | 終了:{' '}
+                        {getSoundDisplayName(unit.endSound)}
+                      </Typography>
                     </Stack>
+
+                    {/* 詳細フォーム（展開時のみ） */}
+                    <Collapse in={expandedKeys.has(unit.key)}>
+                      <Box sx={{ pt: 2 }} onClick={(e) => e.stopPropagation()}>
+                        <Stack spacing={2}>
+                          {/* 名前入力 */}
+                          <TextField
+                            size="small"
+                            label="名前"
+                            placeholder="名前なし"
+                            value={unit.name}
+                            onChange={(e) => handleUnitChange(index, 'name', e.target.value)}
+                            fullWidth
+                          />
+
+                          {/* 時間入力 */}
+                          <Stack direction="row" spacing={1} alignItems="center">
+                            <FormControl size="small" sx={{ width: 80 }} error={!isValidTime(unit)}>
+                              <InputLabel>分</InputLabel>
+                              <Select
+                                value={unit.minutes}
+                                label="分"
+                                onChange={(e: SelectChangeEvent) =>
+                                  handleUnitChange(index, 'minutes', e.target.value)
+                                }
+                              >
+                                {MINUTES_OPTIONS.map((opt) => (
+                                  <MenuItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                            <Typography>:</Typography>
+                            <FormControl size="small" sx={{ width: 80 }} error={!isValidTime(unit)}>
+                              <InputLabel>秒</InputLabel>
+                              <Select
+                                value={unit.seconds}
+                                label="秒"
+                                onChange={(e: SelectChangeEvent) =>
+                                  handleUnitChange(index, 'seconds', e.target.value)
+                                }
+                              >
+                                {SECONDS_OPTIONS.map((opt) => (
+                                  <MenuItem key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Stack>
+
+                          {/* 音声設定 */}
+                          <Stack spacing={1.5}>
+                            <FormControl size="small" fullWidth>
+                              <InputLabel>カウント音</InputLabel>
+                              <Select
+                                value={unit.countSound}
+                                label="カウント音"
+                                onChange={(e: SelectChangeEvent) =>
+                                  handleUnitChange(index, 'countSound', e.target.value)
+                                }
+                                renderValue={(value) => {
+                                  if (value === SOUND_NONE) return 'なし'
+                                  const file = soundFiles.find((f) => f.filename === value)
+                                  return file?.name ?? value.replace(/\.[^.]+$/, '')
+                                }}
+                              >
+                                <MenuItem value={SOUND_NONE}>なし</MenuItem>
+                                {soundFiles.map((file) => (
+                                  <MenuItem key={file.filename} value={file.filename}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        width: '100%',
+                                      }}
+                                    >
+                                      <span>{file.name}</span>
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => handlePlaySound(e, file.filename)}
+                                        sx={{ ml: 1 }}
+                                      >
+                                        <VolumeUpIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+
+                            <FormControl size="small" fullWidth>
+                              <InputLabel>終了3秒前の音</InputLabel>
+                              <Select
+                                value={unit.countSoundLast3Sec}
+                                label="終了3秒前の音"
+                                onChange={(e: SelectChangeEvent) =>
+                                  handleUnitChange(index, 'countSoundLast3Sec', e.target.value)
+                                }
+                                renderValue={(value) => {
+                                  if (value === SOUND_NONE) return 'なし'
+                                  const file = soundFiles.find((f) => f.filename === value)
+                                  return file?.name ?? value.replace(/\.[^.]+$/, '')
+                                }}
+                              >
+                                <MenuItem value={SOUND_NONE}>なし</MenuItem>
+                                {soundFiles.map((file) => (
+                                  <MenuItem key={file.filename} value={file.filename}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        width: '100%',
+                                      }}
+                                    >
+                                      <span>{file.name}</span>
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => handlePlaySound(e, file.filename)}
+                                        sx={{ ml: 1 }}
+                                      >
+                                        <VolumeUpIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+
+                            <FormControl size="small" fullWidth>
+                              <InputLabel>終了音</InputLabel>
+                              <Select
+                                value={unit.endSound}
+                                label="終了音"
+                                onChange={(e: SelectChangeEvent) =>
+                                  handleUnitChange(index, 'endSound', e.target.value)
+                                }
+                                renderValue={(value) => {
+                                  if (value === SOUND_NONE) return 'なし'
+                                  const file = soundFiles.find((f) => f.filename === value)
+                                  return file?.name ?? value.replace(/\.[^.]+$/, '')
+                                }}
+                              >
+                                <MenuItem value={SOUND_NONE}>なし</MenuItem>
+                                {soundFiles.map((file) => (
+                                  <MenuItem key={file.filename} value={file.filename}>
+                                    <Box
+                                      sx={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        width: '100%',
+                                      }}
+                                    >
+                                      <span>{file.name}</span>
+                                      <IconButton
+                                        size="small"
+                                        onClick={(e) => handlePlaySound(e, file.filename)}
+                                        sx={{ ml: 1 }}
+                                      >
+                                        <VolumeUpIcon fontSize="small" />
+                                      </IconButton>
+                                    </Box>
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          </Stack>
+                        </Stack>
+                      </Box>
+                    </Collapse>
                   </Paper>
                 ))}
               </Stack>
