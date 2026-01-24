@@ -95,7 +95,7 @@ export default function TimerOverlay() {
                     flex: 1,
                   }}
                 >
-                  {timer.name}
+                  {currentUnit?.name || '名前なし'}
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.8 }}>
                   {currentUnitIndex + 1}/{timer.unitTimers.length}

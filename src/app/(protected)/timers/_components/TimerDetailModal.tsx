@@ -35,6 +35,7 @@ import { useEffect, useState, useTransition } from 'react'
 type UnitTimerFormData = {
   key: string
   id?: number
+  name: string
   minutes: string
   seconds: string
   countSound: string
@@ -64,6 +65,7 @@ const SECONDS_OPTIONS = Array.from({ length: 60 }, (_, i) => ({
 function createEmptyUnit(): UnitTimerFormData {
   return {
     key: `unit-${Date.now()}-${unitKeyCounter++}`,
+    name: '',
     minutes: '1',
     seconds: '0',
     countSound: DEFAULT_COUNT_SOUND || SOUND_NONE,
@@ -79,6 +81,7 @@ function timerToFormData(timer: Timer): UnitTimerFormData[] {
     return {
       key: `unit-${Date.now()}-${unitKeyCounter++}`,
       id: unit.id,
+      name: unit.name || '',
       minutes: minutes.toString(),
       seconds: seconds.toString(),
       countSound: unit.countSound || SOUND_NONE,
@@ -91,8 +94,10 @@ function timerToFormData(timer: Timer): UnitTimerFormData[] {
 function formDataToUnitTimerInput(data: UnitTimerFormData): UnitTimerInput {
   const minutes = Number.parseInt(data.minutes, 10) || 0
   const seconds = Number.parseInt(data.seconds, 10) || 0
+  const trimmedName = data.name.trim()
   return {
     id: data.id,
+    name: trimmedName || undefined,
     sortIndex: 0, // Will be set later
     duration: minutes * 60 + seconds,
     countSound: data.countSound === SOUND_NONE ? null : data.countSound,
@@ -271,9 +276,13 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
                         >
                           <DragIndicatorIcon fontSize="small" />
                         </IconButton>
-                        <Typography variant="subtitle2" sx={{ flex: 1 }}>
-                          #{index + 1}
-                        </Typography>
+                        <TextField
+                          size="small"
+                          placeholder="名前なし"
+                          value={unit.name}
+                          onChange={(e) => handleUnitChange(index, 'name', e.target.value)}
+                          sx={{ flex: 1 }}
+                        />
                         {unitTimers.length > 1 && (
                           <IconButton
                             size="small"

@@ -6,6 +6,7 @@ import { timerService } from '@/server/application/services'
 
 const unitTimerInputSchema = z.object({
   id: z.number().optional(),
+  name: z.string().optional(),
   sortIndex: z.number(),
   duration: z.number(),
   countSound: z.string().nullable(),

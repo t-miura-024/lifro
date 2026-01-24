@@ -18,6 +18,7 @@ type PrismaTimer = {
 type PrismaUnitTimer = {
   id: number
   timerId: number
+  name: string | null
   sortIndex: number
   duration: number
   countSound: string | null
@@ -31,6 +32,7 @@ function toUnitTimer(u: PrismaUnitTimer): UnitTimer {
   return {
     id: u.id,
     timerId: u.timerId,
+    name: u.name,
     sortIndex: u.sortIndex,
     duration: u.duration,
     countSound: u.countSound,
@@ -99,6 +101,7 @@ export class PrismaTimerRepository implements ITimerRepository {
         sortIndex: nextSortIndex,
         unitTimers: {
           create: input.unitTimers.map((u, index) => ({
+            name: u.name,
             sortIndex: index,
             duration: u.duration,
             countSound: u.countSound,
@@ -140,6 +143,7 @@ export class PrismaTimerRepository implements ITimerRepository {
       await tx.unitTimer.createMany({
         data: input.unitTimers.map((u, index) => ({
           timerId,
+          name: u.name,
           sortIndex: index,
           duration: u.duration,
           countSound: u.countSound,

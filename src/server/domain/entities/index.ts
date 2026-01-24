@@ -121,6 +121,7 @@ export type YearMonth = {
 export type UnitTimer = {
   id: number
   timerId: number
+  name: string | null // 名前（任意）
   sortIndex: number
   duration: number // 秒単位
   countSound: string | null
@@ -144,6 +145,7 @@ export type Timer = {
 /** ユニットタイマーの入力データ（新規作成・更新用） */
 export type UnitTimerInput = {
   id?: number
+  name?: string // 名前（任意）
   sortIndex: number
   duration: number
   countSound: string | null
