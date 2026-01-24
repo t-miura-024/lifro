@@ -111,12 +111,12 @@ model Session {
 
 /// タイマー
 model Timer {
-    id         Int         @id @default(autoincrement())
-    userId     Int         @map("user_id")
-    name       String
-    sortIndex  Int         @default(0) @map("sort_index")
-    createdAt  DateTime    @default(now()) @map("created_at")
-    updatedAt  DateTime    @updatedAt @map("updated_at")
+    id        Int      @id @default(autoincrement())
+    userId    Int      @map("user_id")
+    name      String
+    sortIndex Int      @default(0) @map("sort_index")
+    createdAt DateTime @default(now()) @map("created_at")
+    updatedAt DateTime @updatedAt @map("updated_at")
 
     user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
     unitTimers UnitTimer[]
@@ -130,7 +130,7 @@ model UnitTimer {
     id                 Int      @id @default(autoincrement())
     timerId            Int      @map("timer_id")
     sortIndex          Int      @default(0) @map("sort_index")
-    duration           Int      /// 秒単位
+    duration           Int /// 秒単位
     countSound         String?  @map("count_sound")
     countSoundLast3Sec String?  @map("count_sound_last_3_sec")
     endSound           String?  @map("end_sound")

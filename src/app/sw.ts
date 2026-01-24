@@ -18,7 +18,7 @@ declare const self: ServiceWorkerGlobalScope
 const runtimeCaching: RuntimeCaching[] = [
   // HTMLページ: Stale-While-Revalidate（即座にキャッシュを返し、バックグラウンドで更新）
   {
-    urlPattern: ({ request }) => request.mode === 'navigate',
+    matcher: ({ request }) => request.mode === 'navigate',
     handler: new StaleWhileRevalidate({
       cacheName: 'pages-cache',
       plugins: [
@@ -31,7 +31,7 @@ const runtimeCaching: RuntimeCaching[] = [
   },
   // GET API: Stale-While-Revalidate（即座にキャッシュを返し、バックグラウンドで更新）
   {
-    urlPattern: ({ url, request }) =>
+    matcher: ({ url, request }) =>
       url.pathname.startsWith('/api/') && request.method === 'GET',
     handler: new StaleWhileRevalidate({
       cacheName: 'api-cache',
@@ -45,7 +45,7 @@ const runtimeCaching: RuntimeCaching[] = [
   },
   // 静的アセット（画像、フォントなど）: Cache First
   {
-    urlPattern: ({ request }) =>
+    matcher: ({ request }) =>
       request.destination === 'image' ||
       request.destination === 'font' ||
       request.destination === 'style',
@@ -61,7 +61,7 @@ const runtimeCaching: RuntimeCaching[] = [
   },
   // Google Fonts: Cache First
   {
-    urlPattern: ({ url }) =>
+    matcher: ({ url }) =>
       url.origin === 'https://fonts.googleapis.com' ||
       url.origin === 'https://fonts.gstatic.com',
     handler: new CacheFirst({
