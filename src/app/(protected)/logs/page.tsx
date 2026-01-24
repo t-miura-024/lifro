@@ -60,8 +60,8 @@ function trainingToSetFormData(training: Training | null): SetFormData[] {
       id: set.id,
       exerciseId: set.exerciseId,
       exerciseName: set.exercise?.name || '',
-      weight: set.weight.toString(),
-      reps: set.reps.toString(),
+      weight: set.weight === 0 ? '' : set.weight.toString(),
+      reps: set.reps === 0 ? '' : set.reps.toString(),
     }))
 }
 

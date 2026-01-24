@@ -346,8 +346,8 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
       // 全グループから有効なセットを収集
       const allSets: SetFormData[] = []
       for (const group of exerciseGroups) {
-        // バリデーション: 種目IDと重量・回数が入力されているセットのみ
-        const validSets = group.sets.filter((s) => group.exerciseId && s.weight && s.reps)
+        // バリデーション: 種目IDが選択されているセットのみ（重量・回数は空でも可）
+        const validSets = group.sets.filter((s) => group.exerciseId)
         allSets.push(...validSets)
       }
 
@@ -380,8 +380,8 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
         return {
           id: s.id,
           exerciseId: group.exerciseId,
-          weight: Number.parseFloat(s.weight),
-          reps: Number.parseInt(s.reps, 10),
+          weight: s.weight === '' ? 0 : Number.parseFloat(s.weight),
+          reps: s.reps === '' ? 0 : Number.parseInt(s.reps, 10),
           sortIndex: index,
         }
       })
@@ -727,7 +727,7 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
                                               e.target.value,
                                             )
                                           }
-                                          inputProps={{ min: 0, step: 0.5 }}
+                                          inputProps={{ min: 0, step: 0.5, placeholder: '0' }}
                                           sx={{
                                             '& .MuiOutlinedInput-root': {
                                               borderRadius: 0,
@@ -782,7 +782,7 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
                                               e.target.value,
                                             )
                                           }
-                                          inputProps={{ min: 0, step: 1 }}
+                                          inputProps={{ min: 0, step: 1, placeholder: '0' }}
                                           sx={{
                                             '& .MuiOutlinedInput-root': {
                                               borderRadius: 0,
