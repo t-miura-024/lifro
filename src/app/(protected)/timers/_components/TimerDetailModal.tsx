@@ -9,9 +9,11 @@ import {
   type SoundFile,
 } from '@/constants/sounds'
 import type { Timer, UnitTimerInput } from '@/server/domain/entities'
+import { audioScheduler } from '@/utils/soundPlayer'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator'
+import VolumeUpIcon from '@mui/icons-material/VolumeUp'
 import {
   Box,
   Button,
@@ -215,6 +217,13 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
     })
   }
 
+  // 音声プレビュー再生
+  const handlePlaySound = (e: React.MouseEvent, filename: string) => {
+    e.stopPropagation() // 選択確定を防ぐ
+    audioScheduler.init() // iOS対応
+    audioScheduler.playNow(filename)
+  }
+
   // 時間のバリデーション
   const isValidTime = (unit: UnitTimerFormData): boolean => {
     const minutes = Number.parseInt(unit.minutes, 10) || 0
@@ -341,11 +350,32 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
                             onChange={(e: SelectChangeEvent) =>
                               handleUnitChange(index, 'countSound', e.target.value)
                             }
+                            renderValue={(value) => {
+                              if (value === SOUND_NONE) return 'なし'
+                              const file = soundFiles.find((f) => f.filename === value)
+                              return file?.name ?? value.replace(/\.[^.]+$/, '')
+                            }}
                           >
                             <MenuItem value={SOUND_NONE}>なし</MenuItem>
                             {soundFiles.map((file) => (
                               <MenuItem key={file.filename} value={file.filename}>
-                                {file.name}
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    width: '100%',
+                                  }}
+                                >
+                                  <span>{file.name}</span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => handlePlaySound(e, file.filename)}
+                                    sx={{ ml: 1 }}
+                                  >
+                                    <VolumeUpIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
                               </MenuItem>
                             ))}
                           </Select>
@@ -359,11 +389,32 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
                             onChange={(e: SelectChangeEvent) =>
                               handleUnitChange(index, 'countSoundLast3Sec', e.target.value)
                             }
+                            renderValue={(value) => {
+                              if (value === SOUND_NONE) return 'なし'
+                              const file = soundFiles.find((f) => f.filename === value)
+                              return file?.name ?? value.replace(/\.[^.]+$/, '')
+                            }}
                           >
                             <MenuItem value={SOUND_NONE}>なし</MenuItem>
                             {soundFiles.map((file) => (
                               <MenuItem key={file.filename} value={file.filename}>
-                                {file.name}
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    width: '100%',
+                                  }}
+                                >
+                                  <span>{file.name}</span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => handlePlaySound(e, file.filename)}
+                                    sx={{ ml: 1 }}
+                                  >
+                                    <VolumeUpIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
                               </MenuItem>
                             ))}
                           </Select>
@@ -377,11 +428,32 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
                             onChange={(e: SelectChangeEvent) =>
                               handleUnitChange(index, 'endSound', e.target.value)
                             }
+                            renderValue={(value) => {
+                              if (value === SOUND_NONE) return 'なし'
+                              const file = soundFiles.find((f) => f.filename === value)
+                              return file?.name ?? value.replace(/\.[^.]+$/, '')
+                            }}
                           >
                             <MenuItem value={SOUND_NONE}>なし</MenuItem>
                             {soundFiles.map((file) => (
                               <MenuItem key={file.filename} value={file.filename}>
-                                {file.name}
+                                <Box
+                                  sx={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    width: '100%',
+                                  }}
+                                >
+                                  <span>{file.name}</span>
+                                  <IconButton
+                                    size="small"
+                                    onClick={(e) => handlePlaySound(e, file.filename)}
+                                    sx={{ ml: 1 }}
+                                  >
+                                    <VolumeUpIcon fontSize="small" />
+                                  </IconButton>
+                                </Box>
                               </MenuItem>
                             ))}
                           </Select>
