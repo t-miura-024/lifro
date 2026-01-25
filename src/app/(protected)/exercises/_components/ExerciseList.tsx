@@ -44,7 +44,7 @@ import {
 } from '@mui/material'
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
 import BodyPartEditDialog from './BodyPartEditDialog'
-import SortableExerciseItem from './SortableExerciseItem'
+import SortableExerciseItem, { categoryColors } from './SortableExerciseItem'
 
 /** APIレスポンスから推論された種目型 */
 const exercisesWithBodyPartsEndpoint = client.api.exercises['with-body-parts'].$get
@@ -295,12 +295,13 @@ export default function ExerciseList() {
     return (
       <Box key={category} sx={{ mb: 3 }}>
         <Typography
-          variant="subtitle2"
+          variant="subtitle1"
           sx={{
             mb: 1,
-            px: 1,
-            py: 0.5,
-            bgcolor: 'action.hover',
+            px: 1.5,
+            py: 0.75,
+            bgcolor: categoryColors[category]?.bg ?? 'action.hover',
+            color: categoryColors[category]?.text ?? 'text.primary',
             borderRadius: 1,
             fontWeight: 'bold',
           }}

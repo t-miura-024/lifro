@@ -44,7 +44,7 @@ const categoryLabels: Record<string, string> = {
 }
 
 /** 部位カテゴリの色定義 */
-const categoryColors: Record<string, { bg: string; text: string }> = {
+export const categoryColors: Record<string, { bg: string; text: string }> = {
   CHEST: { bg: '#c17b7b', text: '#fff' }, // くすみ赤
   BACK: { bg: '#7b9fc1', text: '#fff' }, // くすみ青
   SHOULDER: { bg: '#c9a66b', text: '#fff' }, // くすみオレンジ
