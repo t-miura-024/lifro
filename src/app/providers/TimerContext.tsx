@@ -13,6 +13,7 @@ export type TimerState = {
   currentUnitIndex: number
   remainingSeconds: number
   totalDuration: number // 現在のユニットタイマーの総時間（秒）
+  isRepeat: boolean // リピート再生が有効かどうか
 }
 
 export type TimerActions = {
@@ -20,6 +21,7 @@ export type TimerActions = {
   pause: () => void
   resume: () => void
   stop: () => void
+  toggleRepeat: () => void
 }
 
 type TimerContextValue = TimerState & TimerActions
@@ -32,6 +34,7 @@ const initialState: TimerState = {
   currentUnitIndex: 0,
   remainingSeconds: 0,
   totalDuration: 0,
+  isRepeat: false,
 }
 
 export function TimerProvider({ children }: { children: ReactNode }) {
@@ -60,7 +63,29 @@ export function TimerProvider({ children }: { children: ReactNode }) {
 
       const nextIndex = prev.currentUnitIndex + 1
       if (nextIndex >= prev.timer.unitTimers.length) {
-        // 全てのユニットタイマーが完了 - clearTimer は setState の外で実行
+        // 全てのユニットタイマーが完了
+        if (prev.isRepeat) {
+          // リピート有効時は最初のユニットに戻る
+          const firstUnit = prev.timer.unitTimers[0]
+          // 時間基準をリセット
+          startTimeRef.current = Date.now()
+          elapsedSecondsRef.current = 0
+
+          // 最初のユニットのサウンドをプリロード
+          audioScheduler.preloadSounds([
+            firstUnit.countSound,
+            firstUnit.countSoundLast3Sec,
+            firstUnit.endSound,
+          ])
+
+          return {
+            ...prev,
+            currentUnitIndex: 0,
+            remainingSeconds: firstUnit.duration,
+            totalDuration: firstUnit.duration,
+          }
+        }
+        // リピート無効時は停止 - clearTimer は setState の外で実行
         setTimeout(() => clearTimer(), 0)
         return initialState
       }
@@ -158,13 +183,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
         firstUnit.endSound,
       ])
 
-      setState({
+      setState((prev) => ({
         status: 'playing',
         timer,
         currentUnitIndex: 0,
         remainingSeconds: firstUnit.duration,
         totalDuration: firstUnit.duration,
-      })
+        isRepeat: prev.isRepeat, // リピート状態を維持
+      }))
 
       // 絶対時間基準を設定
       startTimeRef.current = Date.now()
@@ -205,6 +231,14 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     setState(initialState)
   }, [clearTimer])
 
+  // リピート切り替え
+  const toggleRepeat = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      isRepeat: !prev.isRepeat,
+    }))
+  }, [])
+
   // アンマウント時にクリーンアップ
   useEffect(() => {
     return () => clearTimer()
@@ -216,6 +250,7 @@ export function TimerProvider({ children }: { children: ReactNode }) {
     pause,
     resume,
     stop,
+    toggleRepeat,
   }
 
   return <TimerContext.Provider value={value}>{children}</TimerContext.Provider>

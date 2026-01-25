@@ -3,6 +3,7 @@
 import { useTimer } from '@/app/providers/TimerContext'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import RepeatIcon from '@mui/icons-material/Repeat'
 import StopIcon from '@mui/icons-material/Stop'
 import {
   Box,
@@ -26,8 +27,18 @@ function formatTime(seconds: number): string {
 }
 
 export default function TimerOverlay() {
-  const { status, timer, currentUnitIndex, remainingSeconds, totalDuration, pause, resume, stop } =
-    useTimer()
+  const {
+    status,
+    timer,
+    currentUnitIndex,
+    remainingSeconds,
+    totalDuration,
+    isRepeat,
+    pause,
+    resume,
+    stop,
+    toggleRepeat,
+  } = useTimer()
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false)
 
   // タイマーが実行中でない場合は何も表示しない
@@ -81,6 +92,18 @@ export default function TimerOverlay() {
               aria-label="タイマーを停止"
             >
               <StopIcon />
+            </IconButton>
+
+            {/* リピートトグル */}
+            <IconButton
+              size="small"
+              onClick={toggleRepeat}
+              sx={{
+                color: isRepeat ? 'primary.contrastText' : 'rgba(0, 0, 0, 0.35)',
+              }}
+              aria-label={isRepeat ? 'リピート再生を無効にする' : 'リピート再生を有効にする'}
+            >
+              <RepeatIcon />
             </IconButton>
 
             {/* タイマー情報 */}
