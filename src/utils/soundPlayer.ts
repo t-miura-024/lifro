@@ -1,5 +1,8 @@
 import { SOUND_NONE } from '@/constants/sounds'
 
+const VOLUME_STORAGE_KEY = 'lifro:volume'
+const DEFAULT_VOLUME_PERCENT = 100
+
 /**
  * Web Audio API を使用した正確なサウンドスケジューラー
  * メトロノームアプリと同じアプローチで、サブミリ秒精度のタイミングを実現
@@ -8,6 +11,57 @@ class AudioScheduler {
   private audioContext: AudioContext | null = null
   private buffers: Map<string, AudioBuffer> = new Map()
   private loadingPromises: Map<string, Promise<AudioBuffer | null>> = new Map()
+  private volumePercent: number = DEFAULT_VOLUME_PERCENT
+
+  constructor() {
+    this.loadVolumeFromStorage()
+  }
+
+  /**
+   * localStorageから音量設定を読み込む
+   */
+  private loadVolumeFromStorage(): void {
+    if (typeof window === 'undefined') return
+    try {
+      const stored = localStorage.getItem(VOLUME_STORAGE_KEY)
+      if (stored !== null) {
+        const parsed = Number.parseInt(stored, 10)
+        if (!Number.isNaN(parsed) && parsed >= 0 && parsed <= 500) {
+          this.volumePercent = parsed
+        }
+      }
+    } catch {
+      // localStorageにアクセスできない場合は無視
+    }
+  }
+
+  /**
+   * localStorageに音量設定を保存する
+   */
+  private saveVolumeToStorage(): void {
+    if (typeof window === 'undefined') return
+    try {
+      localStorage.setItem(VOLUME_STORAGE_KEY, String(this.volumePercent))
+    } catch {
+      // localStorageにアクセスできない場合は無視
+    }
+  }
+
+  /**
+   * 音量を設定する（0-300%）
+   * @param percent 音量パーセント（0-300）
+   */
+  setVolume(percent: number): void {
+    this.volumePercent = Math.max(0, Math.min(500, percent))
+    this.saveVolumeToStorage()
+  }
+
+  /**
+   * 現在の音量を取得する（0-300%）
+   */
+  getVolume(): number {
+    return this.volumePercent
+  }
 
   /**
    * AudioContext を初期化（ユーザーインタラクション時に呼び出す必要がある）
@@ -150,7 +204,12 @@ class AudioScheduler {
     try {
       const source = this.audioContext.createBufferSource()
       source.buffer = buffer
-      source.connect(this.audioContext.destination)
+
+      // GainNodeを使用して音量を制御
+      const gainNode = this.audioContext.createGain()
+      gainNode.gain.value = this.volumePercent / 100 // 0-300% → 0.0-3.0
+      source.connect(gainNode)
+      gainNode.connect(this.audioContext.destination)
 
       // when が指定されていない、または過去の時刻の場合は即座に再生
       const playTime = when ?? this.audioContext.currentTime

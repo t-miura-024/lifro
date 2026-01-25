@@ -1,10 +1,14 @@
 'use client'
 
 import { useTimer } from '@/app/providers/TimerContext'
+import { audioScheduler } from '@/utils/soundPlayer'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import RepeatIcon from '@mui/icons-material/Repeat'
 import StopIcon from '@mui/icons-material/Stop'
+import VolumeDownIcon from '@mui/icons-material/VolumeDown'
+import VolumeOffIcon from '@mui/icons-material/VolumeOff'
+import VolumeUpIcon from '@mui/icons-material/VolumeUp'
 import {
   Box,
   Button,
@@ -15,10 +19,12 @@ import {
   IconButton,
   LinearProgress,
   Paper,
+  Popover,
+  Slider,
   Stack,
   Typography,
 } from '@mui/material'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60)
@@ -40,6 +46,35 @@ export default function TimerOverlay() {
     toggleRepeat,
   } = useTimer()
   const [stopConfirmOpen, setStopConfirmOpen] = useState(false)
+  const [volume, setVolume] = useState(100)
+  const [volumeAnchorEl, setVolumeAnchorEl] = useState<HTMLButtonElement | null>(null)
+
+  // 初期化時にaudioSchedulerから音量を取得
+  useEffect(() => {
+    setVolume(audioScheduler.getVolume())
+  }, [])
+
+  const handleVolumeClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setVolumeAnchorEl(event.currentTarget)
+  }
+
+  const handleVolumeClose = () => {
+    setVolumeAnchorEl(null)
+  }
+
+  const handleVolumeChange = (_event: Event, newValue: number | number[]) => {
+    const newVolume = newValue as number
+    setVolume(newVolume)
+    audioScheduler.setVolume(newVolume)
+  }
+
+  const getVolumeIcon = () => {
+    if (volume === 0) return <VolumeOffIcon />
+    if (volume <= 50) return <VolumeDownIcon />
+    return <VolumeUpIcon />
+  }
+
+  const volumePopoverOpen = Boolean(volumeAnchorEl)
 
   // タイマーが実行中でない場合は何も表示しない
   if (status === 'idle' || !timer) {
@@ -104,6 +139,16 @@ export default function TimerOverlay() {
               aria-label={isRepeat ? 'リピート再生を無効にする' : 'リピート再生を有効にする'}
             >
               <RepeatIcon />
+            </IconButton>
+
+            {/* 音量ボタン */}
+            <IconButton
+              size="small"
+              onClick={handleVolumeClick}
+              sx={{ color: 'inherit' }}
+              aria-label="音量調整"
+            >
+              {getVolumeIcon()}
             </IconButton>
 
             {/* タイマー情報 */}
@@ -176,6 +221,39 @@ export default function TimerOverlay() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 音量ポップオーバー */}
+      <Popover
+        open={volumePopoverOpen}
+        anchorEl={volumeAnchorEl}
+        onClose={handleVolumeClose}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'center',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'center',
+        }}
+        sx={{ zIndex: (theme) => theme.zIndex.modal + 2 }}
+      >
+        <Box sx={{ p: 2, width: 200 }}>
+          <Stack direction="row" alignItems="center" spacing={2}>
+            <Slider
+              value={volume}
+              onChange={handleVolumeChange}
+              min={0}
+              max={500}
+              step={10}
+              aria-label="音量"
+              sx={{ flex: 1 }}
+            />
+            <Typography variant="body2" sx={{ minWidth: 45, textAlign: 'right' }}>
+              {volume}%
+            </Typography>
+          </Stack>
+        </Box>
+      </Popover>
     </>
   )
 }
