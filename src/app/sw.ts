@@ -3,6 +3,7 @@ import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from 'serwist
 import {
   CacheFirst,
   ExpirationPlugin,
+  NetworkOnly,
   Serwist,
   StaleWhileRevalidate,
 } from 'serwist'
@@ -28,6 +29,13 @@ const runtimeCaching: RuntimeCaching[] = [
         }),
       ],
     }),
+  },
+  // ログ詳細API: キャッシュしない（常に最新データを取得）
+  {
+    matcher: ({ url, request }) =>
+      /^\/api\/trainings\/\d{4}-\d{2}-\d{2}$/.test(url.pathname) &&
+      request.method === 'GET',
+    handler: new NetworkOnly(),
   },
   // GET API: Stale-While-Revalidate（即座にキャッシュを返し、バックグラウンドで更新）
   {
