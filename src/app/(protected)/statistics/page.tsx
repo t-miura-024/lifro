@@ -84,8 +84,8 @@ export default function StatisticsPage() {
       client.api.statistics['body-part-volume-totals'].$get({
         query: {
           preset,
-          startDate: customStartDate,
-          endDate: customEndDate,
+          customStartDate,
+          customEndDate,
           granularity: bodyPartGranularity,
         },
       }),
