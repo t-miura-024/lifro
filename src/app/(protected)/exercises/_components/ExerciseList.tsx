@@ -395,7 +395,10 @@ export default function ExerciseList() {
       {/* 新規作成ダイアログ */}
       <Dialog
         open={createDialogOpen}
-        onClose={() => setCreateDialogOpen(false)}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          setCreateDialogOpen(false)
+        }}
         fullWidth
         maxWidth="xs"
       >
@@ -432,7 +435,10 @@ export default function ExerciseList() {
       {/* 編集ダイアログ */}
       <Dialog
         open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          setEditDialogOpen(false)
+        }}
         fullWidth
         maxWidth="xs"
       >
@@ -469,7 +475,10 @@ export default function ExerciseList() {
       {/* 削除確認ダイアログ */}
       <Dialog
         open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          setDeleteDialogOpen(false)
+        }}
         fullWidth
         maxWidth="xs"
       >

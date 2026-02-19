@@ -209,7 +209,15 @@ export default function TimerOverlay() {
       </Paper>
 
       {/* 停止確認ダイアログ */}
-      <Dialog open={stopConfirmOpen} onClose={() => setStopConfirmOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={stopConfirmOpen}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          setStopConfirmOpen(false)
+        }}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>タイマーを停止</DialogTitle>
         <DialogContent>
           <Typography>タイマーを停止しますか？</Typography>

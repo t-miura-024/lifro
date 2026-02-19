@@ -599,7 +599,10 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ja">
       <Dialog
         open={open}
-        onClose={onClose}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          onClose()
+        }}
         fullWidth
         maxWidth="sm"
         PaperProps={{
@@ -1129,7 +1132,10 @@ export default function LogInputModal({ open, onClose, onSaved, initialDate, ini
       {/* 削除確認ダイアログ */}
       <Dialog
         open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          setDeleteConfirmOpen(false)
+        }}
         maxWidth="sm"
         fullWidth
       >

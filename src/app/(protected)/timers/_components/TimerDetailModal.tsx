@@ -570,7 +570,10 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
     <>
       <Dialog
         open={open}
-        onClose={onClose}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          onClose()
+        }}
         fullWidth
         maxWidth="sm"
         PaperProps={{
@@ -659,7 +662,10 @@ export default function TimerDetailModal({ open, onClose, onSaved, timer }: Prop
       {/* 削除確認ダイアログ */}
       <Dialog
         open={deleteConfirmOpen}
-        onClose={() => setDeleteConfirmOpen(false)}
+        onClose={(_event, reason) => {
+          if (reason === 'backdropClick') return
+          setDeleteConfirmOpen(false)
+        }}
         maxWidth="sm"
         fullWidth
       >

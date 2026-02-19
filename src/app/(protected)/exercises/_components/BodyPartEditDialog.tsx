@@ -142,7 +142,15 @@ export default function BodyPartEditDialog({
   const selectedIds = new Set(selectedBodyParts.map((bp) => bp.bodyPartId))
 
   return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={(_event, reason) => {
+        if (reason === 'backdropClick') return
+        onClose()
+      }}
+      fullWidth
+      maxWidth="sm"
+    >
       <DialogTitle>部位を設定 - {exerciseName}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
