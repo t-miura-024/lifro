@@ -82,7 +82,8 @@ export default function TimerOverlay() {
   }
 
   const currentUnit = timer.unitTimers[currentUnitIndex]
-  const progress = totalDuration > 0 ? ((totalDuration - remainingSeconds) / totalDuration) * 100 : 0
+  const progress =
+    totalDuration > 0 ? ((totalDuration - remainingSeconds) / totalDuration) * 100 : 0
 
   const handlePlayPause = () => {
     if (status === 'playing') {
@@ -163,15 +164,31 @@ export default function TimerOverlay() {
                     flex: 1,
                   }}
                 >
-                  {currentUnit?.name || '名前なし'}
+                  {timer.name}
                 </Typography>
                 <Typography variant="caption" sx={{ opacity: 0.8 }}>
                   {currentUnitIndex + 1}/{timer.unitTimers.length}
                 </Typography>
               </Stack>
               <Stack direction="row" alignItems="center" spacing={1}>
-                <Typography variant="h5" fontWeight={700} sx={{ fontVariantNumeric: 'tabular-nums' }}>
+                <Typography
+                  variant="h5"
+                  fontWeight={700}
+                  sx={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}
+                >
                   {formatTime(remainingSeconds)}
+                </Typography>
+                <Typography
+                  variant="body2"
+                  sx={{
+                    opacity: 0.8,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                    flex: 1,
+                  }}
+                >
+                  {currentUnit?.name || '名前なし'}
                 </Typography>
               </Stack>
             </Box>
