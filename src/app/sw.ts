@@ -37,6 +37,13 @@ const runtimeCaching: RuntimeCaching[] = [
       request.method === 'GET',
     handler: new NetworkOnly(),
   },
+  // メモAPI: キャッシュしない（常に最新データを取得）
+  {
+    matcher: ({ url, request }) =>
+      /^\/api\/trainings\/\d{4}-\d{2}-\d{2}\/memos$/.test(url.pathname) &&
+      request.method === 'GET',
+    handler: new NetworkOnly(),
+  },
   // GET API: Stale-While-Revalidate（即座にキャッシュを返し、バックグラウンドで更新）
   {
     matcher: ({ url, request }) =>
@@ -46,7 +53,7 @@ const runtimeCaching: RuntimeCaching[] = [
       plugins: [
         new ExpirationPlugin({
           maxEntries: 200,
-          maxAgeSeconds: 60 * 60, // 1時間
+          maxAgeSeconds: 24 * 60 * 60, // 24時間
         }),
       ],
     }),
