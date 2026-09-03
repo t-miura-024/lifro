@@ -1,7 +1,7 @@
 import type { Exercise } from '@/server/domain/entities'
 import type { ExerciseSortOrderInput, IExerciseRepository } from '@/server/domain/repositories'
 import { cacheService } from '@/server/infrastructure/cache'
-import { exerciseRepository } from '@/server/infrastructure/repositories/prisma'
+import { exerciseRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class ExerciseService {
   constructor(private repository: IExerciseRepository = exerciseRepository) {}

@@ -1,0 +1,3 @@
+# マイグレーション管理をDrizzle Kitへ切り替える
+
+Prisma Migrateでの運用をやめ、Drizzle Kitでスキーマ管理することを決定した。既存DBからintrospectして初期スキーマを生成し、以後は差分なしを起点にDrizzle側で管理する。

@@ -1,0 +1,3 @@
+# ORMをPrismaからDrizzleへ移行する
+
+generate・ビルドの重さと運用負荷を下げ、軽量なクエリ基盤を得るため、ORMをPrismaからDrizzleへ置換することを決定した。スキーマ変更を伴わない純粋移行とし、Repository・auth・seedを含む全置換でPrisma依存を排除する。
