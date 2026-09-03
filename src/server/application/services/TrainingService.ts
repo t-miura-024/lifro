@@ -8,7 +8,7 @@ import type {
 } from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { cacheService } from '@/server/infrastructure/cache'
-import { trainingRepository } from '@/server/infrastructure/repositories/prisma'
+import { trainingRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class TrainingService {
   constructor(private repository: ITrainingRepository = trainingRepository) {}

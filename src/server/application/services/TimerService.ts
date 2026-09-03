@@ -1,7 +1,7 @@
 import type { Timer, TimerInput } from '@/server/domain/entities'
 import type { ITimerRepository, TimerSortOrderInput } from '@/server/domain/repositories'
 import { cacheService } from '@/server/infrastructure/cache'
-import { timerRepository } from '@/server/infrastructure/repositories/prisma'
+import { timerRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class TimerService {
   constructor(private repository: ITimerRepository = timerRepository) {}

@@ -1,6 +1,6 @@
 import { cacheService } from '@/server/infrastructure/cache'
-import { prisma } from '@/server/infrastructure/database/prisma/client'
-import { Prisma } from '@prisma/client'
+import { db } from '@/server/infrastructure/database/drizzle/client'
+import { type SQL, sql } from 'drizzle-orm'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
 
@@ -118,16 +118,16 @@ export class StatisticsService {
   }
 
   /**
-   * PostgreSQL用の期間フォーマット文字列を取得（Prisma.rawで使用）
+   * PostgreSQL用の期間フォーマット文字列を取得（drizzle sqlで使用）
    */
-  private getPeriodFormatSql(granularity: TimeGranularity): Prisma.Sql {
+  private getPeriodFormatSql(granularity: TimeGranularity): SQL {
     switch (granularity) {
       case 'day':
-        return Prisma.raw("'YYYY-MM-DD'")
+        return sql.raw("'YYYY-MM-DD'")
       case 'week':
-        return Prisma.raw('\'IYYY-"W"IW\'')
+        return sql.raw('\'IYYY-"W"IW\'')
       case 'month':
-        return Prisma.raw("'YYYY-MM'")
+        return sql.raw("'YYYY-MM'")
     }
   }
 
@@ -181,15 +181,15 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           period: string
           exercise_id: number
           exercise_name: string
           volume: number
           set_count: bigint
         }>
-      >`
+      (sql`
         SELECT
           to_char(s.date, ${periodFormatSql}) as period,
           s.exercise_id,
@@ -203,7 +203,7 @@ export class StatisticsService {
           AND s.date <= ${endDate}
         GROUP BY 1, s.exercise_id, e.name
         ORDER BY period ASC
-      `
+      `)
 
       return results.map((r) => ({
         period: r.period,
@@ -234,14 +234,14 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           exercise_id: number
           exercise_name: string
           volume: number
           set_count: bigint
         }>
-      >`
+      (sql`
         SELECT
           s.exercise_id,
           e.name as exercise_name,
@@ -254,7 +254,7 @@ export class StatisticsService {
           AND s.date <= ${endDate}
         GROUP BY s.exercise_id, e.name
         ORDER BY volume DESC
-      `
+      `)
 
       return results.map((r) => ({
         exerciseId: r.exercise_id,
@@ -287,12 +287,12 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           period: string
           volume: number
         }>
-      >`
+      (sql`
         SELECT
           to_char(date, ${periodFormatSql}) as period,
           SUM(weight * reps)::float as volume
@@ -301,7 +301,7 @@ export class StatisticsService {
           AND date >= ${startDate}
           AND date <= ${endDate}
         GROUP BY 1
-      `
+      `)
 
       // 結果をMapに変換
       const volumeMap = new Map<string, number>()
@@ -341,12 +341,12 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           period: string
           max_weight: number
         }>
-      >`
+      (sql`
         SELECT
           to_char(date, ${periodFormatSql}) as period,
           MAX(weight)::float as max_weight
@@ -357,7 +357,7 @@ export class StatisticsService {
           AND date <= ${endDate}
         GROUP BY 1
         ORDER BY period ASC
-      `
+      `)
 
       // 結果をMapに変換
       const maxWeightMap = new Map<string, number>()
@@ -403,12 +403,12 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           period: string
           max_one_rm: number
         }>
-      >`
+      (sql`
         SELECT
           to_char(date, ${periodFormatSql}) as period,
           MAX(weight * (1 + reps / 29.5))::float as max_one_rm
@@ -419,7 +419,7 @@ export class StatisticsService {
           AND date <= ${endDate}
         GROUP BY 1
         ORDER BY period ASC
-      `
+      `)
 
       // 結果をMapに変換
       const oneRMMap = new Map<string, number>()
@@ -450,23 +450,23 @@ export class StatisticsService {
 
     return cacheService.through(cacheKey, async () => {
       // 集計クエリ
-      const statsResult = await prisma.$queryRaw<
-        Array<{
+      const statsResult = await db.execute<
+        {
           total_volume: number | null
           total_sets: bigint
           total_workouts: bigint
         }>
-      >`
+      (sql`
         SELECT
           SUM(weight * reps)::float as total_volume,
           COUNT(*)::bigint as total_sets,
           COUNT(DISTINCT date)::bigint as total_workouts
         FROM sets
         WHERE user_id = ${userId}
-      `
+      `)
 
       const stats = statsResult[0]
-      if (!stats || stats.total_sets === BigInt(0)) {
+      if (!stats || Number(stats.total_sets) === 0) {
         return {
           totalVolume: 0,
           totalSets: 0,
@@ -477,12 +477,12 @@ export class StatisticsService {
       }
 
       // ストリーク計算用に日付のみ取得
-      const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
+      const datesResult = await db.execute<{ date: Date }>(sql`
         SELECT DISTINCT date
         FROM sets
         WHERE user_id = ${userId}
         ORDER BY date DESC
-      `
+      `)
 
       const sortedDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
       const { currentStreak, maxStreak } = this.calculateStreaks(sortedDates)
@@ -517,13 +517,13 @@ export class StatisticsService {
 
     return cacheService.through(cacheKey, async () => {
       // 期間内のユニーク日数を取得
-      const totalDaysResult = await prisma.$queryRaw<Array<{ total_days: bigint }>>`
+      const totalDaysResult = await db.execute<{ total_days: bigint }>(sql`
         SELECT COUNT(DISTINCT date)::bigint as total_days
         FROM sets
         WHERE user_id = ${userId}
           AND date >= ${startDate}
           AND date <= ${endDate}
-      `
+      `)
 
       const totalDays = Number(totalDaysResult[0]?.total_days || 0)
 
@@ -537,13 +537,13 @@ export class StatisticsService {
 
       // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
       const oneYearAgo = dayjs().subtract(1, 'year').toDate()
-      const datesResult = await prisma.$queryRaw<Array<{ date: Date }>>`
+      const datesResult = await db.execute<{ date: Date }>(sql`
         SELECT DISTINCT date
         FROM sets
         WHERE user_id = ${userId}
           AND date >= ${oneYearAgo}
         ORDER BY date DESC
-      `
+      `)
 
       const allUniqueDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
 
@@ -600,12 +600,12 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       const periodFormatSql = this.getPeriodFormatSql(granularity)
 
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           period: string
           days: bigint
         }>
-      >`
+      (sql`
         SELECT
           to_char(date, ${periodFormatSql}) as period,
           COUNT(DISTINCT date)::bigint as days
@@ -614,7 +614,7 @@ export class StatisticsService {
           AND date >= ${startDate}
           AND date <= ${endDate}
         GROUP BY 1
-      `
+      `)
 
       // 結果をMapに変換
       const daysMap = new Map<string, number>()
@@ -650,13 +650,13 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           exercise_id: number
           exercise_name: string
           days: bigint
         }>
-      >`
+      (sql`
         SELECT
           s.exercise_id,
           e.name as exercise_name,
@@ -668,7 +668,7 @@ export class StatisticsService {
           AND s.date <= ${endDate}
         GROUP BY s.exercise_id, e.name
         ORDER BY days DESC
-      `
+      `)
 
       return results.map((r) => ({
         exerciseId: r.exercise_id,
@@ -813,13 +813,13 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       if (granularity === 'category') {
         // カテゴリ単位で集計
-        const results = await prisma.$queryRaw<
-          Array<{
+        const results = await db.execute<
+          {
             category: string
             volume: number
             set_count: bigint
           }>
-        >`
+        (sql`
           SELECT
             bp.category,
             SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume,
@@ -832,7 +832,7 @@ export class StatisticsService {
             AND s.date <= ${endDate}
           GROUP BY bp.category
           ORDER BY volume DESC
-        `
+        `)
 
         return results.map((r) => ({
           bodyPartId: 0, // カテゴリ集計時は0
@@ -843,15 +843,15 @@ export class StatisticsService {
         }))
       }
       // 部位単位で集計
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           body_part_id: number
           category: string
           body_part_name: string
           volume: number
           set_count: bigint
         }>
-      >`
+      (sql`
           SELECT
             bp.id as body_part_id,
             bp.category,
@@ -866,7 +866,7 @@ export class StatisticsService {
             AND s.date <= ${endDate}
           GROUP BY bp.id, bp.category, bp.name
           ORDER BY volume DESC
-        `
+        `)
 
       return results.map((r) => ({
         bodyPartId: r.body_part_id,
@@ -903,13 +903,13 @@ export class StatisticsService {
 
       if (bodyPartGranularity === 'category') {
         // カテゴリ単位で集計
-        const results = await prisma.$queryRaw<
-          Array<{
+        const results = await db.execute<
+          {
             period: string
             category: string
             volume: number
           }>
-        >`
+        (sql`
           SELECT
             to_char(s.date, ${periodFormatSql}) as period,
             bp.category,
@@ -922,7 +922,7 @@ export class StatisticsService {
             AND s.date <= ${endDate}
           GROUP BY 1, bp.category
           ORDER BY period ASC
-        `
+        `)
 
         return results.map((r) => ({
           period: r.period,
@@ -933,15 +933,15 @@ export class StatisticsService {
         }))
       }
       // 部位単位で集計
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           period: string
           body_part_id: number
           category: string
           body_part_name: string
           volume: number
         }>
-      >`
+      (sql`
           SELECT
             to_char(s.date, ${periodFormatSql}) as period,
             bp.id as body_part_id,
@@ -956,7 +956,7 @@ export class StatisticsService {
             AND s.date <= ${endDate}
           GROUP BY 1, bp.id, bp.category, bp.name
           ORDER BY period ASC
-        `
+        `)
 
       return results.map((r) => ({
         period: r.period,
@@ -990,12 +990,12 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       if (granularity === 'category') {
         // カテゴリ単位で集計
-        const results = await prisma.$queryRaw<
-          Array<{
+        const results = await db.execute<
+          {
             category: string
             days: bigint
           }>
-        >`
+        (sql`
           SELECT
             bp.category,
             COUNT(DISTINCT s.date)::bigint as days
@@ -1007,7 +1007,7 @@ export class StatisticsService {
             AND s.date <= ${endDate}
           GROUP BY bp.category
           ORDER BY days DESC
-        `
+        `)
 
         return results.map((r) => ({
           bodyPartId: 0,
@@ -1017,14 +1017,14 @@ export class StatisticsService {
         }))
       }
       // 部位単位で集計
-      const results = await prisma.$queryRaw<
-        Array<{
+      const results = await db.execute<
+        {
           body_part_id: number
           category: string
           body_part_name: string
           days: bigint
         }>
-      >`
+      (sql`
           SELECT
             bp.id as body_part_id,
             bp.category,
@@ -1038,7 +1038,7 @@ export class StatisticsService {
             AND s.date <= ${endDate}
           GROUP BY bp.id, bp.category, bp.name
           ORDER BY days DESC
-        `
+        `)
 
       return results.map((r) => ({
         bodyPartId: r.body_part_id,

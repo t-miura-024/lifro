@@ -1,11 +1,13 @@
-import { prisma } from '@/server/infrastructure/database/prisma/client'
-import { PrismaAdapter } from '@next-auth/prisma-adapter'
+import { DrizzleAdapter } from '@/server/infrastructure/database/drizzle/auth-adapter'
+import { db } from '@/server/infrastructure/database/drizzle/client'
+import { users } from '@/server/infrastructure/database/drizzle/schema'
+import { eq } from 'drizzle-orm'
 import NextAuth, { getServerSession } from 'next-auth'
 import type { NextAuthOptions } from 'next-auth'
 import type { Adapter } from 'next-auth/adapters'
 import GoogleProvider, { type GoogleProfile } from 'next-auth/providers/google'
 
-const baseAdapter = PrismaAdapter(prisma)
+const baseAdapter = DrizzleAdapter()
 const adapter: Adapter = {
   ...baseAdapter,
   // 既存ユーザー以外の自動作成を禁止
@@ -36,8 +38,12 @@ export const authOptions: NextAuthOptions = {
       if (account?.provider !== 'google') return false
 
       // 既存ユーザーのみ許可
-      const existing = await prisma.user.findUnique({ where: { email } })
-      return Boolean(existing)
+      const existing = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(eq(users.email, email))
+        .limit(1)
+      return existing.length > 0
     },
     async session({ session, user }) {
       if (session.user && user?.id) {

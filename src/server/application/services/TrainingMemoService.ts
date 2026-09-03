@@ -1,7 +1,7 @@
 import type { TrainingMemo, TrainingMemoInput } from '@/server/domain/entities'
 import type { ITrainingMemoRepository } from '@/server/domain/repositories'
 import { cacheService } from '@/server/infrastructure/cache'
-import { trainingMemoRepository } from '@/server/infrastructure/repositories/prisma'
+import { trainingMemoRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class TrainingMemoService {
   constructor(private repository: ITrainingMemoRepository = trainingMemoRepository) {}

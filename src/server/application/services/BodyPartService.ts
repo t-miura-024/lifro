@@ -4,7 +4,7 @@ import { cacheService } from '@/server/infrastructure/cache'
 import {
   bodyPartRepository,
   exerciseBodyPartRepository,
-} from '@/server/infrastructure/repositories/prisma'
+} from '@/server/infrastructure/repositories/drizzle'
 
 export class BodyPartService {
   /**
