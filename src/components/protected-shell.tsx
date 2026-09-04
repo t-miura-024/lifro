@@ -1,10 +1,5 @@
-// NOTE（暫定・M5で切替）: `src/app` 依存（`@/(protected)/_components/TimerOverlay`、
-// `@/app/providers/TimerContext` の useTimerStatus）。M5 で `src/app` 除去の瞬間に
-// 全5保護ルートの Shell が道連れで壊れる結合のため、切替時に純粋層へ移設して
-// `src/app` 依存を断つ（移設先は `docs/migration-cutover.md` 手順8に記録）。
-// それまで本 import は変更しない。
-import TimerOverlay from '@/app/(protected)/_components/TimerOverlay'
-import { useTimerStatus } from '@/app/providers/TimerContext'
+import { useTimerStatus } from '@/components/timer/TimerContext'
+import TimerOverlay from '@/components/timer/TimerOverlay'
 import { authClient } from '@/lib/auth-client'
 import BarChartIcon from '@mui/icons-material/BarChart'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
@@ -23,11 +18,7 @@ import {
 import { useLocation, useNavigate } from '@tanstack/react-router'
 import { useEffect } from 'react'
 
-// NOTE（E4 見送り）: navItems＋レイアウト本体は Next 版
-// （`src/app/(protected)/_components/ProtectedShell.tsx`）との逐語複写で2並列に
-// 分裂している。共有コンポーネントへの切り出しは M5 切替時タスクとして
-// `docs/migration-cutover.md` 手順8に記録し、今回は見送る（変更のたび2ファイルを
-// shotgun 編集する暫定状態。片方だけ変更時の乖離に注意）。
+// 保護 layout の下部ナビ定義。遷移先は `_protected` layout 配下の pathless route。
 const navItems = [
   { label: '種目', icon: <ListAltIcon />, path: '/exercises' },
   { label: 'ログ', icon: <FitnessCenterIcon />, path: '/logs' },
@@ -37,14 +28,10 @@ const navItems = [
 ] as const
 
 /**
- * TanStack Start 用 ProtectedShell。
- * Next 版 (`src/app/(protected)/_components/ProtectedShell.tsx`) からの差分は
- * `next/navigation` の usePathname/useRouter を
- * `@tanstack/react-router` の useLocation/useNavigate に置換した点と、
- * Next 版 `layout.tsx` のサーバガード相当として better-auth セッション検証＋
- * 未認証時 `/login` リダイレクト＋未確定間の描画抑止を暫定実装した点。
- * M5 で file route の beforeLoad/loader によるサーバ検証に格上げする
- * （追跡先: `docs/migration-cutover.md` 手順8の格上げタスク。ai-4）。
+ * 保護 layout の Shell（下部ナビ＋タイマーオーバーレイ＋描画）。
+ * 認証の正本は親 file route `_protected/route.tsx` の beforeLoad サーバ検証。
+ * ここでは第二層として better-auth セッション検証＋未認証時 `/login` リダイレクト＋
+ * 未確定間の描画抑止を行う（E2: 障害時は追放せずエラー表示＋リトライ）。
  */
 export default function ProtectedShell({
   children,

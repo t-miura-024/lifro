@@ -13,15 +13,9 @@ import { eq, sql } from 'drizzle-orm'
 /**
  * 認証基盤の正本（ADR 0008: better-auth＋Drizzleアダプタ＋Google＋DBセッション）。
  *
- * 現行（next-auth）との同等点:
  * - Google ログインのみ許可
- * - DBセッション（有効期間 30 日・更新猶予 24 時間は現行既定と同値）
- * - 招待制（既存 `users.email` のみ許可。現行 `signIn` コールバックと同等）
- *
- * 移行方針（grill Q1 確定）:
- * - 旧 next-auth 型テーブルとは非互換のためセッション継続は諦め、全員再ログイン。
- * - スキーマは better-auth 既定に寄せ、既存行は `drizzle/0001_better_auth.sql` で移行。
- * - 旧テーブルは切戻し用に温存し、M5 一括切替で削除する。
+ * - DBセッション（有効期間 30 日・更新猶予 24 時間）
+ * - 招待制（既存 `users.email` のみ許可）
  */
 
 async function findLegacyUserId(email: string): Promise<number | null> {
@@ -138,7 +132,3 @@ export const auth = betterAuth({
 
 export type AuthSession = typeof auth.$Infer.Session
 export type AuthUser = typeof auth.$Infer.Session.user
-
-// NOTE: 旧 next-auth 経路の正本は `@/auth.legacy`（Next 温存専用）。
-// `@/auth` の top-level requireEnv が Next 温存ビルドのモジュール評価を巻き添えに
-// しないための分離。Start 側は本モジュール（better-auth 正本）のみを参照する。

@@ -1,9 +1,8 @@
 import { createAuthClient } from 'better-auth/react'
 
 /**
- * TanStack Start 側の better-auth クライアント正本。
+ * better-auth クライアント正本。
  * 同一オリジンの `/api/auth`（`src/routes/api.auth.$.tsx`）を叩く。
- * Next 側は `next-auth/react` のまま温存し、M5 一括切替で統一する。
  * 利用点は本モジュール経由に統一する（`authClient.useSession` はそのまま、
  * ログイン／ログアウトは下記 facade を使う。コールバック方針変更時の
  * shotgun 編集を防ぐため callbackURL 類は本モジュールに集約する）。

@@ -30,10 +30,7 @@ import StatsCard from './_components/StatsCard'
 import WeightTab from './_components/WeightTab'
 
 /**
- * 統計ページ本体の framework 非依存の純粋UI層（arch-1）。
- * Next 側 `src/app/(protected)/statistics/page.tsx` と Start 側
- * `src/routes/statistics.tsx` の双方が本モジュールを参照する。本配下に
- * `next/*`・`@/app/*` のランタイム import はない（Hono クライアントは
+ * 統計ページ本体（純粋UI層。Hono クライアントは
  * 型のみ `@/server/api/hono-app` を参照する `@/lib/hono-client` 経由）。
  */
 export default function StatisticsPage() {

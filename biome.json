@@ -23,6 +23,6 @@
     }
   },
   "files": {
-    "ignore": [".next/**", "node_modules/**"]
+    "ignore": ["node_modules/**"]
   }
 }

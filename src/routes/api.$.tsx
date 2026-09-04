@@ -1,18 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router'
 import { healthResponse } from '@/server/api/health'
 import type { AppType } from '@/server/api/hono-app'
+import { createFileRoute } from '@tanstack/react-router'
 
 /**
  * Hono 資産を温存した Start API file route。
  * 画面は `src/routes/**` の file routes、API は既存 Hono 合成 (`@/server/api/hono-app`
  * の共有ルート定義に Start 正本ミドルウェア＝better-auth 単経路を組み合わせた実体)
  * をそのまま `fetch` 直結でマウントする（ADR 0006 準拠）。
- * 本 route は legacy（`@/auth.legacy`・next-auth）を参照しないため、
- * Start ビルドに旧ランタイムは混入しない。
+ * 本 route は旧 next-auth ランタイムを参照しない。
  * Hono は WinterCG fetch 互換のため `hono/vercel` のようなアダプタは不要。
- * これが Start/Vite 対応への交換にあたる。
- * Next 側 `src/app/api/[...route]/route.ts` は M5 一括切替まで温存し、同一ルート定義
- * に Next 温存ミドルウェアを組み合わせた別実体を使うため両経路の応答は一致する。
  * `/api/auth/*` は `src/routes/api.auth.$.tsx` が単独で担当し、本 route では扱わない。
  * `/api/health` は `src/routes/api.health.tsx` が単独で担当する（下記の遅延束ねと
  * 合わせ、秘密欠落時も死活監視は到達する。file route の precedence で静的
@@ -32,7 +28,7 @@ function getApp(): Promise<AppType> {
       try {
         const [{ buildApp }, { authMiddleware }] = await Promise.all([
           import('@/server/api/hono-app'),
-          import('@/app/_lib/hono/middleware/auth'),
+          import('@/server/api/middleware/auth'),
         ])
         return buildApp(authMiddleware)
       } catch (error) {
