@@ -5,10 +5,7 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useState } from 'react'
 
 /**
- * Start 側 `/login`。表示文言は Next 版 LoginClient と同一。
- * 認証は better-auth（`src/routes/api.auth.$.tsx`）経由の Google ログインを使う。
- * Next 版 `src/app/(public)/login/_components/LoginClient.tsx`（next-auth）は
- * M5 一括切替まで温存し、編集しない。
+ * `/login`。認証は better-auth（`src/routes/api.auth.$.tsx`）経由の Google ログインを使う。
  */
 export const Route = createFileRoute('/login')({
   validateSearch: (search: Record<string, unknown>): { error?: string } => ({

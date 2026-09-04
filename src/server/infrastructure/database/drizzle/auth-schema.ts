@@ -3,11 +3,8 @@ import { boolean, index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-o
 /**
  * better-auth 既定スキーマ（ADR 0008）。
  *
- * 旧 next-auth 型テーブル（`users` / `accounts` / `sessions`。`schema.ts` 参照）とは
- * 列構成が非互換のため、別テーブルとして追加する。既存行は
- * `drizzle/0001_better_auth.sql` の UPDATE 移行 SQL で `users` から `user` へ複写する。
- * 既存セッションは引き継がず全員再ログイン（grill Q1 確定）。
- * 旧テーブルは切戻し用に温存し、M5 一括切替で削除する。
+ * 旧テーブル（`users` / `accounts` / `sessions`。`schema.ts` 参照）とは
+ * 列構成が非互換のため、別テーブルとして追加する。
  *
  * better-auth v1.7 の既定モデルに準拠する。`account.issuer` は v1.7 で必須化された
  * OAuth アカウント識別子のため欠かせない。JS キーは camelCase、DB 列は

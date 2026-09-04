@@ -18,14 +18,8 @@ import {
 import { useState } from 'react'
 
 /**
- * TanStack Start 用 Settings ページ（正本は better-auth 経路）。
- * Next 版 `src/app/(protected)/settings/page.tsx`（`SettingsPage`）からの差分は
- * `next-auth/react` の `useSession`／`signOut` を `@/lib/auth-client` の
- * `authClient.useSession`／`signOut` facade に置換した点のみ。表示・文言・遷移先
- * （ログアウト後は `/login`）は Next 版と同等。
- * Start の Providers には `SessionProvider` が存在しないため、旧 `SettingsPage` を
- * そのまま使うとセッションは永久に null・ログアウトは 404 化する。
- * 旧ページ本体（`src/app` 配下）は編集しない。M5 一括切替で Next 版ごと削除する。
+ * Settings ページ（better-auth 経路。`@/lib/auth-client` の
+ * `authClient.useSession`／`signOut` facade を使用。ログアウト後は `/login`）。
  */
 export default function StartSettingsPage() {
   const { data: session } = authClient.useSession()

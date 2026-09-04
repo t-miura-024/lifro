@@ -9,26 +9,21 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as ExercisesRouteImport } from './routes/exercises'
+import { Route as ProtectedRouteRouteImport } from './routes/_protected/route'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as LogsRouteImport } from './routes/logs'
 import { Route as OfflineRouteImport } from './routes/offline'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as StatisticsRouteImport } from './routes/statistics'
-import { Route as TimersRouteImport } from './routes/timers'
+import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
+import { Route as ProtectedExercisesRouteImport } from './routes/_protected/exercises'
+import { Route as ProtectedLogsRouteImport } from './routes/_protected/logs'
+import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
+import { Route as ProtectedStatisticsRouteImport } from './routes/_protected/statistics'
+import { Route as ProtectedTimersRouteImport } from './routes/_protected/timers'
 import { Route as ApiSplatRouteImport } from './routes/api.$'
 import { Route as ApiHealthRouteImport } from './routes/api.health'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ExercisesRoute = ExercisesRouteImport.update({
-  id: '/exercises',
-  path: '/exercises',
+const ProtectedRouteRoute = ProtectedRouteRouteImport.update({
+  id: '/_protected',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -36,30 +31,40 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LogsRoute = LogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const OfflineRoute = OfflineRouteImport.update({
   id: '/offline',
   path: '/offline',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SettingsRoute = SettingsRouteImport.update({
+const ProtectedIndexRoute = ProtectedIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => ProtectedRouteRoute,
+} as any)
+const ProtectedExercisesRoute = ProtectedExercisesRouteImport.update({
+  id: '/exercises',
+  path: '/exercises',
+  getParentRoute: () => ProtectedRouteRoute,
+} as any)
+const ProtectedLogsRoute = ProtectedLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ProtectedRouteRoute,
+} as any)
+const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
-const StatisticsRoute = StatisticsRouteImport.update({
+const ProtectedStatisticsRoute = ProtectedStatisticsRouteImport.update({
   id: '/statistics',
   path: '/statistics',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
-const TimersRoute = TimersRouteImport.update({
+const ProtectedTimersRoute = ProtectedTimersRouteImport.update({
   id: '/timers',
   path: '/timers',
-  getParentRoute: () => rootRouteImport,
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
 const ApiSplatRoute = ApiSplatRouteImport.update({
   id: '/api/$',
@@ -78,53 +83,54 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
 } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/exercises': typeof ExercisesRoute
+  '/': typeof ProtectedIndexRoute
   '/login': typeof LoginRoute
-  '/logs': typeof LogsRoute
   '/offline': typeof OfflineRoute
-  '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/timers': typeof TimersRoute
+  '/exercises': typeof ProtectedExercisesRoute
+  '/logs': typeof ProtectedLogsRoute
+  '/settings': typeof ProtectedSettingsRoute
+  '/statistics': typeof ProtectedStatisticsRoute
+  '/timers': typeof ProtectedTimersRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/exercises': typeof ExercisesRoute
   '/login': typeof LoginRoute
-  '/logs': typeof LogsRoute
   '/offline': typeof OfflineRoute
-  '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/timers': typeof TimersRoute
+  '/exercises': typeof ProtectedExercisesRoute
+  '/logs': typeof ProtectedLogsRoute
+  '/settings': typeof ProtectedSettingsRoute
+  '/statistics': typeof ProtectedStatisticsRoute
+  '/timers': typeof ProtectedTimersRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
+  '/': typeof ProtectedIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/exercises': typeof ExercisesRoute
+  '/_protected': typeof ProtectedRouteRouteWithChildren
   '/login': typeof LoginRoute
-  '/logs': typeof LogsRoute
   '/offline': typeof OfflineRoute
-  '/settings': typeof SettingsRoute
-  '/statistics': typeof StatisticsRoute
-  '/timers': typeof TimersRoute
+  '/_protected/exercises': typeof ProtectedExercisesRoute
+  '/_protected/logs': typeof ProtectedLogsRoute
+  '/_protected/settings': typeof ProtectedSettingsRoute
+  '/_protected/statistics': typeof ProtectedStatisticsRoute
+  '/_protected/timers': typeof ProtectedTimersRoute
   '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
+  '/_protected/': typeof ProtectedIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/exercises'
     | '/login'
-    | '/logs'
     | '/offline'
+    | '/exercises'
+    | '/logs'
     | '/settings'
     | '/statistics'
     | '/timers'
@@ -133,41 +139,37 @@ export interface FileRouteTypes {
     | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
-    | '/exercises'
     | '/login'
-    | '/logs'
     | '/offline'
+    | '/exercises'
+    | '/logs'
     | '/settings'
     | '/statistics'
     | '/timers'
     | '/api/$'
     | '/api/health'
+    | '/'
     | '/api/auth/$'
   id:
     | '__root__'
-    | '/'
-    | '/exercises'
+    | '/_protected'
     | '/login'
-    | '/logs'
     | '/offline'
-    | '/settings'
-    | '/statistics'
-    | '/timers'
+    | '/_protected/exercises'
+    | '/_protected/logs'
+    | '/_protected/settings'
+    | '/_protected/statistics'
+    | '/_protected/timers'
     | '/api/$'
     | '/api/health'
+    | '/_protected/'
     | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  ExercisesRoute: typeof ExercisesRoute
+  ProtectedRouteRoute: typeof ProtectedRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
-  LogsRoute: typeof LogsRoute
   OfflineRoute: typeof OfflineRoute
-  SettingsRoute: typeof SettingsRoute
-  StatisticsRoute: typeof StatisticsRoute
-  TimersRoute: typeof TimersRoute
   ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
@@ -175,18 +177,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/': {
-      id: '/'
-      path: '/'
+    '/_protected': {
+      id: '/_protected'
+      path: ''
       fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/exercises': {
-      id: '/exercises'
-      path: '/exercises'
-      fullPath: '/exercises'
-      preLoaderRoute: typeof ExercisesRouteImport
+      preLoaderRoute: typeof ProtectedRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -196,13 +191,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/logs': {
-      id: '/logs'
-      path: '/logs'
-      fullPath: '/logs'
-      preLoaderRoute: typeof LogsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/offline': {
       id: '/offline'
       path: '/offline'
@@ -210,26 +198,47 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OfflineRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/settings': {
-      id: '/settings'
+    '/_protected/': {
+      id: '/_protected/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof ProtectedIndexRouteImport
+      parentRoute: typeof ProtectedRouteRoute
+    }
+    '/_protected/exercises': {
+      id: '/_protected/exercises'
+      path: '/exercises'
+      fullPath: '/exercises'
+      preLoaderRoute: typeof ProtectedExercisesRouteImport
+      parentRoute: typeof ProtectedRouteRoute
+    }
+    '/_protected/logs': {
+      id: '/_protected/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof ProtectedLogsRouteImport
+      parentRoute: typeof ProtectedRouteRoute
+    }
+    '/_protected/settings': {
+      id: '/_protected/settings'
       path: '/settings'
       fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ProtectedSettingsRouteImport
+      parentRoute: typeof ProtectedRouteRoute
     }
-    '/statistics': {
-      id: '/statistics'
+    '/_protected/statistics': {
+      id: '/_protected/statistics'
       path: '/statistics'
       fullPath: '/statistics'
-      preLoaderRoute: typeof StatisticsRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ProtectedStatisticsRouteImport
+      parentRoute: typeof ProtectedRouteRoute
     }
-    '/timers': {
-      id: '/timers'
+    '/_protected/timers': {
+      id: '/_protected/timers'
       path: '/timers'
       fullPath: '/timers'
-      preLoaderRoute: typeof TimersRouteImport
-      parentRoute: typeof rootRouteImport
+      preLoaderRoute: typeof ProtectedTimersRouteImport
+      parentRoute: typeof ProtectedRouteRoute
     }
     '/api/$': {
       id: '/api/$'
@@ -255,15 +264,32 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface ProtectedRouteRouteChildren {
+  ProtectedExercisesRoute: typeof ProtectedExercisesRoute
+  ProtectedLogsRoute: typeof ProtectedLogsRoute
+  ProtectedSettingsRoute: typeof ProtectedSettingsRoute
+  ProtectedStatisticsRoute: typeof ProtectedStatisticsRoute
+  ProtectedTimersRoute: typeof ProtectedTimersRoute
+  ProtectedIndexRoute: typeof ProtectedIndexRoute
+}
+
+const ProtectedRouteRouteChildren: ProtectedRouteRouteChildren = {
+  ProtectedExercisesRoute: ProtectedExercisesRoute,
+  ProtectedLogsRoute: ProtectedLogsRoute,
+  ProtectedSettingsRoute: ProtectedSettingsRoute,
+  ProtectedStatisticsRoute: ProtectedStatisticsRoute,
+  ProtectedTimersRoute: ProtectedTimersRoute,
+  ProtectedIndexRoute: ProtectedIndexRoute,
+}
+
+const ProtectedRouteRouteWithChildren = ProtectedRouteRoute._addFileChildren(
+  ProtectedRouteRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  ExercisesRoute: ExercisesRoute,
+  ProtectedRouteRoute: ProtectedRouteRouteWithChildren,
   LoginRoute: LoginRoute,
-  LogsRoute: LogsRoute,
   OfflineRoute: OfflineRoute,
-  SettingsRoute: SettingsRoute,
-  StatisticsRoute: StatisticsRoute,
-  TimersRoute: TimersRoute,
   ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,

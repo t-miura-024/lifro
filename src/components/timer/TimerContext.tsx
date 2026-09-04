@@ -1,12 +1,9 @@
 'use client'
 
 /**
- * TimerContext 一式の正本（framework 非依存の純粋UI層。arch-1）。
- * 本配下に `next/*`・`@/app/*` のランタイム import はない。
- * Next 側 `src/app/providers/TimerContext.tsx` は本モジュールの薄い再 export であり、
- * Start 側（`src/components/providers.tsx` 経由の TimerProvider、
- * logs/timers 純粋ページの useTimer/useTimerStatus）は本正本を直接参照する。
- * M5 一括切替で Next 側再 export ごと削除する。
+ * TimerContext 一式の正本（framework 非依存の純粋UI層）。
+ * `src/components/providers.tsx` 経由の TimerProvider、
+ * logs/timers 純粋ページの useTimer/useTimerStatus は本正本を直接参照する。
  */
 import type { Timer } from '@/server/domain/entities'
 import { audioScheduler, initAudioContext } from '@/utils/soundPlayer'
