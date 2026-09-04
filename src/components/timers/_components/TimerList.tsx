@@ -1,7 +1,7 @@
 'use client'
 
-import { client } from '@/app/_lib/hono/client'
-import { useTimer } from '@/app/providers/TimerContext'
+import { client } from '@/lib/hono-client'
+import { useTimer } from '@/components/timer/TimerContext'
 import type { Timer } from '@/server/domain/entities'
 import {
   DndContext,

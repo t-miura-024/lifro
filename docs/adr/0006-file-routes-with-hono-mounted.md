@@ -1,0 +1,3 @@
+# file routesで画面を構築しHono資産をマウントして温存する
+
+約40ファイルのHono資産を活かして書き換えを抑えつつ層の役割分離を明確にするため、画面・遷移はTanStack Startのfile routesで構築し、APIは既存Honoアプリを温存してfile route経由でマウントすることを決定した。

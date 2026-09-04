@@ -8,6 +8,13 @@
       "when": 1788432944505,
       "tag": "0000_fuzzy_typhoid_mary",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788641388000,
+      "tag": "0001_better_auth",
+      "breakpoints": true
     }
   ]
 }

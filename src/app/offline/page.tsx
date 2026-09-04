@@ -1,39 +1,10 @@
-'use client'
+import OfflinePage from '@/components/offline/OfflinePage'
 
-import { Box, Button, Container, Typography } from '@mui/material'
-import CloudOffIcon from '@mui/icons-material/CloudOff'
-
-export default function OfflinePage() {
-  const handleRetry = () => {
-    window.location.reload()
-  }
-
-  return (
-    <Container maxWidth="sm">
-      <Box
-        sx={{
-          minHeight: '100dvh',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          textAlign: 'center',
-          gap: 3,
-        }}
-      >
-        <CloudOffIcon sx={{ fontSize: 80, color: 'text.secondary' }} />
-        <Typography variant="h5" component="h1" fontWeight="bold">
-          オフラインです
-        </Typography>
-        <Typography variant="body1" color="text.secondary">
-          インターネット接続がありません。
-          <br />
-          接続を確認してもう一度お試しください。
-        </Typography>
-        <Button variant="contained" onClick={handleRetry} size="large">
-          再読み込み
-        </Button>
-      </Box>
-    </Container>
-  )
+/**
+ * Next 側の薄いラッパ。ページ本体は framework 非依存の純粋UI層
+ * （`@/components/offline/OfflinePage`）にあり、Start 側
+ * `src/routes/offline.tsx` と共有する。M5 一括切替で Next 版ごと削除する。
+ */
+export default function NextOfflinePage() {
+  return <OfflinePage />
 }

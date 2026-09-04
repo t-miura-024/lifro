@@ -1,4 +1,4 @@
-import { getServerAuthSession } from '@/auth'
+import { getServerAuthSession } from '@/auth.legacy'
 import { redirect } from 'next/navigation'
 import ProtectedShell from './_components/ProtectedShell'
 

@@ -38,11 +38,15 @@ cp .env.example .env
 DATABASE_URL="postgres://...?sslmode=require"
 DIRECT_URL="postgres://...?sslmode=require"
 
-# NextAuth.js
+# NextAuth.js (Next温存期間のみ。M5一括切替で削除。Start正本には使わない)
 NEXTAUTH_SECRET="your-secret-key"
 NEXTAUTH_URL="http://localhost:3000"
 
-# Google OAuth
+# Better Auth (M4〜の正本。BETTER_AUTH_SECRET 必須。NEXTAUTH_SECRETへのフォールバックなし)
+BETTER_AUTH_SECRET="your-secret-key"
+BETTER_AUTH_URL="http://localhost:3000"
+
+# Google OAuth (必須。未設定時は起動時にthrowする。空文字フォールバックなし)
 GOOGLE_CLIENT_ID="your-google-client-id"
 GOOGLE_CLIENT_SECRET="your-google-client-secret"
 

@@ -27,6 +27,11 @@ function parseUserId(id: string): number | null {
 /**
  * Drizzle版 NextAuth アダプタ（自作）
  *
+ * @deprecated ADR 0008 により凍結。認証基盤は better-auth（`@/auth`＋
+ * `./auth-schema`）に載せ替えた。Next 資産（`src/app/api/auth/**` 等）の
+ * 温存期間中のみ旧 next-auth 経路（`@/auth.legacy`）から参照する。
+ * M5 一括切替で `src/auth.legacy.ts` と共に削除する。
+ *
  * users/accounts/sessions テーブル構成は従来と同一（差分なし移行）。
  * email/passwordless サインインは使わない（Google OAuthのみ。auth.ts参照）ため、
  * Adapter型でoptionalの createVerificationToken/useVerificationToken は実装しない。

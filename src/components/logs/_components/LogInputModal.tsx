@@ -1,7 +1,7 @@
 'use client'
 
-import { client, type InferResponseType } from '@/app/_lib/hono/client'
-import { useTimer } from '@/app/providers/TimerContext'
+import { client, type InferResponseType } from '@/lib/hono-client'
+import { useTimer } from '@/components/timer/TimerContext'
 import type { LatestExerciseSets, Timer, TrainingMemo } from '@/server/domain/entities'
 
 /** 部位情報付き種目 */
