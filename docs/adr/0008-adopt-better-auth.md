@@ -1,3 +1,3 @@
 # 認証基盤にbetter-authを採用する
 
-現行方針（Google＋DBセッション）とデータ互換を維持したままTanStack Startに対応するため、認証基盤をbetter-auth（Drizzleアダプタ＋Google＋DBセッション）に載せ替えることを決定した。
+現行方針（Google＋DBセッション）との互換を維持したままTanStack Startに対応するため、認証基盤をbetter-auth（Drizzleアダプタ＋Google＋DBセッション）に載せ替えることを決定した。データ互換については既存セッションの継続を諦め、全員再ログイン等のセッション移行を許容し、スキーマはbetter-auth既定に寄せて既存行はUPDATE移行SQLで対応する。ADR 0003（next-auth前提のDrizzleアダプタ置換）は凍結し、本ADRがsupersedeする。

@@ -17,7 +17,12 @@ import {
  *
  * 既存DB（9 migrations適用済み）に対して差分を出さない純粋移行のため、
  * テーブル名・カラム名・型・index名・unique名・FK名・enum名を既存定義から温存している。
+ *
+ * M4（ADR 0008）で追加した better-auth 既定テーブル（`user` / `session` /
+ * `account` / `verification`）は `./auth-schema` で定義し、drizzle-kit の
+ * 検出対象にするためここから再 export する。
  */
+export { account, session, user, verification } from './auth-schema'
 
 export const bodyPartCategoryEnum = pgEnum('BodyPartCategory', [
   'CHEST',

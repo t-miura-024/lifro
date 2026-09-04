@@ -1,6 +1,6 @@
 'use client'
 
-import { client, type InferResponseType } from '@/app/_lib/hono/client'
+import { client, type InferResponseType } from '@/lib/hono-client'
 import {
   DndContext,
   type DragEndEvent,

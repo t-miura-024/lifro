@@ -1,6 +1,6 @@
 'use client'
 
-import { client } from '@/app/_lib/hono/client'
+import { client } from '@/lib/hono-client'
 import {
   DEFAULT_COUNT_SOUND,
   DEFAULT_COUNT_SOUND_LAST_3_SEC,

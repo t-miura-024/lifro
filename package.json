@@ -7,6 +7,7 @@
     "dev": "next dev --turbopack",
     "prebuild": "bun run scripts/generate-sound-manifest.ts",
     "build": "next build",
+    "build:start": "bun run scripts/generate-sound-manifest.ts && bunx vite build",
     "start": "next start",
     "lint": "biome lint .",
     "format": "biome format . --write",
@@ -30,10 +31,12 @@
     "@hookform/resolvers": "^5.2.2",
     "@mui/icons-material": "^7.3.1",
     "@mui/material": "^7.3.1",
-    "@mui/material-nextjs": "^7.3.0",
     "@mui/x-date-pickers": "^8.23.0",
     "@serwist/next": "^9.5.0",
+    "@tanstack/react-router": "^1.170.32",
+    "@tanstack/react-start": "^1.168.49",
     "@upstash/redis": "^1.36.1",
+    "better-auth": "^1.7.2",
     "dayjs": "^1.11.19",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.11.4",
@@ -50,10 +53,14 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@serwist/vite": "9.5.0",
+    "@tanstack/router-plugin": "^1.168.35",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4.7.0",
     "drizzle-kit": "^0.31.10",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "^7.0.0"
   }
 }
