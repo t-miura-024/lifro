@@ -1,6 +1,6 @@
 'use client'
 
-import { useTimer } from '@/app/providers/TimerContext'
+import { useTimer } from '@/components/timer/TimerContext'
 import { audioScheduler } from '@/utils/soundPlayer'
 import PauseIcon from '@mui/icons-material/Pause'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'

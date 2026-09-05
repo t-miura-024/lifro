@@ -1,7 +1,7 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
 
-/** `/` は現行 (`src/app/(protected)/page.tsx`) と同様 `/logs` へ遷移する。 */
-export const Route = createFileRoute('/')({
+/** `/` は `/logs` へ遷移する（`_protected` layout 配下）。 */
+export const Route = createFileRoute('/_protected/')({
   beforeLoad: () => {
     throw redirect({ to: '/logs' })
   },

@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { AuthEnv } from '@/app/_lib/hono/middleware/auth'
+import type { AuthEnv } from '@/server/api/middleware/auth'
 import { exerciseService } from '@/server/application/services'
 
 export const deleteExercise = new Hono<AuthEnv>().delete('/:id', async (c) => {

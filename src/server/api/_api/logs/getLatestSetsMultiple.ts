@@ -1,7 +1,7 @@
 import { zValidator } from '@hono/zod-validator'
 import { Hono } from 'hono'
 import { z } from 'zod'
-import type { AuthEnv } from '@/app/_lib/hono/middleware/auth'
+import type { AuthEnv } from '@/server/api/middleware/auth'
 import { trainingService } from '@/server/application/services'
 
 const requestSchema = z.object({
