@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { AuthEnv } from '@/app/_lib/hono/middleware/auth'
+import type { AuthEnv } from '@/server/api/middleware/auth'
 import type { SoundFile } from '@/constants/sounds'
 
 export const getSounds = new Hono<AuthEnv>().get('/sounds', async (c) => {

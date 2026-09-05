@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { AuthEnv } from '@/app/_lib/hono/middleware/auth'
+import type { AuthEnv } from '@/server/api/middleware/auth'
 import type { BodyPartGranularity } from '@/server/application/services/StatisticsService'
 import { statisticsService } from '@/server/application/services'
 import { calculateDateRange } from './helpers'

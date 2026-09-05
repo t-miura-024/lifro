@@ -1,5 +1,5 @@
 import { Hono } from 'hono'
-import type { AuthEnv } from '@/app/_lib/hono/middleware/auth'
+import type { AuthEnv } from '@/server/api/middleware/auth'
 import { trainingMemoService } from '@/server/application/services'
 
 export const getMemos = new Hono<AuthEnv>().get('/:date/memos', async (c) => {
