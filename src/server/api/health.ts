@@ -1,8 +1,8 @@
 /**
- * `/api/health` 応答契約の単一正本（ai-3）。
- * Hono `/health`（`./hono-app`）・専用 file route（`src/routes/api.health.tsx`）・
- * splat 側の誤到達フォールバック（`src/routes/api.$.tsx`）の三者が本定数を参照し、
- * ペイロード変更時の無音乖離を防ぐ。期待値は `{ status: 'ok' }`。
+ * `/api/health` 応答契約の単一正本。
+ * 専用 file route（`src/routes/api/health.tsx`）が本定数を直接参照する。
+ * health は意図的に oRPC 外に置く（秘密欠落時も到達する公開healthのため）。
+ * 期待値は `{ status: 'ok' }`。
  * 本モジュールは環境変数・DB・auth に触れないため、秘密欠落時の評価でも安全。
  */
 export const HEALTH_PAYLOAD = { status: 'ok' } as const

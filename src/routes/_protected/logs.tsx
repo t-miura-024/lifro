@@ -1,14 +1,6 @@
 import { useTimer } from '@/components/timer/TimerContext'
-import { client, type InferResponseType } from '@/lib/hono-client'
-import type {
-  ExerciseVolume,
-  LatestExerciseSets,
-  Timer,
-  Training,
-  TrainingMemo,
-  TrainingSummary,
-  YearMonth,
-} from '@/server/domain/entities'
+import { orpc } from '@/lib/orpc-client'
+import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
 import TimerIcon from '@mui/icons-material/Timer'
@@ -137,8 +129,9 @@ function LogList({ rows, onRowClick }: LogListProps) {
 }
 
 /** 部位情報付き種目 */
-const exercisesWithBodyPartsEndpoint = client.api.exercises['with-body-parts'].$get
-type ExerciseWithBodyParts = InferResponseType<typeof exercisesWithBodyPartsEndpoint>[number]
+type ExerciseWithBodyParts = Awaited<ReturnType<typeof orpc.exercises.listWithBodyParts>>[number]
+type LatestExerciseSets = NonNullable<Awaited<ReturnType<typeof orpc.logs.getLatestSets>>>
+type Timer = Awaited<ReturnType<typeof orpc.timers.list>>[number]
 
 /** 部位カテゴリの表示名 */
 const categoryLabels: Record<string, string> = {
@@ -309,15 +302,11 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
       const loadData = async () => {
         // 種目リストを取得（部位情報付き）
-        const exercisesRes = await client.api.exercises['with-body-parts'].$get()
-        const exercisesData = await exercisesRes.json()
+        const exercisesData = await orpc.exercises.listWithBodyParts()
         setExercises(exercisesData)
 
         // メモを取得
-        const memosRes = await client.api.trainings[':date'].memos.$get({
-          param: { date: excludeDateStr },
-        })
-        const fetchedMemos = await memosRes.json()
+        const fetchedMemos = await orpc.logs.getMemos(excludeDateStr)
         let loadedMemos: MemoFormData[] = []
         if (fetchedMemos.length > 0) {
           loadedMemos = fetchedMemos.map((m) => ({
@@ -358,12 +347,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             .map((g) => g.exerciseId)
             .filter((id): id is number => id !== null)
           if (exerciseIds.length > 0) {
-            const latestSetsRes = await client.api.trainings.exercises[
-              'latest-sets-multiple'
-            ].$post({
-              json: { exerciseIds, excludeDate: excludeDateStr },
-            })
-            const latestSetsMap = await latestSetsRes.json()
+            const latestSetsMap = await orpc.logs.getLatestSetsMultiple(exerciseIds, excludeDateStr)
             for (const group of groups) {
               if (group.exerciseId && latestSetsMap[group.exerciseId]) {
                 group.latestSets = latestSetsMap[group.exerciseId]
@@ -412,11 +396,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         exerciseName: exercise.name,
       }))
       // 前回値を取得（当日分は除外）
-      const res = await client.api.trainings.exercises[':exerciseId']['latest-sets'].$get({
-        param: { exerciseId: String(exercise.id) },
-        query: { excludeDate: excludeDateStr },
-      })
-      const latestSets = await res.json()
+      const latestSets = await orpc.logs.getLatestSets(exercise.id, excludeDateStr)
       group.latestSets = latestSets
     } else {
       group.exerciseId = null
@@ -489,8 +469,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     setTimerAnchorEl(event.currentTarget)
     setIsLoadingTimers(true)
     try {
-      const res = await client.api.timers.$get()
-      const loadedTimers = await res.json()
+      const loadedTimers = await orpc.timers.list()
       setTimers(loadedTimers)
     } catch (error) {
       console.error('Failed to load timers:', error)
@@ -542,10 +521,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
       // 日付が変更された場合、変更先に既存データがないかチェック
       if (dateStr !== initialDateStr) {
-        const existsRes = await client.api.trainings[':date'].exists.$get({
-          param: { date: dateStr },
-        })
-        const { exists } = await existsRes.json()
+        const { exists } = await orpc.logs.checkExists(dateStr)
         if (exists) {
           setDateError(
             `${selectedDate.format('YYYY年M月D日')} には既にトレーニング記録があります。別の日付を選択してください。`,
@@ -568,17 +544,14 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         }
       })
 
-      await client.api.trainings[':date'].$put({
-        param: { date: dateStr },
-        json: { sets: setsToSave },
-      })
+      await orpc.logs.upsert(dateStr, setsToSave)
 
       // メモを保存（空でないメモのみ）
       const validMemos = memos.filter((m) => m.content.trim() !== '')
-      await client.api.trainings[':date'].memos.$put({
-        param: { date: dateStr },
-        json: { memos: validMemos.map((m) => ({ id: m.id, content: m.content })) },
-      })
+      await orpc.logs.saveMemos(
+        dateStr,
+        validMemos.map((m) => ({ id: m.id, content: m.content })),
+      )
 
       // 保存後にベースラインを更新
       setBaseline({
@@ -601,9 +574,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const handleDeleteConfirm = () => {
     startTransition(async () => {
       const dateStr = selectedDate.format('YYYY-MM-DD')
-      await client.api.trainings[':date'].$delete({
-        param: { date: dateStr },
-      })
+      await orpc.logs.remove(dateStr)
       setDeleteConfirmOpen(false)
       onSaved(selectedDate.toDate())
       onClose()
@@ -870,7 +841,10 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                                         ? '未分類'
                                         : categoryLabels[category] || category
                                     items.push(
-                                      <ListSubheader key={`header-${category}`} sx={{ lineHeight: '32px' }}>
+                                      <ListSubheader
+                                        key={`header-${category}`}
+                                        sx={{ lineHeight: '32px' }}
+                                      >
                                         {label}
                                       </ListSubheader>,
                                     )
@@ -1263,7 +1237,9 @@ function formatYearMonthLabel(ym: YearMonth): string {
   return `${ym.year}年${ym.month}月`
 }
 
-function summaryToRow(summary: TrainingSummary): TrainingRow {
+function summaryToRow(
+  summary: Awaited<ReturnType<typeof orpc.logs.listByMonth>>[number],
+): TrainingRow {
   return {
     id: summary.date,
     date: summary.date,
@@ -1274,7 +1250,9 @@ function summaryToRow(summary: TrainingSummary): TrainingRow {
 }
 
 let setKeyCounter = 0
-function trainingToSetFormData(training: Training | null): SetFormData[] {
+function trainingToSetFormData(
+  training: Awaited<ReturnType<typeof orpc.logs.getByDate>>,
+): SetFormData[] {
   if (!training || training.sets.length === 0) {
     return []
   }
@@ -1291,8 +1269,8 @@ function trainingToSetFormData(training: Training | null): SetFormData[] {
 }
 
 /**
- * ログページ本体（純粋UI層。Hono クライアントは
- * 型のみ `@/server/api/hono-app` を参照する `@/lib/hono-client` 経由、
+ * ログページ本体（純粋UI層。oRPC クライアントは
+ * `@/lib/orpc-client` 経由、
  * タイマーは `@/components/timer/TimerContext` 経由）。
  */
 function LogsPage() {
@@ -1313,8 +1291,7 @@ function LogsPage() {
   // 初回ロード: 年月一覧を取得
   useEffect(() => {
     const loadYearMonths = async () => {
-      const res = await client.api.trainings['year-months'].$get()
-      const yearMonths = await res.json()
+      const yearMonths = await orpc.logs.listYearMonths()
       setAvailableYearMonths(yearMonths)
       // 最新の年月を選択（降順なので先頭）
       if (yearMonths.length > 0) {
@@ -1329,13 +1306,7 @@ function LogsPage() {
   const loadData = useCallback(() => {
     if (!selectedYearMonth) return
     startLoading(async () => {
-      const res = await client.api.trainings.$get({
-        query: {
-          year: String(selectedYearMonth.year),
-          month: String(selectedYearMonth.month),
-        },
-      })
-      const summaries = await res.json()
+      const summaries = await orpc.logs.listByMonth(selectedYearMonth.year, selectedYearMonth.month)
       setRows(summaries.map(summaryToRow))
     })
   }, [selectedYearMonth])
@@ -1355,10 +1326,7 @@ function LogsPage() {
     const today = new Date()
     setSelectedDate(today)
     const dateStr = today.toISOString().split('T')[0]
-    const res = await client.api.trainings[':date'].$get({
-      param: { date: dateStr },
-    })
-    const training = await res.json()
+    const training = await orpc.logs.getByDate(dateStr as string)
     // 当日のデータが存在する場合は詳細モーダルを表示、存在しない場合は新規作成
     if (training && training.sets.length > 0) {
       setInitialSets(trainingToSetFormData(training))
@@ -1372,10 +1340,7 @@ function LogsPage() {
   const handleRowClick = async (dateStr: string) => {
     const date = new Date(dateStr)
     setSelectedDate(date)
-    const res = await client.api.trainings[':date'].$get({
-      param: { date: dateStr },
-    })
-    const training = await res.json()
+    const training = await orpc.logs.getByDate(dateStr)
     setInitialSets(trainingToSetFormData(training))
     setModalOpen(true)
   }
@@ -1386,8 +1351,7 @@ function LogsPage() {
     const savedMonth = savedDate.getMonth() + 1
 
     // 年月一覧を再取得
-    const res = await client.api.trainings['year-months'].$get()
-    const yearMonths = await res.json()
+    const yearMonths = await orpc.logs.listYearMonths()
     setAvailableYearMonths(yearMonths)
 
     // 保存された年月を選択

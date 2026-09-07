@@ -1,0 +1,45 @@
+/**
+ * API パス定数の単一正本（client REST 呼び出し用）。
+ * file routes の `createFileRoute('...')` が正本の定義であり、本モジュールは
+ * その文字列表現を client と共有するための read-only な複写である。
+ * パス変更時は両者を同時に更新すること（将来の oRPC トランスポート共有までの過渡措置）。
+ */
+export const apiPath = {
+  exercisesBodyParts: '/api/exercises/body-parts',
+  exercisesWithBodyParts: '/api/exercises/with-body-parts',
+  exercisesSearch: '/api/exercises/search',
+  exercisesSortOrder: '/api/exercises/sort-order',
+  exercises: '/api/exercises',
+  exercisesById: (id: string | number) => `/api/exercises/${id}`,
+  exercisesCanDelete: (id: string | number) => `/api/exercises/${id}/can-delete`,
+  exercisesBodyPartsById: (id: string | number) => `/api/exercises/${id}/body-parts`,
+  logsYearMonths: '/api/logs/year-months',
+  logsLatestSetsMultiple: '/api/logs/exercises/latest-sets-multiple',
+  logsExerciseHistory: (exerciseId: string | number) => `/api/logs/exercises/${exerciseId}/history`,
+  logsLatestSets: (exerciseId: string | number) => `/api/logs/exercises/${exerciseId}/latest-sets`,
+  logs: '/api/logs',
+  logsByDate: (date: string) => `/api/logs/${encodeURIComponent(date)}`,
+  logsExists: (date: string) => `/api/logs/${encodeURIComponent(date)}/exists`,
+  logsMemos: (date: string) => `/api/logs/${encodeURIComponent(date)}/memos`,
+  statisticsSummary: '/api/statistics/summary',
+  statisticsExercises: '/api/statistics/exercises',
+  statisticsVolume: '/api/statistics/volume',
+  statisticsWeight: '/api/statistics/weight',
+  statisticsContinuity: '/api/statistics/continuity',
+  statisticsVolumeByExercise: '/api/statistics/volume-by-exercise',
+  statisticsVolumeByBodyPart: '/api/statistics/volume-by-body-part',
+  statisticsExerciseVolumeTotals: '/api/statistics/exercise-volume-totals',
+  statisticsBodyPartVolumeTotals: '/api/statistics/body-part-volume-totals',
+  statisticsTotalVolume: '/api/statistics/total-volume',
+  statisticsMaxWeightHistory: '/api/statistics/max-weight-history',
+  statisticsOneRMHistory: '/api/statistics/one-rm-history',
+  statisticsContinuityStats: '/api/statistics/continuity-stats',
+  statisticsTrainingDaysByPeriod: '/api/statistics/training-days-by-period',
+  statisticsExerciseTrainingDays: '/api/statistics/exercise-training-days',
+  statisticsBodyPartTrainingDays: '/api/statistics/body-part-training-days',
+  timersSounds: '/api/timers/sounds',
+  timersSortOrder: '/api/timers/sort-order',
+  timers: '/api/timers',
+  timersById: (id: string | number) => `/api/timers/${id}`,
+  health: '/api/health',
+} as const

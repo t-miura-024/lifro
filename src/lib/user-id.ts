@@ -1,7 +1,7 @@
 /**
  * セッション由来の生 ID をドメインの userId（正の安全整数）に正規化する
  * framework 非依存の純粋ヘルパ。
- * Hono middleware（`src/server/api/middleware/auth.ts`）と layout のサーバ検証
+ * oRPC コンテキスト（`src/server/orpc/context.ts`）と layout のサーバ検証
  * （`src/lib/auth-session-server.ts`）の双方から参照する単一正本。
  * 本モジュールは `@/auth` を引かない（値 import なし）。`@/auth` の top-level は
  * requireEnv を評価するため、ここに置くことでモジュールグラフ結合を避ける。

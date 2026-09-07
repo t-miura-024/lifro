@@ -1,4 +1,4 @@
-import { client, type InferResponseType } from '@/lib/hono-client'
+import { orpc } from '@/lib/orpc-client'
 import {
   DndContext,
   type DragEndEvent,
@@ -213,8 +213,7 @@ function SortableExerciseItemInner<T extends ExerciseItem>({
 // ジェネリックコンポーネントをmemoで包む
 const SortableExerciseItem = memo(SortableExerciseItemInner) as typeof SortableExerciseItemInner
 
-const bodyPartsEndpoint = client.api.exercises['body-parts'].$get
-type BodyPart = InferResponseType<typeof bodyPartsEndpoint>[number]
+type BodyPart = Awaited<ReturnType<typeof orpc.exercises.listBodyParts>>[number]
 
 type ExerciseBodyPartInput = {
   bodyPartId: number
@@ -247,8 +246,7 @@ function BodyPartEditDialog({
   useEffect(() => {
     if (open) {
       startTransition(async () => {
-        const res = await client.api.exercises['body-parts'].$get()
-        const data = await res.json()
+        const data = await orpc.exercises.listBodyParts()
         setAllBodyParts(data)
       })
       setSelectedBodyParts(initialBodyParts)
@@ -301,10 +299,7 @@ function BodyPartEditDialog({
     }
 
     startTransition(async () => {
-      await client.api.exercises[':exerciseId']['body-parts'].$put({
-        param: { exerciseId: String(exerciseId) },
-        json: { bodyParts: selectedBodyParts },
-      })
+      await orpc.exercises.updateBodyParts(exerciseId, selectedBodyParts)
       onSave()
       onClose()
     })
@@ -436,8 +431,7 @@ function BodyPartEditDialog({
 }
 
 /** APIレスポンスから推論された種目型 */
-const exercisesWithBodyPartsEndpoint = client.api.exercises['with-body-parts'].$get
-type ExerciseWithBodyParts = InferResponseType<typeof exercisesWithBodyPartsEndpoint>[number]
+type ExerciseWithBodyParts = Awaited<ReturnType<typeof orpc.exercises.listWithBodyParts>>[number]
 
 /** カテゴリの表示順 */
 const categoryOrder = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG']
@@ -494,8 +488,7 @@ function ExerciseList() {
   // 種目リストを取得
   const loadExercises = useCallback(() => {
     startTransition(async () => {
-      const res = await client.api.exercises['with-body-parts'].$get()
-      const data = await res.json()
+      const data = await orpc.exercises.listWithBodyParts()
       setExercises(data)
       if (isInitialLoadRef.current) {
         setIsInitialLoading(false)
@@ -542,9 +535,7 @@ function ExerciseList() {
 
     setIsSorting(true)
     startTransition(async () => {
-      await client.api.exercises['sort-order'].$put({
-        json: { exercises: changedItems },
-      })
+      await orpc.exercises.updateSortOrder(changedItems)
       setIsSorting(false)
     })
   }
@@ -559,9 +550,7 @@ function ExerciseList() {
     if (!exerciseName.trim()) return
 
     startTransition(async () => {
-      await client.api.exercises.$post({
-        json: { name: exerciseName.trim() },
-      })
+      await orpc.exercises.create(exerciseName.trim())
       setCreateDialogOpen(false)
       setExerciseName('')
       loadExercises()
@@ -579,10 +568,7 @@ function ExerciseList() {
     if (!selectedExercise || !exerciseName.trim()) return
 
     startTransition(async () => {
-      await client.api.exercises[':id'].$put({
-        param: { id: String(selectedExercise.id) },
-        json: { name: exerciseName.trim() },
-      })
+      await orpc.exercises.update(selectedExercise.id, exerciseName.trim())
       setEditDialogOpen(false)
       setSelectedExercise(null)
       setExerciseName('')
@@ -600,10 +586,7 @@ function ExerciseList() {
     if (!selectedExercise) return
 
     startTransition(async () => {
-      const canDeleteRes = await client.api.exercises[':id']['can-delete'].$get({
-        param: { id: String(selectedExercise.id) },
-      })
-      const { canDelete } = await canDeleteRes.json()
+      const { canDelete } = await orpc.exercises.canDelete(selectedExercise.id)
       if (!canDelete) {
         setErrorSnackbar('この種目にはトレーニング記録が存在するため削除できません')
         setDeleteDialogOpen(false)
@@ -611,9 +594,7 @@ function ExerciseList() {
         return
       }
 
-      await client.api.exercises[':id'].$delete({
-        param: { id: String(selectedExercise.id) },
-      })
+      await orpc.exercises.remove(selectedExercise.id)
       setDeleteDialogOpen(false)
       setSelectedExercise(null)
       loadExercises()
@@ -919,8 +900,7 @@ function ExerciseList() {
 
 /**
  * 種目ページ本体（純粋UI層。`src/routes/_protected/exercises.tsx` が参照する。
- * Hono クライアントは型のみ `@/server/api/hono-app` を参照する
- * `@/lib/hono-client` 経由）。
+ * API 呼び出しは `@/lib/orpc-client` 経由）。
  */
 function ExercisesPage() {
   return <ExerciseList />
