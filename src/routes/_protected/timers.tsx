@@ -1,6 +1,4 @@
-import { client } from '@/lib/hono-client'
 import { useTimer } from '@/components/timer/TimerContext'
-import type { Timer, UnitTimerInput } from '@/server/domain/entities'
 import {
   DEFAULT_COUNT_SOUND,
   DEFAULT_COUNT_SOUND_LAST_3_SEC,
@@ -8,6 +6,8 @@ import {
   SOUND_NONE,
   type SoundFile,
 } from '@/constants/sounds'
+import { orpc } from '@/lib/orpc-client'
+import type { Timer, UnitTimerInput } from '@/server/domain/entities'
 import { audioScheduler } from '@/utils/soundPlayer'
 import {
   DndContext,
@@ -561,8 +561,7 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
   // 音声ファイル一覧を取得
   useEffect(() => {
     if (open) {
-      client.api.timers.sounds.$get().then(async (res) => {
-        const data = await res.json()
+      orpc.timers.listSounds().then((data) => {
         setSoundFiles(data)
       })
     }
@@ -620,21 +619,16 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
 
     startTransition(async () => {
       if (isEditMode && timer) {
-        await client.api.timers[':id'].$put({
-          param: { id: String(timer.id) },
-          json: {
-            name: name.trim(),
-            sortIndex: timer.sortIndex,
-            unitTimers: unitTimerInputs,
-          },
+        await orpc.timers.update(timer.id, {
+          name: name.trim(),
+          sortIndex: timer.sortIndex,
+          unitTimers: unitTimerInputs,
         })
       } else {
-        await client.api.timers.$post({
-          json: {
-            name: name.trim(),
-            sortIndex: 0,
-            unitTimers: unitTimerInputs,
-          },
+        await orpc.timers.create({
+          name: name.trim(),
+          sortIndex: 0,
+          unitTimers: unitTimerInputs,
         })
       }
       onSaved()
@@ -650,9 +644,7 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
     if (!timer) return
 
     startTransition(async () => {
-      await client.api.timers[':id'].$delete({
-        param: { id: String(timer.id) },
-      })
+      await orpc.timers.remove(timer.id)
       setDeleteConfirmOpen(false)
       onSaved()
     })
@@ -828,8 +820,7 @@ function TimerList() {
   // タイマーリストを取得
   const loadTimers = useCallback(() => {
     startTransition(async () => {
-      const res = await client.api.timers.$get()
-      const data = await res.json()
+      const data = await orpc.timers.list()
       setTimers(data)
       if (isInitialLoadRef.current) {
         setIsInitialLoading(false)
@@ -864,9 +855,7 @@ function TimerList() {
 
     setIsSorting(true)
     startTransition(async () => {
-      await client.api.timers['sort-order'].$put({
-        json: { timers: changedItems },
-      })
+      await orpc.timers.updateSortOrder(changedItems)
       setIsSorting(false)
     })
   }
@@ -1007,8 +996,8 @@ function TimerList() {
 }
 
 /**
- * タイマーページ本体（純粋UI層。Hono クライアントは
- * 型のみ `@/server/api/hono-app` を参照する `@/lib/hono-client` 経由、
+ * タイマーページ本体（純粋UI層。REST クライアントは
+ * `@/lib/orpc-client` の `orpc` 経由、
  * タイマーは `@/components/timer/TimerContext` 経由）。
  */
 function TimersPage() {

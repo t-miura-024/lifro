@@ -1,4 +1,4 @@
-import { client } from '@/lib/hono-client'
+import { orpc } from '@/lib/orpc-client'
 import type {
   BodyPartGranularity,
   BodyPartTrainingDays,
@@ -14,7 +14,6 @@ import type {
   TrainingDaysByPeriod,
 } from '@/server/application/services/StatisticsService'
 import type { Exercise } from '@/server/domain/entities'
-import { createFileRoute } from '@tanstack/react-router'
 import CalendarMonthIcon from '@mui/icons-material/CalendarMonth'
 import DateRangeIcon from '@mui/icons-material/DateRange'
 import EventRepeatIcon from '@mui/icons-material/EventRepeat'
@@ -38,6 +37,7 @@ import {
 } from '@mui/material'
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { createFileRoute } from '@tanstack/react-router'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/ja'
 import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
@@ -57,6 +57,19 @@ type TimeRange = {
   preset: string
   customStartDate?: string
   customEndDate?: string
+}
+
+/**
+ * oRPC の preset は 'custom' を受け付けないため、カスタム期間は
+ * preset を省略し customStartDate/customEndDate で範囲指定する
+ * （旧 Hono は preset:'custom' を素通ししていたが意味は同じ）。
+ */
+function toOrpcPreset(
+  preset: string,
+): '1month' | '3months' | '6months' | '1year' | 'all' | undefined {
+  return preset === 'custom'
+    ? undefined
+    : (preset as '1month' | '3months' | '6months' | '1year' | 'all')
 }
 
 /** 部位カテゴリの表示名 */
@@ -1307,8 +1320,7 @@ function WeightTab({
 }
 
 /**
- * 統計ページ本体（純粋UI層。Hono クライアントは
- * 型のみ `@/server/api/hono-app` を参照する `@/lib/hono-client` 経由）。
+ * 統計ページ本体（純粋UI層。データ取得は `@/lib/orpc-client` 経由）。
  */
 function StatisticsPage() {
   // フィルター状態
@@ -1342,8 +1354,7 @@ function StatisticsPage() {
 
   // 共通のデータ取得
   const loadExercises = useCallback(async () => {
-    const res = await client.api.statistics.exercises.$get()
-    const data = await res.json()
+    const data = await orpc.statistics.listExercises()
     setExercises(data)
     if (data.length > 0 && selectedExerciseId === null) {
       setSelectedExerciseId(data[0].id)
@@ -1353,36 +1364,28 @@ function StatisticsPage() {
   // ボリュームタブのデータ取得（統合アクション使用）
   const loadVolumeData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const [volumeRes, bodyPartVolumeTotalsRes, volumeByBodyPartRes] = await Promise.all([
-      client.api.statistics.volume.$get({
-        query: {
-          granularity,
-          preset,
-          customStartDate,
-          customEndDate,
-        },
+    const orpcPreset = toOrpcPreset(preset)
+    const [data, bodyPartTotalsData, volumeByBodyPartData] = await Promise.all([
+      orpc.statistics.getVolumeTab({
+        granularity,
+        preset: orpcPreset,
+        customStartDate,
+        customEndDate,
       }),
-      client.api.statistics['body-part-volume-totals'].$get({
-        query: {
-          preset,
-          customStartDate,
-          customEndDate,
-          granularity: bodyPartGranularity,
-        },
+      orpc.statistics.getBodyPartVolumeTotals({
+        preset: orpcPreset,
+        customStartDate,
+        customEndDate,
+        bodyPartGranularity,
       }),
-      client.api.statistics['volume-by-body-part'].$get({
-        query: {
-          granularity,
-          bodyPartGranularity,
-          preset,
-          customStartDate,
-          customEndDate,
-        },
+      orpc.statistics.getVolumeByBodyPart({
+        granularity,
+        bodyPartGranularity,
+        preset: orpcPreset,
+        customStartDate,
+        customEndDate,
       }),
     ])
-    const data = await volumeRes.json()
-    const bodyPartTotalsData = await bodyPartVolumeTotalsRes.json()
-    const volumeByBodyPartData = await volumeByBodyPartRes.json()
     setTotalVolume(data.totalVolume)
     setVolumeByExercise(data.volumeByExercise)
     setExerciseVolumeTotals(data.exerciseVolumeTotals)
@@ -1394,16 +1397,13 @@ function StatisticsPage() {
   const loadWeightData = useCallback(async () => {
     if (!selectedExerciseId) return
     const { preset, customStartDate, customEndDate } = timeRange
-    const res = await client.api.statistics.weight.$get({
-      query: {
-        exerciseId: String(selectedExerciseId),
-        granularity,
-        preset,
-        customStartDate,
-        customEndDate,
-      },
+    const data = await orpc.statistics.getWeightTab({
+      exerciseId: Number(selectedExerciseId),
+      granularity,
+      preset: toOrpcPreset(preset),
+      customStartDate,
+      customEndDate,
     })
-    const data = await res.json()
     setMaxWeightHistory(data.maxWeightHistory)
     setOneRMHistory(data.oneRMHistory)
   }, [granularity, timeRange, selectedExerciseId])
@@ -1411,26 +1411,20 @@ function StatisticsPage() {
   // 継続タブのデータ取得（統合アクション使用）
   const loadContinuityData = useCallback(async () => {
     const { preset, customStartDate, customEndDate } = timeRange
-    const [continuityRes, bodyPartDaysRes] = await Promise.all([
-      client.api.statistics.continuity.$get({
-        query: {
-          granularity,
-          preset,
-          customStartDate,
-          customEndDate,
-        },
+    const [data, bodyPartDaysData] = await Promise.all([
+      orpc.statistics.getContinuityTab({
+        granularity,
+        preset: toOrpcPreset(preset),
+        customStartDate,
+        customEndDate,
       }),
-      client.api.statistics['body-part-training-days'].$get({
-        query: {
-          preset,
-          startDate: customStartDate,
-          endDate: customEndDate,
-          granularity: bodyPartGranularity,
-        },
+      orpc.statistics.getBodyPartTrainingDays({
+        preset: toOrpcPreset(preset),
+        customStartDate,
+        customEndDate,
+        bodyPartGranularity,
       }),
     ])
-    const data = await continuityRes.json()
-    const bodyPartDaysData = await bodyPartDaysRes.json()
     setContinuityStats(data.stats)
     setTrainingDaysByPeriod(data.daysByPeriod)
     setExerciseTrainingDays(data.exerciseDays)

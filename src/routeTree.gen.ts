@@ -18,9 +18,44 @@ import { Route as ProtectedLogsRouteImport } from './routes/_protected/logs'
 import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
 import { Route as ProtectedStatisticsRouteImport } from './routes/_protected/statistics'
 import { Route as ProtectedTimersRouteImport } from './routes/_protected/timers'
-import { Route as ApiSplatRouteImport } from './routes/api.$'
-import { Route as ApiHealthRouteImport } from './routes/api.health'
-import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiExercisesIndexRouteImport } from './routes/api/exercises/index'
+import { Route as ApiExercisesIdRouteImport } from './routes/api/exercises/$id'
+import { Route as ApiExercisesBodyPartsRouteImport } from './routes/api/exercises/body-parts'
+import { Route as ApiExercisesSearchRouteImport } from './routes/api/exercises/search'
+import { Route as ApiExercisesSortOrderRouteImport } from './routes/api/exercises/sort-order'
+import { Route as ApiExercisesWithBodyPartsRouteImport } from './routes/api/exercises/with-body-parts'
+import { Route as ApiLogsIndexRouteImport } from './routes/api/logs/index'
+import { Route as ApiLogsDateRouteImport } from './routes/api/logs/$date'
+import { Route as ApiLogsYearMonthsRouteImport } from './routes/api/logs/year-months'
+import { Route as ApiStatisticsBodyPartTrainingDaysRouteImport } from './routes/api/statistics/body-part-training-days'
+import { Route as ApiStatisticsBodyPartVolumeTotalsRouteImport } from './routes/api/statistics/body-part-volume-totals'
+import { Route as ApiStatisticsContinuityRouteImport } from './routes/api/statistics/continuity'
+import { Route as ApiStatisticsContinuityStatsRouteImport } from './routes/api/statistics/continuity-stats'
+import { Route as ApiStatisticsExerciseTrainingDaysRouteImport } from './routes/api/statistics/exercise-training-days'
+import { Route as ApiStatisticsExerciseVolumeTotalsRouteImport } from './routes/api/statistics/exercise-volume-totals'
+import { Route as ApiStatisticsExercisesRouteImport } from './routes/api/statistics/exercises'
+import { Route as ApiStatisticsMaxWeightHistoryRouteImport } from './routes/api/statistics/max-weight-history'
+import { Route as ApiStatisticsOneRmHistoryRouteImport } from './routes/api/statistics/one-rm-history'
+import { Route as ApiStatisticsSummaryRouteImport } from './routes/api/statistics/summary'
+import { Route as ApiStatisticsTotalVolumeRouteImport } from './routes/api/statistics/total-volume'
+import { Route as ApiStatisticsTrainingDaysByPeriodRouteImport } from './routes/api/statistics/training-days-by-period'
+import { Route as ApiStatisticsVolumeRouteImport } from './routes/api/statistics/volume'
+import { Route as ApiStatisticsVolumeByBodyPartRouteImport } from './routes/api/statistics/volume-by-body-part'
+import { Route as ApiStatisticsVolumeByExerciseRouteImport } from './routes/api/statistics/volume-by-exercise'
+import { Route as ApiStatisticsWeightRouteImport } from './routes/api/statistics/weight'
+import { Route as ApiTimersIndexRouteImport } from './routes/api/timers/index'
+import { Route as ApiTimersIdRouteImport } from './routes/api/timers/$id'
+import { Route as ApiTimersSortOrderRouteImport } from './routes/api/timers/sort-order'
+import { Route as ApiTimersSoundsRouteImport } from './routes/api/timers/sounds'
+import { Route as ApiExercisesIdBodyPartsRouteImport } from './routes/api/exercises/$id/body-parts'
+import { Route as ApiExercisesIdCanDeleteRouteImport } from './routes/api/exercises/$id/can-delete'
+import { Route as ApiLogsDateExistsRouteImport } from './routes/api/logs/$date/exists'
+import { Route as ApiLogsDateMemosRouteImport } from './routes/api/logs/$date/memos'
+import { Route as ApiLogsExercisesLatestSetsMultipleRouteImport } from './routes/api/logs/exercises/latest-sets-multiple'
+import { Route as ApiLogsExercisesExerciseIdHistoryRouteImport } from './routes/api/logs/exercises/$exerciseId/history'
+import { Route as ApiLogsExercisesExerciseIdLatestSetsRouteImport } from './routes/api/logs/exercises/$exerciseId/latest-sets'
 
 const ProtectedRouteRoute = ProtectedRouteRouteImport.update({
   id: '/_protected',
@@ -66,11 +101,6 @@ const ProtectedTimersRoute = ProtectedTimersRouteImport.update({
   path: '/timers',
   getParentRoute: () => ProtectedRouteRoute,
 } as any)
-const ApiSplatRoute = ApiSplatRouteImport.update({
-  id: '/api/$',
-  path: '/api/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiHealthRoute = ApiHealthRouteImport.update({
   id: '/api/health',
   path: '/api/health',
@@ -81,6 +111,201 @@ const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiExercisesIndexRoute = ApiExercisesIndexRouteImport.update({
+  id: '/api/exercises/',
+  path: '/api/exercises/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExercisesIdRoute = ApiExercisesIdRouteImport.update({
+  id: '/api/exercises/$id',
+  path: '/api/exercises/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExercisesBodyPartsRoute = ApiExercisesBodyPartsRouteImport.update({
+  id: '/api/exercises/body-parts',
+  path: '/api/exercises/body-parts',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExercisesSearchRoute = ApiExercisesSearchRouteImport.update({
+  id: '/api/exercises/search',
+  path: '/api/exercises/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExercisesSortOrderRoute = ApiExercisesSortOrderRouteImport.update({
+  id: '/api/exercises/sort-order',
+  path: '/api/exercises/sort-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExercisesWithBodyPartsRoute =
+  ApiExercisesWithBodyPartsRouteImport.update({
+    id: '/api/exercises/with-body-parts',
+    path: '/api/exercises/with-body-parts',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiLogsIndexRoute = ApiLogsIndexRouteImport.update({
+  id: '/api/logs/',
+  path: '/api/logs/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLogsDateRoute = ApiLogsDateRouteImport.update({
+  id: '/api/logs/$date',
+  path: '/api/logs/$date',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLogsYearMonthsRoute = ApiLogsYearMonthsRouteImport.update({
+  id: '/api/logs/year-months',
+  path: '/api/logs/year-months',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStatisticsBodyPartTrainingDaysRoute =
+  ApiStatisticsBodyPartTrainingDaysRouteImport.update({
+    id: '/api/statistics/body-part-training-days',
+    path: '/api/statistics/body-part-training-days',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsBodyPartVolumeTotalsRoute =
+  ApiStatisticsBodyPartVolumeTotalsRouteImport.update({
+    id: '/api/statistics/body-part-volume-totals',
+    path: '/api/statistics/body-part-volume-totals',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsContinuityRoute = ApiStatisticsContinuityRouteImport.update({
+  id: '/api/statistics/continuity',
+  path: '/api/statistics/continuity',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStatisticsContinuityStatsRoute =
+  ApiStatisticsContinuityStatsRouteImport.update({
+    id: '/api/statistics/continuity-stats',
+    path: '/api/statistics/continuity-stats',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsExerciseTrainingDaysRoute =
+  ApiStatisticsExerciseTrainingDaysRouteImport.update({
+    id: '/api/statistics/exercise-training-days',
+    path: '/api/statistics/exercise-training-days',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsExerciseVolumeTotalsRoute =
+  ApiStatisticsExerciseVolumeTotalsRouteImport.update({
+    id: '/api/statistics/exercise-volume-totals',
+    path: '/api/statistics/exercise-volume-totals',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsExercisesRoute = ApiStatisticsExercisesRouteImport.update({
+  id: '/api/statistics/exercises',
+  path: '/api/statistics/exercises',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStatisticsMaxWeightHistoryRoute =
+  ApiStatisticsMaxWeightHistoryRouteImport.update({
+    id: '/api/statistics/max-weight-history',
+    path: '/api/statistics/max-weight-history',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsOneRmHistoryRoute =
+  ApiStatisticsOneRmHistoryRouteImport.update({
+    id: '/api/statistics/one-rm-history',
+    path: '/api/statistics/one-rm-history',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsSummaryRoute = ApiStatisticsSummaryRouteImport.update({
+  id: '/api/statistics/summary',
+  path: '/api/statistics/summary',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStatisticsTotalVolumeRoute =
+  ApiStatisticsTotalVolumeRouteImport.update({
+    id: '/api/statistics/total-volume',
+    path: '/api/statistics/total-volume',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsTrainingDaysByPeriodRoute =
+  ApiStatisticsTrainingDaysByPeriodRouteImport.update({
+    id: '/api/statistics/training-days-by-period',
+    path: '/api/statistics/training-days-by-period',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsVolumeRoute = ApiStatisticsVolumeRouteImport.update({
+  id: '/api/statistics/volume',
+  path: '/api/statistics/volume',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiStatisticsVolumeByBodyPartRoute =
+  ApiStatisticsVolumeByBodyPartRouteImport.update({
+    id: '/api/statistics/volume-by-body-part',
+    path: '/api/statistics/volume-by-body-part',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsVolumeByExerciseRoute =
+  ApiStatisticsVolumeByExerciseRouteImport.update({
+    id: '/api/statistics/volume-by-exercise',
+    path: '/api/statistics/volume-by-exercise',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiStatisticsWeightRoute = ApiStatisticsWeightRouteImport.update({
+  id: '/api/statistics/weight',
+  path: '/api/statistics/weight',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTimersIndexRoute = ApiTimersIndexRouteImport.update({
+  id: '/api/timers/',
+  path: '/api/timers/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTimersIdRoute = ApiTimersIdRouteImport.update({
+  id: '/api/timers/$id',
+  path: '/api/timers/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTimersSortOrderRoute = ApiTimersSortOrderRouteImport.update({
+  id: '/api/timers/sort-order',
+  path: '/api/timers/sort-order',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiTimersSoundsRoute = ApiTimersSoundsRouteImport.update({
+  id: '/api/timers/sounds',
+  path: '/api/timers/sounds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiExercisesIdBodyPartsRoute = ApiExercisesIdBodyPartsRouteImport.update({
+  id: '/body-parts',
+  path: '/body-parts',
+  getParentRoute: () => ApiExercisesIdRoute,
+} as any)
+const ApiExercisesIdCanDeleteRoute = ApiExercisesIdCanDeleteRouteImport.update({
+  id: '/can-delete',
+  path: '/can-delete',
+  getParentRoute: () => ApiExercisesIdRoute,
+} as any)
+const ApiLogsDateExistsRoute = ApiLogsDateExistsRouteImport.update({
+  id: '/exists',
+  path: '/exists',
+  getParentRoute: () => ApiLogsDateRoute,
+} as any)
+const ApiLogsDateMemosRoute = ApiLogsDateMemosRouteImport.update({
+  id: '/memos',
+  path: '/memos',
+  getParentRoute: () => ApiLogsDateRoute,
+} as any)
+const ApiLogsExercisesLatestSetsMultipleRoute =
+  ApiLogsExercisesLatestSetsMultipleRouteImport.update({
+    id: '/api/logs/exercises/latest-sets-multiple',
+    path: '/api/logs/exercises/latest-sets-multiple',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiLogsExercisesExerciseIdHistoryRoute =
+  ApiLogsExercisesExerciseIdHistoryRouteImport.update({
+    id: '/api/logs/exercises/$exerciseId/history',
+    path: '/api/logs/exercises/$exerciseId/history',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiLogsExercisesExerciseIdLatestSetsRoute =
+  ApiLogsExercisesExerciseIdLatestSetsRouteImport.update({
+    id: '/api/logs/exercises/$exerciseId/latest-sets',
+    path: '/api/logs/exercises/$exerciseId/latest-sets',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof ProtectedIndexRoute
@@ -91,9 +316,44 @@ export interface FileRoutesByFullPath {
   '/settings': typeof ProtectedSettingsRoute
   '/statistics': typeof ProtectedStatisticsRoute
   '/timers': typeof ProtectedTimersRoute
-  '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/exercises/$id': typeof ApiExercisesIdRouteWithChildren
+  '/api/exercises/body-parts': typeof ApiExercisesBodyPartsRoute
+  '/api/exercises/search': typeof ApiExercisesSearchRoute
+  '/api/exercises/sort-order': typeof ApiExercisesSortOrderRoute
+  '/api/exercises/with-body-parts': typeof ApiExercisesWithBodyPartsRoute
+  '/api/logs/$date': typeof ApiLogsDateRouteWithChildren
+  '/api/logs/year-months': typeof ApiLogsYearMonthsRoute
+  '/api/statistics/body-part-training-days': typeof ApiStatisticsBodyPartTrainingDaysRoute
+  '/api/statistics/body-part-volume-totals': typeof ApiStatisticsBodyPartVolumeTotalsRoute
+  '/api/statistics/continuity': typeof ApiStatisticsContinuityRoute
+  '/api/statistics/continuity-stats': typeof ApiStatisticsContinuityStatsRoute
+  '/api/statistics/exercise-training-days': typeof ApiStatisticsExerciseTrainingDaysRoute
+  '/api/statistics/exercise-volume-totals': typeof ApiStatisticsExerciseVolumeTotalsRoute
+  '/api/statistics/exercises': typeof ApiStatisticsExercisesRoute
+  '/api/statistics/max-weight-history': typeof ApiStatisticsMaxWeightHistoryRoute
+  '/api/statistics/one-rm-history': typeof ApiStatisticsOneRmHistoryRoute
+  '/api/statistics/summary': typeof ApiStatisticsSummaryRoute
+  '/api/statistics/total-volume': typeof ApiStatisticsTotalVolumeRoute
+  '/api/statistics/training-days-by-period': typeof ApiStatisticsTrainingDaysByPeriodRoute
+  '/api/statistics/volume': typeof ApiStatisticsVolumeRoute
+  '/api/statistics/volume-by-body-part': typeof ApiStatisticsVolumeByBodyPartRoute
+  '/api/statistics/volume-by-exercise': typeof ApiStatisticsVolumeByExerciseRoute
+  '/api/statistics/weight': typeof ApiStatisticsWeightRoute
+  '/api/timers/$id': typeof ApiTimersIdRoute
+  '/api/timers/sort-order': typeof ApiTimersSortOrderRoute
+  '/api/timers/sounds': typeof ApiTimersSoundsRoute
+  '/api/exercises/': typeof ApiExercisesIndexRoute
+  '/api/logs/': typeof ApiLogsIndexRoute
+  '/api/timers/': typeof ApiTimersIndexRoute
+  '/api/exercises/$id/body-parts': typeof ApiExercisesIdBodyPartsRoute
+  '/api/exercises/$id/can-delete': typeof ApiExercisesIdCanDeleteRoute
+  '/api/logs/$date/exists': typeof ApiLogsDateExistsRoute
+  '/api/logs/$date/memos': typeof ApiLogsDateMemosRoute
+  '/api/logs/exercises/latest-sets-multiple': typeof ApiLogsExercisesLatestSetsMultipleRoute
+  '/api/logs/exercises/$exerciseId/history': typeof ApiLogsExercisesExerciseIdHistoryRoute
+  '/api/logs/exercises/$exerciseId/latest-sets': typeof ApiLogsExercisesExerciseIdLatestSetsRoute
 }
 export interface FileRoutesByTo {
   '/login': typeof LoginRoute
@@ -103,10 +363,45 @@ export interface FileRoutesByTo {
   '/settings': typeof ProtectedSettingsRoute
   '/statistics': typeof ProtectedStatisticsRoute
   '/timers': typeof ProtectedTimersRoute
-  '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/': typeof ProtectedIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/exercises/$id': typeof ApiExercisesIdRouteWithChildren
+  '/api/exercises/body-parts': typeof ApiExercisesBodyPartsRoute
+  '/api/exercises/search': typeof ApiExercisesSearchRoute
+  '/api/exercises/sort-order': typeof ApiExercisesSortOrderRoute
+  '/api/exercises/with-body-parts': typeof ApiExercisesWithBodyPartsRoute
+  '/api/logs/$date': typeof ApiLogsDateRouteWithChildren
+  '/api/logs/year-months': typeof ApiLogsYearMonthsRoute
+  '/api/statistics/body-part-training-days': typeof ApiStatisticsBodyPartTrainingDaysRoute
+  '/api/statistics/body-part-volume-totals': typeof ApiStatisticsBodyPartVolumeTotalsRoute
+  '/api/statistics/continuity': typeof ApiStatisticsContinuityRoute
+  '/api/statistics/continuity-stats': typeof ApiStatisticsContinuityStatsRoute
+  '/api/statistics/exercise-training-days': typeof ApiStatisticsExerciseTrainingDaysRoute
+  '/api/statistics/exercise-volume-totals': typeof ApiStatisticsExerciseVolumeTotalsRoute
+  '/api/statistics/exercises': typeof ApiStatisticsExercisesRoute
+  '/api/statistics/max-weight-history': typeof ApiStatisticsMaxWeightHistoryRoute
+  '/api/statistics/one-rm-history': typeof ApiStatisticsOneRmHistoryRoute
+  '/api/statistics/summary': typeof ApiStatisticsSummaryRoute
+  '/api/statistics/total-volume': typeof ApiStatisticsTotalVolumeRoute
+  '/api/statistics/training-days-by-period': typeof ApiStatisticsTrainingDaysByPeriodRoute
+  '/api/statistics/volume': typeof ApiStatisticsVolumeRoute
+  '/api/statistics/volume-by-body-part': typeof ApiStatisticsVolumeByBodyPartRoute
+  '/api/statistics/volume-by-exercise': typeof ApiStatisticsVolumeByExerciseRoute
+  '/api/statistics/weight': typeof ApiStatisticsWeightRoute
+  '/api/timers/$id': typeof ApiTimersIdRoute
+  '/api/timers/sort-order': typeof ApiTimersSortOrderRoute
+  '/api/timers/sounds': typeof ApiTimersSoundsRoute
+  '/api/exercises': typeof ApiExercisesIndexRoute
+  '/api/logs': typeof ApiLogsIndexRoute
+  '/api/timers': typeof ApiTimersIndexRoute
+  '/api/exercises/$id/body-parts': typeof ApiExercisesIdBodyPartsRoute
+  '/api/exercises/$id/can-delete': typeof ApiExercisesIdCanDeleteRoute
+  '/api/logs/$date/exists': typeof ApiLogsDateExistsRoute
+  '/api/logs/$date/memos': typeof ApiLogsDateMemosRoute
+  '/api/logs/exercises/latest-sets-multiple': typeof ApiLogsExercisesLatestSetsMultipleRoute
+  '/api/logs/exercises/$exerciseId/history': typeof ApiLogsExercisesExerciseIdHistoryRoute
+  '/api/logs/exercises/$exerciseId/latest-sets': typeof ApiLogsExercisesExerciseIdLatestSetsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -118,10 +413,45 @@ export interface FileRoutesById {
   '/_protected/settings': typeof ProtectedSettingsRoute
   '/_protected/statistics': typeof ProtectedStatisticsRoute
   '/_protected/timers': typeof ProtectedTimersRoute
-  '/api/$': typeof ApiSplatRoute
   '/api/health': typeof ApiHealthRoute
   '/_protected/': typeof ProtectedIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/exercises/$id': typeof ApiExercisesIdRouteWithChildren
+  '/api/exercises/body-parts': typeof ApiExercisesBodyPartsRoute
+  '/api/exercises/search': typeof ApiExercisesSearchRoute
+  '/api/exercises/sort-order': typeof ApiExercisesSortOrderRoute
+  '/api/exercises/with-body-parts': typeof ApiExercisesWithBodyPartsRoute
+  '/api/logs/$date': typeof ApiLogsDateRouteWithChildren
+  '/api/logs/year-months': typeof ApiLogsYearMonthsRoute
+  '/api/statistics/body-part-training-days': typeof ApiStatisticsBodyPartTrainingDaysRoute
+  '/api/statistics/body-part-volume-totals': typeof ApiStatisticsBodyPartVolumeTotalsRoute
+  '/api/statistics/continuity': typeof ApiStatisticsContinuityRoute
+  '/api/statistics/continuity-stats': typeof ApiStatisticsContinuityStatsRoute
+  '/api/statistics/exercise-training-days': typeof ApiStatisticsExerciseTrainingDaysRoute
+  '/api/statistics/exercise-volume-totals': typeof ApiStatisticsExerciseVolumeTotalsRoute
+  '/api/statistics/exercises': typeof ApiStatisticsExercisesRoute
+  '/api/statistics/max-weight-history': typeof ApiStatisticsMaxWeightHistoryRoute
+  '/api/statistics/one-rm-history': typeof ApiStatisticsOneRmHistoryRoute
+  '/api/statistics/summary': typeof ApiStatisticsSummaryRoute
+  '/api/statistics/total-volume': typeof ApiStatisticsTotalVolumeRoute
+  '/api/statistics/training-days-by-period': typeof ApiStatisticsTrainingDaysByPeriodRoute
+  '/api/statistics/volume': typeof ApiStatisticsVolumeRoute
+  '/api/statistics/volume-by-body-part': typeof ApiStatisticsVolumeByBodyPartRoute
+  '/api/statistics/volume-by-exercise': typeof ApiStatisticsVolumeByExerciseRoute
+  '/api/statistics/weight': typeof ApiStatisticsWeightRoute
+  '/api/timers/$id': typeof ApiTimersIdRoute
+  '/api/timers/sort-order': typeof ApiTimersSortOrderRoute
+  '/api/timers/sounds': typeof ApiTimersSoundsRoute
+  '/api/exercises/': typeof ApiExercisesIndexRoute
+  '/api/logs/': typeof ApiLogsIndexRoute
+  '/api/timers/': typeof ApiTimersIndexRoute
+  '/api/exercises/$id/body-parts': typeof ApiExercisesIdBodyPartsRoute
+  '/api/exercises/$id/can-delete': typeof ApiExercisesIdCanDeleteRoute
+  '/api/logs/$date/exists': typeof ApiLogsDateExistsRoute
+  '/api/logs/$date/memos': typeof ApiLogsDateMemosRoute
+  '/api/logs/exercises/latest-sets-multiple': typeof ApiLogsExercisesLatestSetsMultipleRoute
+  '/api/logs/exercises/$exerciseId/history': typeof ApiLogsExercisesExerciseIdHistoryRoute
+  '/api/logs/exercises/$exerciseId/latest-sets': typeof ApiLogsExercisesExerciseIdLatestSetsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -134,9 +464,44 @@ export interface FileRouteTypes {
     | '/settings'
     | '/statistics'
     | '/timers'
-    | '/api/$'
     | '/api/health'
     | '/api/auth/$'
+    | '/api/exercises/$id'
+    | '/api/exercises/body-parts'
+    | '/api/exercises/search'
+    | '/api/exercises/sort-order'
+    | '/api/exercises/with-body-parts'
+    | '/api/logs/$date'
+    | '/api/logs/year-months'
+    | '/api/statistics/body-part-training-days'
+    | '/api/statistics/body-part-volume-totals'
+    | '/api/statistics/continuity'
+    | '/api/statistics/continuity-stats'
+    | '/api/statistics/exercise-training-days'
+    | '/api/statistics/exercise-volume-totals'
+    | '/api/statistics/exercises'
+    | '/api/statistics/max-weight-history'
+    | '/api/statistics/one-rm-history'
+    | '/api/statistics/summary'
+    | '/api/statistics/total-volume'
+    | '/api/statistics/training-days-by-period'
+    | '/api/statistics/volume'
+    | '/api/statistics/volume-by-body-part'
+    | '/api/statistics/volume-by-exercise'
+    | '/api/statistics/weight'
+    | '/api/timers/$id'
+    | '/api/timers/sort-order'
+    | '/api/timers/sounds'
+    | '/api/exercises/'
+    | '/api/logs/'
+    | '/api/timers/'
+    | '/api/exercises/$id/body-parts'
+    | '/api/exercises/$id/can-delete'
+    | '/api/logs/$date/exists'
+    | '/api/logs/$date/memos'
+    | '/api/logs/exercises/latest-sets-multiple'
+    | '/api/logs/exercises/$exerciseId/history'
+    | '/api/logs/exercises/$exerciseId/latest-sets'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/login'
@@ -146,10 +511,45 @@ export interface FileRouteTypes {
     | '/settings'
     | '/statistics'
     | '/timers'
-    | '/api/$'
     | '/api/health'
     | '/'
     | '/api/auth/$'
+    | '/api/exercises/$id'
+    | '/api/exercises/body-parts'
+    | '/api/exercises/search'
+    | '/api/exercises/sort-order'
+    | '/api/exercises/with-body-parts'
+    | '/api/logs/$date'
+    | '/api/logs/year-months'
+    | '/api/statistics/body-part-training-days'
+    | '/api/statistics/body-part-volume-totals'
+    | '/api/statistics/continuity'
+    | '/api/statistics/continuity-stats'
+    | '/api/statistics/exercise-training-days'
+    | '/api/statistics/exercise-volume-totals'
+    | '/api/statistics/exercises'
+    | '/api/statistics/max-weight-history'
+    | '/api/statistics/one-rm-history'
+    | '/api/statistics/summary'
+    | '/api/statistics/total-volume'
+    | '/api/statistics/training-days-by-period'
+    | '/api/statistics/volume'
+    | '/api/statistics/volume-by-body-part'
+    | '/api/statistics/volume-by-exercise'
+    | '/api/statistics/weight'
+    | '/api/timers/$id'
+    | '/api/timers/sort-order'
+    | '/api/timers/sounds'
+    | '/api/exercises'
+    | '/api/logs'
+    | '/api/timers'
+    | '/api/exercises/$id/body-parts'
+    | '/api/exercises/$id/can-delete'
+    | '/api/logs/$date/exists'
+    | '/api/logs/$date/memos'
+    | '/api/logs/exercises/latest-sets-multiple'
+    | '/api/logs/exercises/$exerciseId/history'
+    | '/api/logs/exercises/$exerciseId/latest-sets'
   id:
     | '__root__'
     | '/_protected'
@@ -160,19 +560,85 @@ export interface FileRouteTypes {
     | '/_protected/settings'
     | '/_protected/statistics'
     | '/_protected/timers'
-    | '/api/$'
     | '/api/health'
     | '/_protected/'
     | '/api/auth/$'
+    | '/api/exercises/$id'
+    | '/api/exercises/body-parts'
+    | '/api/exercises/search'
+    | '/api/exercises/sort-order'
+    | '/api/exercises/with-body-parts'
+    | '/api/logs/$date'
+    | '/api/logs/year-months'
+    | '/api/statistics/body-part-training-days'
+    | '/api/statistics/body-part-volume-totals'
+    | '/api/statistics/continuity'
+    | '/api/statistics/continuity-stats'
+    | '/api/statistics/exercise-training-days'
+    | '/api/statistics/exercise-volume-totals'
+    | '/api/statistics/exercises'
+    | '/api/statistics/max-weight-history'
+    | '/api/statistics/one-rm-history'
+    | '/api/statistics/summary'
+    | '/api/statistics/total-volume'
+    | '/api/statistics/training-days-by-period'
+    | '/api/statistics/volume'
+    | '/api/statistics/volume-by-body-part'
+    | '/api/statistics/volume-by-exercise'
+    | '/api/statistics/weight'
+    | '/api/timers/$id'
+    | '/api/timers/sort-order'
+    | '/api/timers/sounds'
+    | '/api/exercises/'
+    | '/api/logs/'
+    | '/api/timers/'
+    | '/api/exercises/$id/body-parts'
+    | '/api/exercises/$id/can-delete'
+    | '/api/logs/$date/exists'
+    | '/api/logs/$date/memos'
+    | '/api/logs/exercises/latest-sets-multiple'
+    | '/api/logs/exercises/$exerciseId/history'
+    | '/api/logs/exercises/$exerciseId/latest-sets'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   ProtectedRouteRoute: typeof ProtectedRouteRouteWithChildren
   LoginRoute: typeof LoginRoute
   OfflineRoute: typeof OfflineRoute
-  ApiSplatRoute: typeof ApiSplatRoute
   ApiHealthRoute: typeof ApiHealthRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiExercisesIdRoute: typeof ApiExercisesIdRouteWithChildren
+  ApiExercisesBodyPartsRoute: typeof ApiExercisesBodyPartsRoute
+  ApiExercisesSearchRoute: typeof ApiExercisesSearchRoute
+  ApiExercisesSortOrderRoute: typeof ApiExercisesSortOrderRoute
+  ApiExercisesWithBodyPartsRoute: typeof ApiExercisesWithBodyPartsRoute
+  ApiLogsDateRoute: typeof ApiLogsDateRouteWithChildren
+  ApiLogsYearMonthsRoute: typeof ApiLogsYearMonthsRoute
+  ApiStatisticsBodyPartTrainingDaysRoute: typeof ApiStatisticsBodyPartTrainingDaysRoute
+  ApiStatisticsBodyPartVolumeTotalsRoute: typeof ApiStatisticsBodyPartVolumeTotalsRoute
+  ApiStatisticsContinuityRoute: typeof ApiStatisticsContinuityRoute
+  ApiStatisticsContinuityStatsRoute: typeof ApiStatisticsContinuityStatsRoute
+  ApiStatisticsExerciseTrainingDaysRoute: typeof ApiStatisticsExerciseTrainingDaysRoute
+  ApiStatisticsExerciseVolumeTotalsRoute: typeof ApiStatisticsExerciseVolumeTotalsRoute
+  ApiStatisticsExercisesRoute: typeof ApiStatisticsExercisesRoute
+  ApiStatisticsMaxWeightHistoryRoute: typeof ApiStatisticsMaxWeightHistoryRoute
+  ApiStatisticsOneRmHistoryRoute: typeof ApiStatisticsOneRmHistoryRoute
+  ApiStatisticsSummaryRoute: typeof ApiStatisticsSummaryRoute
+  ApiStatisticsTotalVolumeRoute: typeof ApiStatisticsTotalVolumeRoute
+  ApiStatisticsTrainingDaysByPeriodRoute: typeof ApiStatisticsTrainingDaysByPeriodRoute
+  ApiStatisticsVolumeRoute: typeof ApiStatisticsVolumeRoute
+  ApiStatisticsVolumeByBodyPartRoute: typeof ApiStatisticsVolumeByBodyPartRoute
+  ApiStatisticsVolumeByExerciseRoute: typeof ApiStatisticsVolumeByExerciseRoute
+  ApiStatisticsWeightRoute: typeof ApiStatisticsWeightRoute
+  ApiTimersIdRoute: typeof ApiTimersIdRoute
+  ApiTimersSortOrderRoute: typeof ApiTimersSortOrderRoute
+  ApiTimersSoundsRoute: typeof ApiTimersSoundsRoute
+  ApiExercisesIndexRoute: typeof ApiExercisesIndexRoute
+  ApiLogsIndexRoute: typeof ApiLogsIndexRoute
+  ApiTimersIndexRoute: typeof ApiTimersIndexRoute
+  ApiLogsExercisesLatestSetsMultipleRoute: typeof ApiLogsExercisesLatestSetsMultipleRoute
+  ApiLogsExercisesExerciseIdHistoryRoute: typeof ApiLogsExercisesExerciseIdHistoryRoute
+  ApiLogsExercisesExerciseIdLatestSetsRoute: typeof ApiLogsExercisesExerciseIdLatestSetsRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -240,13 +706,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedTimersRouteImport
       parentRoute: typeof ProtectedRouteRoute
     }
-    '/api/$': {
-      id: '/api/$'
-      path: '/api/$'
-      fullPath: '/api/$'
-      preLoaderRoute: typeof ApiSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/health': {
       id: '/api/health'
       path: '/api/health'
@@ -259,6 +718,258 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/$'
       fullPath: '/api/auth/$'
       preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/': {
+      id: '/api/exercises/'
+      path: '/api/exercises'
+      fullPath: '/api/exercises/'
+      preLoaderRoute: typeof ApiExercisesIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/$id': {
+      id: '/api/exercises/$id'
+      path: '/api/exercises/$id'
+      fullPath: '/api/exercises/$id'
+      preLoaderRoute: typeof ApiExercisesIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/body-parts': {
+      id: '/api/exercises/body-parts'
+      path: '/api/exercises/body-parts'
+      fullPath: '/api/exercises/body-parts'
+      preLoaderRoute: typeof ApiExercisesBodyPartsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/search': {
+      id: '/api/exercises/search'
+      path: '/api/exercises/search'
+      fullPath: '/api/exercises/search'
+      preLoaderRoute: typeof ApiExercisesSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/sort-order': {
+      id: '/api/exercises/sort-order'
+      path: '/api/exercises/sort-order'
+      fullPath: '/api/exercises/sort-order'
+      preLoaderRoute: typeof ApiExercisesSortOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/with-body-parts': {
+      id: '/api/exercises/with-body-parts'
+      path: '/api/exercises/with-body-parts'
+      fullPath: '/api/exercises/with-body-parts'
+      preLoaderRoute: typeof ApiExercisesWithBodyPartsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs/': {
+      id: '/api/logs/'
+      path: '/api/logs'
+      fullPath: '/api/logs/'
+      preLoaderRoute: typeof ApiLogsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs/$date': {
+      id: '/api/logs/$date'
+      path: '/api/logs/$date'
+      fullPath: '/api/logs/$date'
+      preLoaderRoute: typeof ApiLogsDateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs/year-months': {
+      id: '/api/logs/year-months'
+      path: '/api/logs/year-months'
+      fullPath: '/api/logs/year-months'
+      preLoaderRoute: typeof ApiLogsYearMonthsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/body-part-training-days': {
+      id: '/api/statistics/body-part-training-days'
+      path: '/api/statistics/body-part-training-days'
+      fullPath: '/api/statistics/body-part-training-days'
+      preLoaderRoute: typeof ApiStatisticsBodyPartTrainingDaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/body-part-volume-totals': {
+      id: '/api/statistics/body-part-volume-totals'
+      path: '/api/statistics/body-part-volume-totals'
+      fullPath: '/api/statistics/body-part-volume-totals'
+      preLoaderRoute: typeof ApiStatisticsBodyPartVolumeTotalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/continuity': {
+      id: '/api/statistics/continuity'
+      path: '/api/statistics/continuity'
+      fullPath: '/api/statistics/continuity'
+      preLoaderRoute: typeof ApiStatisticsContinuityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/continuity-stats': {
+      id: '/api/statistics/continuity-stats'
+      path: '/api/statistics/continuity-stats'
+      fullPath: '/api/statistics/continuity-stats'
+      preLoaderRoute: typeof ApiStatisticsContinuityStatsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/exercise-training-days': {
+      id: '/api/statistics/exercise-training-days'
+      path: '/api/statistics/exercise-training-days'
+      fullPath: '/api/statistics/exercise-training-days'
+      preLoaderRoute: typeof ApiStatisticsExerciseTrainingDaysRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/exercise-volume-totals': {
+      id: '/api/statistics/exercise-volume-totals'
+      path: '/api/statistics/exercise-volume-totals'
+      fullPath: '/api/statistics/exercise-volume-totals'
+      preLoaderRoute: typeof ApiStatisticsExerciseVolumeTotalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/exercises': {
+      id: '/api/statistics/exercises'
+      path: '/api/statistics/exercises'
+      fullPath: '/api/statistics/exercises'
+      preLoaderRoute: typeof ApiStatisticsExercisesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/max-weight-history': {
+      id: '/api/statistics/max-weight-history'
+      path: '/api/statistics/max-weight-history'
+      fullPath: '/api/statistics/max-weight-history'
+      preLoaderRoute: typeof ApiStatisticsMaxWeightHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/one-rm-history': {
+      id: '/api/statistics/one-rm-history'
+      path: '/api/statistics/one-rm-history'
+      fullPath: '/api/statistics/one-rm-history'
+      preLoaderRoute: typeof ApiStatisticsOneRmHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/summary': {
+      id: '/api/statistics/summary'
+      path: '/api/statistics/summary'
+      fullPath: '/api/statistics/summary'
+      preLoaderRoute: typeof ApiStatisticsSummaryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/total-volume': {
+      id: '/api/statistics/total-volume'
+      path: '/api/statistics/total-volume'
+      fullPath: '/api/statistics/total-volume'
+      preLoaderRoute: typeof ApiStatisticsTotalVolumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/training-days-by-period': {
+      id: '/api/statistics/training-days-by-period'
+      path: '/api/statistics/training-days-by-period'
+      fullPath: '/api/statistics/training-days-by-period'
+      preLoaderRoute: typeof ApiStatisticsTrainingDaysByPeriodRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/volume': {
+      id: '/api/statistics/volume'
+      path: '/api/statistics/volume'
+      fullPath: '/api/statistics/volume'
+      preLoaderRoute: typeof ApiStatisticsVolumeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/volume-by-body-part': {
+      id: '/api/statistics/volume-by-body-part'
+      path: '/api/statistics/volume-by-body-part'
+      fullPath: '/api/statistics/volume-by-body-part'
+      preLoaderRoute: typeof ApiStatisticsVolumeByBodyPartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/volume-by-exercise': {
+      id: '/api/statistics/volume-by-exercise'
+      path: '/api/statistics/volume-by-exercise'
+      fullPath: '/api/statistics/volume-by-exercise'
+      preLoaderRoute: typeof ApiStatisticsVolumeByExerciseRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/statistics/weight': {
+      id: '/api/statistics/weight'
+      path: '/api/statistics/weight'
+      fullPath: '/api/statistics/weight'
+      preLoaderRoute: typeof ApiStatisticsWeightRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/timers/': {
+      id: '/api/timers/'
+      path: '/api/timers'
+      fullPath: '/api/timers/'
+      preLoaderRoute: typeof ApiTimersIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/timers/$id': {
+      id: '/api/timers/$id'
+      path: '/api/timers/$id'
+      fullPath: '/api/timers/$id'
+      preLoaderRoute: typeof ApiTimersIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/timers/sort-order': {
+      id: '/api/timers/sort-order'
+      path: '/api/timers/sort-order'
+      fullPath: '/api/timers/sort-order'
+      preLoaderRoute: typeof ApiTimersSortOrderRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/timers/sounds': {
+      id: '/api/timers/sounds'
+      path: '/api/timers/sounds'
+      fullPath: '/api/timers/sounds'
+      preLoaderRoute: typeof ApiTimersSoundsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/exercises/$id/body-parts': {
+      id: '/api/exercises/$id/body-parts'
+      path: '/body-parts'
+      fullPath: '/api/exercises/$id/body-parts'
+      preLoaderRoute: typeof ApiExercisesIdBodyPartsRouteImport
+      parentRoute: typeof ApiExercisesIdRoute
+    }
+    '/api/exercises/$id/can-delete': {
+      id: '/api/exercises/$id/can-delete'
+      path: '/can-delete'
+      fullPath: '/api/exercises/$id/can-delete'
+      preLoaderRoute: typeof ApiExercisesIdCanDeleteRouteImport
+      parentRoute: typeof ApiExercisesIdRoute
+    }
+    '/api/logs/$date/exists': {
+      id: '/api/logs/$date/exists'
+      path: '/exists'
+      fullPath: '/api/logs/$date/exists'
+      preLoaderRoute: typeof ApiLogsDateExistsRouteImport
+      parentRoute: typeof ApiLogsDateRoute
+    }
+    '/api/logs/$date/memos': {
+      id: '/api/logs/$date/memos'
+      path: '/memos'
+      fullPath: '/api/logs/$date/memos'
+      preLoaderRoute: typeof ApiLogsDateMemosRouteImport
+      parentRoute: typeof ApiLogsDateRoute
+    }
+    '/api/logs/exercises/latest-sets-multiple': {
+      id: '/api/logs/exercises/latest-sets-multiple'
+      path: '/api/logs/exercises/latest-sets-multiple'
+      fullPath: '/api/logs/exercises/latest-sets-multiple'
+      preLoaderRoute: typeof ApiLogsExercisesLatestSetsMultipleRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs/exercises/$exerciseId/history': {
+      id: '/api/logs/exercises/$exerciseId/history'
+      path: '/api/logs/exercises/$exerciseId/history'
+      fullPath: '/api/logs/exercises/$exerciseId/history'
+      preLoaderRoute: typeof ApiLogsExercisesExerciseIdHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs/exercises/$exerciseId/latest-sets': {
+      id: '/api/logs/exercises/$exerciseId/latest-sets'
+      path: '/api/logs/exercises/$exerciseId/latest-sets'
+      fullPath: '/api/logs/exercises/$exerciseId/latest-sets'
+      preLoaderRoute: typeof ApiLogsExercisesExerciseIdLatestSetsRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -286,13 +997,80 @@ const ProtectedRouteRouteWithChildren = ProtectedRouteRoute._addFileChildren(
   ProtectedRouteRouteChildren,
 )
 
+interface ApiExercisesIdRouteChildren {
+  ApiExercisesIdBodyPartsRoute: typeof ApiExercisesIdBodyPartsRoute
+  ApiExercisesIdCanDeleteRoute: typeof ApiExercisesIdCanDeleteRoute
+}
+
+const ApiExercisesIdRouteChildren: ApiExercisesIdRouteChildren = {
+  ApiExercisesIdBodyPartsRoute: ApiExercisesIdBodyPartsRoute,
+  ApiExercisesIdCanDeleteRoute: ApiExercisesIdCanDeleteRoute,
+}
+
+const ApiExercisesIdRouteWithChildren = ApiExercisesIdRoute._addFileChildren(
+  ApiExercisesIdRouteChildren,
+)
+
+interface ApiLogsDateRouteChildren {
+  ApiLogsDateExistsRoute: typeof ApiLogsDateExistsRoute
+  ApiLogsDateMemosRoute: typeof ApiLogsDateMemosRoute
+}
+
+const ApiLogsDateRouteChildren: ApiLogsDateRouteChildren = {
+  ApiLogsDateExistsRoute: ApiLogsDateExistsRoute,
+  ApiLogsDateMemosRoute: ApiLogsDateMemosRoute,
+}
+
+const ApiLogsDateRouteWithChildren = ApiLogsDateRoute._addFileChildren(
+  ApiLogsDateRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   ProtectedRouteRoute: ProtectedRouteRouteWithChildren,
   LoginRoute: LoginRoute,
   OfflineRoute: OfflineRoute,
-  ApiSplatRoute: ApiSplatRoute,
   ApiHealthRoute: ApiHealthRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiExercisesIdRoute: ApiExercisesIdRouteWithChildren,
+  ApiExercisesBodyPartsRoute: ApiExercisesBodyPartsRoute,
+  ApiExercisesSearchRoute: ApiExercisesSearchRoute,
+  ApiExercisesSortOrderRoute: ApiExercisesSortOrderRoute,
+  ApiExercisesWithBodyPartsRoute: ApiExercisesWithBodyPartsRoute,
+  ApiLogsDateRoute: ApiLogsDateRouteWithChildren,
+  ApiLogsYearMonthsRoute: ApiLogsYearMonthsRoute,
+  ApiStatisticsBodyPartTrainingDaysRoute:
+    ApiStatisticsBodyPartTrainingDaysRoute,
+  ApiStatisticsBodyPartVolumeTotalsRoute:
+    ApiStatisticsBodyPartVolumeTotalsRoute,
+  ApiStatisticsContinuityRoute: ApiStatisticsContinuityRoute,
+  ApiStatisticsContinuityStatsRoute: ApiStatisticsContinuityStatsRoute,
+  ApiStatisticsExerciseTrainingDaysRoute:
+    ApiStatisticsExerciseTrainingDaysRoute,
+  ApiStatisticsExerciseVolumeTotalsRoute:
+    ApiStatisticsExerciseVolumeTotalsRoute,
+  ApiStatisticsExercisesRoute: ApiStatisticsExercisesRoute,
+  ApiStatisticsMaxWeightHistoryRoute: ApiStatisticsMaxWeightHistoryRoute,
+  ApiStatisticsOneRmHistoryRoute: ApiStatisticsOneRmHistoryRoute,
+  ApiStatisticsSummaryRoute: ApiStatisticsSummaryRoute,
+  ApiStatisticsTotalVolumeRoute: ApiStatisticsTotalVolumeRoute,
+  ApiStatisticsTrainingDaysByPeriodRoute:
+    ApiStatisticsTrainingDaysByPeriodRoute,
+  ApiStatisticsVolumeRoute: ApiStatisticsVolumeRoute,
+  ApiStatisticsVolumeByBodyPartRoute: ApiStatisticsVolumeByBodyPartRoute,
+  ApiStatisticsVolumeByExerciseRoute: ApiStatisticsVolumeByExerciseRoute,
+  ApiStatisticsWeightRoute: ApiStatisticsWeightRoute,
+  ApiTimersIdRoute: ApiTimersIdRoute,
+  ApiTimersSortOrderRoute: ApiTimersSortOrderRoute,
+  ApiTimersSoundsRoute: ApiTimersSoundsRoute,
+  ApiExercisesIndexRoute: ApiExercisesIndexRoute,
+  ApiLogsIndexRoute: ApiLogsIndexRoute,
+  ApiTimersIndexRoute: ApiTimersIndexRoute,
+  ApiLogsExercisesLatestSetsMultipleRoute:
+    ApiLogsExercisesLatestSetsMultipleRoute,
+  ApiLogsExercisesExerciseIdHistoryRoute:
+    ApiLogsExercisesExerciseIdHistoryRoute,
+  ApiLogsExercisesExerciseIdLatestSetsRoute:
+    ApiLogsExercisesExerciseIdLatestSetsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
