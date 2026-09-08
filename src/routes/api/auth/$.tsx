@@ -1,3 +1,4 @@
+import { ensureDatabase } from '@/routes/api/-db'
 import { createFileRoute } from '@tanstack/react-router'
 
 /**
@@ -19,6 +20,7 @@ async function handleAuth(request: Request): Promise<Response> {
   // 同一の異常系契約: 例外は握り潰さず log＋JSON 500 に正規化する。
   // DB断・validate throw・secret 不備時の観測可能性を経路依存にしない。
   try {
+    await ensureDatabase()
     const { auth } = await import('@/auth')
     return await auth.handler(request)
   } catch (error) {

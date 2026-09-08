@@ -47,3 +47,15 @@ _Avoid_: DB・キャッシュ層の再設計
 **oRPC試験導入**:
 完了条件に含めない検証目的の導入。読み取り専用の小系統で試験し、型安全呼び出しと既存Honoとの共存確認を成功基準とする。
 _Avoid_: oRPC本格導入
+
+**無料枠運用**:
+Cloudflare側を課金発生させずに運用すること。超過時は停止・縮退を許容し、アラート＋手動復旧する。
+_Avoid_: 実質無料、少額課金許容
+
+**Cloudflare系**:
+Workers＋D1＋Workers Cache＋Static Assetsの総称。Vercel/Neon/Upstashの置換先。
+_Avoid_: Pages単体、KV単体
+
+**完全Vercel脱却**:
+Vercel/Neon/Upstash依存をゼロにし、Authコールバック・Env・PWA静的資産・vercel.svg除去まで含めてCloudflare側に寄せること。
+_Avoid_: Hostingのみ移行、3点のみ移行

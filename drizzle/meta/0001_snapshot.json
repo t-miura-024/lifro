@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "e70896ff-7f60-4f64-b9ef-2b932575f8f1",
-  "prevId": "00000000-0000-0000-0000-000000000000",
+  "id": "7da56333-445a-4dc0-9dd5-c395dfc44e33",
+  "prevId": "e70896ff-7f60-4f64-b9ef-2b932575f8f1",
   "tables": {
     "account": {
       "name": "account",
@@ -328,7 +328,12 @@
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
-      "checkConstraints": {}
+      "checkConstraints": {
+        "body_parts_category_check": {
+          "name": "body_parts_category_check",
+          "value": "\"category\" IN ('CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG')"
+        }
+      }
     },
     "exercise_body_parts": {
       "name": "exercise_body_parts",

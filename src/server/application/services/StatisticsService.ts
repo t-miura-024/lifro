@@ -1,13 +1,25 @@
 import { cacheService } from '@/server/infrastructure/cache'
 import { db } from '@/server/infrastructure/database/drizzle/client'
-import { type SQL, sql } from 'drizzle-orm'
+import { toLocalDateString } from '@/server/shared/date-utils'
+import {
+  formatPeriodKey,
+  toPeriodKey,
+  type PeriodGranularity,
+} from '@/server/shared/period'
+import { getPeriodExprSql } from '@/server/infrastructure/repositories/drizzle/statistics-sql'
+import { sql } from 'drizzle-orm'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
 
 dayjs.extend(isoWeek)
 
-/** 時間粒度 */
-export type TimeGranularity = 'day' | 'week' | 'month'
+/** 不正period行の縮退通知。warn政策は呼び出し側（application層）が持つ。 */
+const warnInvalidPeriod = (message: string): void => {
+  console.warn(message)
+}
+
+/** 時間粒度（infra 共通の PeriodGranularity と同義。公開名は保つ） */
+export type TimeGranularity = PeriodGranularity
 
 /** 期間ボリュームデータ */
 export type PeriodVolume = {
@@ -104,34 +116,6 @@ export type BodyPartGranularity = 'category' | 'bodyPart'
 
 export class StatisticsService {
   /**
-   * 日付を期間キーに変換
-   */
-  private formatPeriodKey(date: dayjs.Dayjs, granularity: TimeGranularity): string {
-    switch (granularity) {
-      case 'day':
-        return date.format('YYYY-MM-DD')
-      case 'week':
-        return `${date.isoWeekYear()}-W${String(date.isoWeek()).padStart(2, '0')}`
-      case 'month':
-        return date.format('YYYY-MM')
-    }
-  }
-
-  /**
-   * PostgreSQL用の期間フォーマット文字列を取得（drizzle sqlで使用）
-   */
-  private getPeriodFormatSql(granularity: TimeGranularity): SQL {
-    switch (granularity) {
-      case 'day':
-        return sql.raw("'YYYY-MM-DD'")
-      case 'week':
-        return sql.raw('\'IYYY-"W"IW\'')
-      case 'month':
-        return sql.raw("'YYYY-MM'")
-    }
-  }
-
-  /**
    * 期間内の全期間キーを生成（最適化版）
    */
   private generatePeriodKeys(
@@ -148,7 +132,7 @@ export class StatisticsService {
     const step = granularity === 'day' ? 'day' : granularity === 'week' ? 'week' : 'month'
 
     while (current.isBefore(end) || current.isSame(end, 'day')) {
-      const key = this.formatPeriodKey(current, granularity)
+      const key = formatPeriodKey(current, granularity)
       if (!seen.has(key)) {
         seen.add(key)
         keys.push(key)
@@ -169,8 +153,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<ExerciseVolumeByPeriod[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -179,39 +163,46 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const periodFormatSql = this.getPeriodFormatSql(granularity)
+      const periodExpr = getPeriodExprSql(sql`s.date`, granularity)
 
-      const results = await db.execute<
+      const results = await db.all<
         {
           period: string
           exercise_id: number
           exercise_name: string
           volume: number
-          set_count: bigint
+          set_count: number
         }>
       (sql`
         SELECT
-          to_char(s.date, ${periodFormatSql}) as period,
+          ${periodExpr} as period,
           s.exercise_id,
           e.name as exercise_name,
-          SUM(s.weight * s.reps)::float as volume,
-          COUNT(*)::bigint as set_count
+          CAST(SUM(s.weight * s.reps) AS REAL) as volume,
+          CAST(COUNT(*) AS INTEGER) as set_count
         FROM sets s
         JOIN exercises e ON e.id = s.exercise_id
         WHERE s.user_id = ${userId}
-          AND s.date >= ${startDate}
-          AND s.date <= ${endDate}
+          AND s.date >= ${startStr}
+          AND s.date <= ${endStr}
         GROUP BY 1, s.exercise_id, e.name
         ORDER BY period ASC
       `)
 
-      return results.map((r) => ({
-        period: r.period,
-        exerciseId: r.exercise_id,
-        exerciseName: r.exercise_name,
-        volume: r.volume,
-        setCount: Number(r.set_count),
-      }))
+      // 不正period行は warn して skip し、残り集計を返す
+      const mapped: ExerciseVolumeByPeriod[] = []
+      for (const r of results) {
+        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+        if (period === null) continue
+        mapped.push({
+          period,
+          exerciseId: r.exercise_id,
+          exerciseName: r.exercise_name,
+          volume: r.volume,
+          setCount: Number(r.set_count),
+        })
+      }
+      return mapped
     })
   }
 
@@ -224,8 +215,8 @@ export class StatisticsService {
     startDate: Date,
     endDate: Date,
   ): Promise<ExerciseVolumeTotal[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -234,24 +225,24 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const results = await db.execute<
+      const results = await db.all<
         {
           exercise_id: number
           exercise_name: string
           volume: number
-          set_count: bigint
+          set_count: number
         }>
       (sql`
         SELECT
           s.exercise_id,
           e.name as exercise_name,
-          SUM(s.weight * s.reps)::float as volume,
-          COUNT(*)::bigint as set_count
+          CAST(SUM(s.weight * s.reps) AS REAL) as volume,
+          CAST(COUNT(*) AS INTEGER) as set_count
         FROM sets s
         JOIN exercises e ON e.id = s.exercise_id
         WHERE s.user_id = ${userId}
-          AND s.date >= ${startDate}
-          AND s.date <= ${endDate}
+          AND s.date >= ${startStr}
+          AND s.date <= ${endStr}
         GROUP BY s.exercise_id, e.name
         ORDER BY volume DESC
       `)
@@ -275,8 +266,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<PeriodVolume[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -285,28 +276,30 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const periodFormatSql = this.getPeriodFormatSql(granularity)
+      const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.execute<
+      const results = await db.all<
         {
           period: string
           volume: number
         }>
       (sql`
         SELECT
-          to_char(date, ${periodFormatSql}) as period,
-          SUM(weight * reps)::float as volume
+          ${periodExpr} as period,
+          CAST(SUM(weight * reps) AS REAL) as volume
         FROM sets
         WHERE user_id = ${userId}
-          AND date >= ${startDate}
-          AND date <= ${endDate}
+          AND date >= ${startStr}
+          AND date <= ${endStr}
         GROUP BY 1
       `)
 
-      // 結果をMapに変換
+      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
       const volumeMap = new Map<string, number>()
       for (const r of results) {
-        volumeMap.set(r.period, r.volume)
+        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+        if (period === null) continue
+        volumeMap.set(period, r.volume)
       }
 
       // 期間内の全期間キーを生成（データがない期間は 0）
@@ -329,8 +322,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<MaxWeightRecord[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -339,30 +332,32 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const periodFormatSql = this.getPeriodFormatSql(granularity)
+      const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.execute<
+      const results = await db.all<
         {
           period: string
           max_weight: number
         }>
       (sql`
         SELECT
-          to_char(date, ${periodFormatSql}) as period,
-          MAX(weight)::float as max_weight
+          ${periodExpr} as period,
+          CAST(MAX(weight) AS REAL) as max_weight
         FROM sets
         WHERE user_id = ${userId}
           AND exercise_id = ${exerciseId}
-          AND date >= ${startDate}
-          AND date <= ${endDate}
+          AND date >= ${startStr}
+          AND date <= ${endStr}
         GROUP BY 1
         ORDER BY period ASC
       `)
 
-      // 結果をMapに変換
+      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
       const maxWeightMap = new Map<string, number>()
       for (const r of results) {
-        maxWeightMap.set(r.period, r.max_weight)
+        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+        if (period === null) continue
+        maxWeightMap.set(period, r.max_weight)
       }
 
       // 期間内の全期間キーを生成
@@ -391,8 +386,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<OneRMRecord[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -401,30 +396,32 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const periodFormatSql = this.getPeriodFormatSql(granularity)
+      const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.execute<
+      const results = await db.all<
         {
           period: string
           max_one_rm: number
         }>
       (sql`
         SELECT
-          to_char(date, ${periodFormatSql}) as period,
-          MAX(weight * (1 + reps / 29.5))::float as max_one_rm
+          ${periodExpr} as period,
+          CAST(MAX(weight * (1 + reps / 29.5)) AS REAL) as max_one_rm
         FROM sets
         WHERE user_id = ${userId}
           AND exercise_id = ${exerciseId}
-          AND date >= ${startDate}
-          AND date <= ${endDate}
+          AND date >= ${startStr}
+          AND date <= ${endStr}
         GROUP BY 1
         ORDER BY period ASC
       `)
 
-      // 結果をMapに変換
+      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
       const oneRMMap = new Map<string, number>()
       for (const r of results) {
-        oneRMMap.set(r.period, r.max_one_rm)
+        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+        if (period === null) continue
+        oneRMMap.set(period, r.max_one_rm)
       }
 
       // 期間内の全期間キーを生成
@@ -450,17 +447,17 @@ export class StatisticsService {
 
     return cacheService.through(cacheKey, async () => {
       // 集計クエリ
-      const statsResult = await db.execute<
+      const statsResult = await db.all<
         {
           total_volume: number | null
-          total_sets: bigint
-          total_workouts: bigint
+          total_sets: number
+          total_workouts: number
         }>
       (sql`
         SELECT
-          SUM(weight * reps)::float as total_volume,
-          COUNT(*)::bigint as total_sets,
-          COUNT(DISTINCT date)::bigint as total_workouts
+          CAST(SUM(weight * reps) AS REAL) as total_volume,
+          CAST(COUNT(*) AS INTEGER) as total_sets,
+          CAST(COUNT(DISTINCT date) AS INTEGER) as total_workouts
         FROM sets
         WHERE user_id = ${userId}
       `)
@@ -477,7 +474,7 @@ export class StatisticsService {
       }
 
       // ストリーク計算用に日付のみ取得
-      const datesResult = await db.execute<{ date: Date }>(sql`
+      const datesResult = await db.all<{ date: string }>(sql`
         SELECT DISTINCT date
         FROM sets
         WHERE user_id = ${userId}
@@ -506,8 +503,8 @@ export class StatisticsService {
     startDate: Date,
     endDate: Date,
   ): Promise<ContinuityStats> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -517,12 +514,12 @@ export class StatisticsService {
 
     return cacheService.through(cacheKey, async () => {
       // 期間内のユニーク日数を取得
-      const totalDaysResult = await db.execute<{ total_days: bigint }>(sql`
-        SELECT COUNT(DISTINCT date)::bigint as total_days
+      const totalDaysResult = await db.all<{ total_days: number }>(sql`
+        SELECT CAST(COUNT(DISTINCT date) AS INTEGER) as total_days
         FROM sets
         WHERE user_id = ${userId}
-          AND date >= ${startDate}
-          AND date <= ${endDate}
+          AND date >= ${startStr}
+          AND date <= ${endStr}
       `)
 
       const totalDays = Number(totalDaysResult[0]?.total_days || 0)
@@ -536,12 +533,12 @@ export class StatisticsService {
       }
 
       // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
-      const oneYearAgo = dayjs().subtract(1, 'year').toDate()
-      const datesResult = await db.execute<{ date: Date }>(sql`
+      const oneYearAgoStr = dayjs().subtract(1, 'year').format('YYYY-MM-DD')
+      const datesResult = await db.all<{ date: string }>(sql`
         SELECT DISTINCT date
         FROM sets
         WHERE user_id = ${userId}
-          AND date >= ${oneYearAgo}
+          AND date >= ${oneYearAgoStr}
         ORDER BY date DESC
       `)
 
@@ -588,8 +585,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: TimeGranularity,
   ): Promise<TrainingDaysByPeriod[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -598,28 +595,30 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const periodFormatSql = this.getPeriodFormatSql(granularity)
+      const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.execute<
+      const results = await db.all<
         {
           period: string
-          days: bigint
+          days: number
         }>
       (sql`
         SELECT
-          to_char(date, ${periodFormatSql}) as period,
-          COUNT(DISTINCT date)::bigint as days
+          ${periodExpr} as period,
+          CAST(COUNT(DISTINCT date) AS INTEGER) as days
         FROM sets
         WHERE user_id = ${userId}
-          AND date >= ${startDate}
-          AND date <= ${endDate}
+          AND date >= ${startStr}
+          AND date <= ${endStr}
         GROUP BY 1
       `)
 
-      // 結果をMapに変換
+      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
       const daysMap = new Map<string, number>()
       for (const r of results) {
-        daysMap.set(r.period, Number(r.days))
+        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+        if (period === null) continue
+        daysMap.set(period, Number(r.days))
       }
 
       // 期間内の全期間キーを生成
@@ -640,8 +639,8 @@ export class StatisticsService {
     startDate: Date,
     endDate: Date,
   ): Promise<ExerciseTrainingDays[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -650,22 +649,22 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const results = await db.execute<
+      const results = await db.all<
         {
           exercise_id: number
           exercise_name: string
-          days: bigint
+          days: number
         }>
       (sql`
         SELECT
           s.exercise_id,
           e.name as exercise_name,
-          COUNT(DISTINCT s.date)::bigint as days
+          CAST(COUNT(DISTINCT s.date) AS INTEGER) as days
         FROM sets s
         JOIN exercises e ON e.id = s.exercise_id
         WHERE s.user_id = ${userId}
-          AND s.date >= ${startDate}
-          AND s.date <= ${endDate}
+          AND s.date >= ${startStr}
+          AND s.date <= ${endStr}
         GROUP BY s.exercise_id, e.name
         ORDER BY days DESC
       `)
@@ -801,8 +800,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: BodyPartGranularity,
   ): Promise<BodyPartVolumeTotal[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -813,23 +812,23 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       if (granularity === 'category') {
         // カテゴリ単位で集計
-        const results = await db.execute<
+        const results = await db.all<
           {
             category: string
             volume: number
-            set_count: bigint
+            set_count: number
           }>
         (sql`
           SELECT
             bp.category,
-            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume,
-            COUNT(*)::bigint as set_count
+            CAST(SUM(s.weight * s.reps * ebp.load_ratio / 100.0) AS REAL) as volume,
+            CAST(COUNT(*) AS INTEGER) as set_count
           FROM sets s
           JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
           JOIN body_parts bp ON bp.id = ebp.body_part_id
           WHERE s.user_id = ${userId}
-            AND s.date >= ${startDate}
-            AND s.date <= ${endDate}
+            AND s.date >= ${startStr}
+            AND s.date <= ${endStr}
           GROUP BY bp.category
           ORDER BY volume DESC
         `)
@@ -843,27 +842,27 @@ export class StatisticsService {
         }))
       }
       // 部位単位で集計
-      const results = await db.execute<
+      const results = await db.all<
         {
           body_part_id: number
           category: string
           body_part_name: string
           volume: number
-          set_count: bigint
+          set_count: number
         }>
       (sql`
           SELECT
             bp.id as body_part_id,
             bp.category,
             bp.name as body_part_name,
-            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume,
-            COUNT(*)::bigint as set_count
+            CAST(SUM(s.weight * s.reps * ebp.load_ratio / 100.0) AS REAL) as volume,
+            CAST(COUNT(*) AS INTEGER) as set_count
           FROM sets s
           JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
           JOIN body_parts bp ON bp.id = ebp.body_part_id
           WHERE s.user_id = ${userId}
-            AND s.date >= ${startDate}
-            AND s.date <= ${endDate}
+            AND s.date >= ${startStr}
+            AND s.date <= ${endStr}
           GROUP BY bp.id, bp.category, bp.name
           ORDER BY volume DESC
         `)
@@ -889,8 +888,8 @@ export class StatisticsService {
     timeGranularity: TimeGranularity,
     bodyPartGranularity: BodyPartGranularity,
   ): Promise<BodyPartVolumeByPeriod[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -899,11 +898,11 @@ export class StatisticsService {
     )
 
     return cacheService.through(cacheKey, async () => {
-      const periodFormatSql = this.getPeriodFormatSql(timeGranularity)
+      const periodExpr = getPeriodExprSql(sql`s.date`, timeGranularity)
 
       if (bodyPartGranularity === 'category') {
         // カテゴリ単位で集計
-        const results = await db.execute<
+        const results = await db.all<
           {
             period: string
             category: string
@@ -911,29 +910,36 @@ export class StatisticsService {
           }>
         (sql`
           SELECT
-            to_char(s.date, ${periodFormatSql}) as period,
+            ${periodExpr} as period,
             bp.category,
-            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume
+            CAST(SUM(s.weight * s.reps * ebp.load_ratio / 100.0) AS REAL) as volume
           FROM sets s
           JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
           JOIN body_parts bp ON bp.id = ebp.body_part_id
           WHERE s.user_id = ${userId}
-            AND s.date >= ${startDate}
-            AND s.date <= ${endDate}
+            AND s.date >= ${startStr}
+            AND s.date <= ${endStr}
           GROUP BY 1, bp.category
           ORDER BY period ASC
         `)
 
-        return results.map((r) => ({
-          period: r.period,
-          bodyPartId: 0,
-          category: r.category,
-          bodyPartName: '',
-          volume: r.volume,
-        }))
+        // 不正period行は warn して skip し、残り集計を返す
+        const mapped: BodyPartVolumeByPeriod[] = []
+        for (const r of results) {
+          const period = toPeriodKey(r.period, timeGranularity, warnInvalidPeriod)
+          if (period === null) continue
+          mapped.push({
+            period,
+            bodyPartId: 0,
+            category: r.category,
+            bodyPartName: '',
+            volume: r.volume,
+          })
+        }
+        return mapped
       }
       // 部位単位で集計
-      const results = await db.execute<
+      const results = await db.all<
         {
           period: string
           body_part_id: number
@@ -943,28 +949,35 @@ export class StatisticsService {
         }>
       (sql`
           SELECT
-            to_char(s.date, ${periodFormatSql}) as period,
+            ${periodExpr} as period,
             bp.id as body_part_id,
             bp.category,
             bp.name as body_part_name,
-            SUM(s.weight * s.reps * ebp.load_ratio / 100.0)::float as volume
+            CAST(SUM(s.weight * s.reps * ebp.load_ratio / 100.0) AS REAL) as volume
           FROM sets s
           JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
           JOIN body_parts bp ON bp.id = ebp.body_part_id
           WHERE s.user_id = ${userId}
-            AND s.date >= ${startDate}
-            AND s.date <= ${endDate}
+            AND s.date >= ${startStr}
+            AND s.date <= ${endStr}
           GROUP BY 1, bp.id, bp.category, bp.name
           ORDER BY period ASC
         `)
 
-      return results.map((r) => ({
-        period: r.period,
-        bodyPartId: r.body_part_id,
-        category: r.category,
-        bodyPartName: r.body_part_name,
-        volume: r.volume,
-      }))
+      // 不正period行は warn して skip し、残り集計を返す
+      const mapped: BodyPartVolumeByPeriod[] = []
+      for (const r of results) {
+        const period = toPeriodKey(r.period, timeGranularity, warnInvalidPeriod)
+        if (period === null) continue
+        mapped.push({
+          period,
+          bodyPartId: r.body_part_id,
+          category: r.category,
+          bodyPartName: r.body_part_name,
+          volume: r.volume,
+        })
+      }
+      return mapped
     })
   }
 
@@ -978,8 +991,8 @@ export class StatisticsService {
     endDate: Date,
     granularity: BodyPartGranularity,
   ): Promise<BodyPartTrainingDays[]> {
-    const startStr = startDate.toISOString().split('T')[0]
-    const endStr = endDate.toISOString().split('T')[0]
+    const startStr = toLocalDateString(startDate)
+    const endStr = toLocalDateString(endDate)
     const cacheKey = cacheService.buildKey(
       userId,
       'statistics',
@@ -990,21 +1003,21 @@ export class StatisticsService {
     return cacheService.through(cacheKey, async () => {
       if (granularity === 'category') {
         // カテゴリ単位で集計
-        const results = await db.execute<
+        const results = await db.all<
           {
             category: string
-            days: bigint
+            days: number
           }>
         (sql`
           SELECT
             bp.category,
-            COUNT(DISTINCT s.date)::bigint as days
+            CAST(COUNT(DISTINCT s.date) AS INTEGER) as days
           FROM sets s
           JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
           JOIN body_parts bp ON bp.id = ebp.body_part_id
           WHERE s.user_id = ${userId}
-            AND s.date >= ${startDate}
-            AND s.date <= ${endDate}
+            AND s.date >= ${startStr}
+            AND s.date <= ${endStr}
           GROUP BY bp.category
           ORDER BY days DESC
         `)
@@ -1017,25 +1030,25 @@ export class StatisticsService {
         }))
       }
       // 部位単位で集計
-      const results = await db.execute<
+      const results = await db.all<
         {
           body_part_id: number
           category: string
           body_part_name: string
-          days: bigint
+          days: number
         }>
       (sql`
           SELECT
             bp.id as body_part_id,
             bp.category,
             bp.name as body_part_name,
-            COUNT(DISTINCT s.date)::bigint as days
+            CAST(COUNT(DISTINCT s.date) AS INTEGER) as days
           FROM sets s
           JOIN exercise_body_parts ebp ON ebp.exercise_id = s.exercise_id
           JOIN body_parts bp ON bp.id = ebp.body_part_id
           WHERE s.user_id = ${userId}
-            AND s.date >= ${startDate}
-            AND s.date <= ${endDate}
+            AND s.date >= ${startStr}
+            AND s.date <= ${endStr}
           GROUP BY bp.id, bp.category, bp.name
           ORDER BY days DESC
         `)

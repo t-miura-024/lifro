@@ -1,3 +1,4 @@
+import { ensureDatabase } from '@/routes/api/-db'
 import { toOrpcResponse as toResponse } from '@/server/orpc/http'
 import { call } from '@orpc/server'
 import { createFileRoute } from '@tanstack/react-router'
@@ -8,6 +9,7 @@ export const Route = createFileRoute('/api/logs/exercises/latest-sets-multiple')
       // 読取専用のためoRPC規約に寄せてGETに再分類する（旧POST互換は保たない。方針通り）。
       GET: async ({ request }) => {
         try {
+          await ensureDatabase()
           const [{ createORPCContext }, { router }] = await Promise.all([
             import('@/server/orpc/context'),
             import('@/server/orpc/router'),

@@ -1,56 +1,34 @@
-# drizzle マイグレーション運用メモ
+# drizzle マイグレーション運用メモ（D1。ADR 0012）
 
 マイグレーション実体は `drizzle/` 直下（`0000_*.sql` + `meta/_journal.json`）。
-履歴テーブルはデフォルトの `drizzle.__drizzle_migrations(id, hash, created_at)` を使う
-（`drizzle.config.ts` で `migrations.table/schema` を指定していないため）。
+`drizzle.config.ts` は `dialect: 'sqlite'`。Postgres 時代の `0000`/`0001`
+（Neon 用 DDL・DML）は D1 に適用できないため、同一の論理スキーマ
+（14テーブル・23index・12FK・列名）を SQLite ベースライン `0000` として
+再生成した。旧ファイルは git 履歴に残る。方言差の写像
+（serial→INTEGER PK AUTOINCREMENT、timestamp→INTEGER(ms)、date→TEXT、
+double precision→REAL、boolean→INTEGER、enum→TEXT）は本文・M2完了報告参照。
 
-## 新規DB（空のDB）に適用する
-
-```sh
-DATABASE_URL=postgres://... bun run db:migrate
-```
-
-`drizzle-kit migrate` が履歴テーブルを自動作成し、`0000` から順に適用する。
-
-## 既存DB（Prisma 管理だった Neon DB）に適用する
-
-本番 Neon DB には Prisma の 9 マイグレーション適用済みのテーブル群が存在する。
-そのまま `bun run db:migrate` を実行すると、初期マイグレーション `0000` が
-`CREATE TABLE` を再実行して失敗する（履歴テーブルが空のため未適用と判定される）。
-
-drizzle の適用判定は「履歴テーブルの最新1行の `created_at` < journal の `when` なら適用」なので、
-既存スキーマと等価な `0000` を「適用済み」としてマーキングする（ベースライン）。
-`0000` は Prisma 最終状態から `db:pull` → `db:generate` した差分なしスナップショットのため、
-中身の実行は不要でマーキングのみでよい。
-
-前提: 既存DBのスキーマが `0000_fuzzy_typhoid_mary.sql` と等価なこと。
-疑わしい場合は先にステージングDBで `db:migrate` → アプリ疎通を確認する。
+## D1（新規・空）に適用する
 
 ```sh
-# 1. hash と when を手元で取得（hash = マイグレーションSQL全文の sha256）
-shasum -a 256 drizzle/0000_fuzzy_typhoid_mary.sql
-# => 620901192dd1e431737ac6265a1d92a180ef7c13e14dc44042b014cabea04d92
+bunx wrangler d1 migrations apply lifro-db --remote
 ```
 
-```sql
--- 2. 既存DB上で履歴テーブルを用意し、0000 を適用済みとして記録する
-CREATE SCHEMA IF NOT EXISTS drizzle;
-CREATE TABLE IF NOT EXISTS drizzle.__drizzle_migrations (
-  id SERIAL PRIMARY KEY,
-  hash TEXT NOT NULL,
-  created_at BIGINT
-);
-INSERT INTO drizzle.__drizzle_migrations (hash, created_at)
-VALUES ('620901192dd1e431737ac6265a1d92a180ef7c13e14dc44042b014cabea04d92', 1788432944505);
-```
+前提: `wrangler.toml` の `[[d1_databases]]`（M1申送り）で `lifro-db` が定義済みなこと。
 
-`when`（`created_at` に入れる値）は `drizzle/meta/_journal.json` の該当 entry の `when` を使う。
-SQL ファイルを再生成したら hash と when は変わるため、その都度読み替えること。
+## スキーマ変更時
 
 ```sh
-# 3. 以降は通常どおり。新規マイグレーション（0001〜）のみ適用される
-DATABASE_URL=postgres://... bun run db:migrate
+bun run db:generate   # drizzle/ に新規マイグレーションを生成
+bun run db:check      # スキーマとスナップショットの整合性確認
 ```
 
-なお Prisma の `_prisma_migrations` テーブルは drizzle の動作に影響しないため残してよい。
-9 migrations の内容は `0000` に折り込み済みのため、既存DBへの再適用は不要。
+`db:migrate` / `db:pull` / `db:studio`（`package.json` 参照）は Neon 前提の
+残骸のため D1 では使わない。リモート適用は上記 wrangler 経由が正手順。
+
+## 既存データ（Neon）の引継ぎ
+
+Neon 側の実データ移行はファイルベースのマイグレーションでは行わない。
+手順（退避・投入・検証）は M4 のデプロイガイドに申送り。旧 `0001` に含まれた
+データ移行 DML（`users`→`user` 複写・旧 `sessions` 削除）は Postgres 固有
+（`lower()`/`split_part()`/`::text` 等）のため、そのまま D1 に流用しないこと。

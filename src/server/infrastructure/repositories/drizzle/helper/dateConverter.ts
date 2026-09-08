@@ -24,15 +24,3 @@ export const toDateString = (date: Date | string): string =>
  */
 export const toISOString = (date: Date | string): string =>
   typeof date === 'string' ? date : date.toISOString()
-
-/**
- * Date型をローカルタイムゾーンのYYYY-MM-DD形式の文字列に変換
- *
- * date型カラムとの比較やseedの日付判定など、クエリ条件の組み立てに使う。
- * toDateString(Date) は toISOString 経由でUTCにずれるため、月窓・当日判定にはこちらを使う。
- */
-export const toLocalDateString = (date: Date): string => {
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
-}

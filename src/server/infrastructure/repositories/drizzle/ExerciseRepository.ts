@@ -4,6 +4,7 @@ import { and, asc, eq, max, sql } from 'drizzle-orm'
 import { db } from '../../database/drizzle/client'
 import { exercises, sets } from '../../database/drizzle/schema'
 import { toISOString } from './helper'
+import { bulkUpdateSortOrder } from './sort-order-helper'
 
 /** LIKEパターンの特殊文字（\, %, _）をエスケープする */
 function escapeLikePattern(value: string): string {
@@ -34,7 +35,7 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
       .select()
       .from(exercises)
       .where(
-        and(eq(exercises.userId, userId), sql`${exercises.name} ILIKE ${pattern} ESCAPE '\\'`),
+        and(eq(exercises.userId, userId), sql`${exercises.name} COLLATE NOCASE LIKE ${pattern} ESCAPE '\\'`),
       )
       .orderBy(asc(exercises.sortIndex))
 
@@ -100,21 +101,12 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
   }
 
   async updateSortOrder(userId: number, exercisesInput: ExerciseSortOrderInput[]): Promise<void> {
-    if (exercisesInput.length === 0) return
-
-    // VALUES句を構築: (id, sortIndex), (id, sortIndex), ...
-    const values = sql.join(
-      exercisesInput.map((e) => sql`(${e.id}::int, ${e.sortIndex}::int)`),
-      sql`, `,
+    await bulkUpdateSortOrder(
+      db,
+      'exercises',
+      userId,
+      exercisesInput,
     )
-
-    // 1回のクエリで一括更新
-    await db.execute(sql`
-      UPDATE exercises AS e
-      SET sort_index = v.sort_index, updated_at = NOW()
-      FROM (VALUES ${values}) AS v(id, sort_index)
-      WHERE e.id = v.id AND e.user_id = ${userId}
-    `)
   }
 
   async delete(userId: number, exerciseId: number): Promise<void> {

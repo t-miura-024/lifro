@@ -1,7 +1,7 @@
-import { boolean, index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-orm/pg-core'
+import { index, integer, sqliteTable, text, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 /**
- * better-auth 既定スキーマ（ADR 0008）。
+ * better-auth 既定スキーマ（ADR 0008。D1/SQLite 写像は ADR 0012）。
  *
  * 旧テーブル（`users` / `accounts` / `sessions`。`schema.ts` 参照）とは
  * 列構成が非互換のため、別テーブルとして追加する。
@@ -9,18 +9,21 @@ import { boolean, index, pgTable, text, timestamp, uniqueIndex } from 'drizzle-o
  * better-auth v1.7 の既定モデルに準拠する。`account.issuer` は v1.7 で必須化された
  * OAuth アカウント識別子のため欠かせない。JS キーは camelCase、DB 列は
  * 既存テーブルと同様 snake_case とし、Drizzle アダプタの列名解決に任せる。
+ *
+ * Postgres→SQLite写像: timestamp(3)→INTEGER(ms)、boolean→INTEGER(0/1)。
+ * TSレベルの型（Date/boolean）は Postgres 版と等価のため、呼び出し側の型互換は維持される。
  */
 
-export const user = pgTable(
+export const user = sqliteTable(
   'user',
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
     email: text('email').notNull(),
-    emailVerified: boolean('email_verified').notNull().default(false),
+    emailVerified: integer('email_verified', { mode: 'boolean' }).notNull().default(false),
     image: text('image'),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 })
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
@@ -28,14 +31,14 @@ export const user = pgTable(
   (t) => [uniqueIndex('user_email_key').on(t.email)],
 )
 
-export const session = pgTable(
+export const session = sqliteTable(
   'session',
   {
     id: text('id').primaryKey(),
-    expiresAt: timestamp('expires_at', { precision: 3 }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
     token: text('token').notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 })
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
@@ -48,7 +51,7 @@ export const session = pgTable(
   (t) => [uniqueIndex('session_token_key').on(t.token), index('session_user_id_idx').on(t.userId)],
 )
 
-export const account = pgTable(
+export const account = sqliteTable(
   'account',
   {
     id: text('id').primaryKey(),
@@ -60,13 +63,13 @@ export const account = pgTable(
     accessToken: text('access_token'),
     refreshToken: text('refresh_token'),
     idToken: text('id_token'),
-    accessTokenExpiresAt: timestamp('access_token_expires_at', { precision: 3 }),
-    refreshTokenExpiresAt: timestamp('refresh_token_expires_at', { precision: 3 }),
+    accessTokenExpiresAt: integer('access_token_expires_at', { mode: 'timestamp_ms' }),
+    refreshTokenExpiresAt: integer('refresh_token_expires_at', { mode: 'timestamp_ms' }),
     scope: text('scope'),
     password: text('password'),
     issuer: text('issuer').notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 })
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
       .notNull()
       .defaultNow()
       .$onUpdate(() => new Date()),
@@ -74,15 +77,15 @@ export const account = pgTable(
   (t) => [index('account_user_id_idx').on(t.userId)],
 )
 
-export const verification = pgTable(
+export const verification = sqliteTable(
   'verification',
   {
     id: text('id').primaryKey(),
     identifier: text('identifier').notNull(),
     value: text('value').notNull(),
-    expiresAt: timestamp('expires_at', { precision: 3 }).notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 })
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
       .defaultNow()
       .$onUpdate(() => new Date()),
   },

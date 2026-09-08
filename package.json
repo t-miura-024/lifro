@@ -9,6 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "vite preview --port 3000",
+    "deploy": "bun run build && wrangler deploy",
+    "cf-typegen": "wrangler types",
     "lint": "biome lint .",
     "format": "biome format . --write",
     "check": "biome check --write .",
@@ -35,11 +37,9 @@
     "@orpc/zod": "^1.15.0",
     "@tanstack/react-router": "^1.170.32",
     "@tanstack/react-start": "^1.168.49",
-    "@upstash/redis": "^1.36.1",
     "better-auth": "^1.7.2",
     "dayjs": "^1.11.19",
     "drizzle-orm": "^0.45.2",
-    "postgres": "^3.4.9",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-hook-form": "^7.69.0",
@@ -50,6 +50,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@cloudflare/vite-plugin": "^1.54.4",
     "@serwist/vite": "9.5.0",
     "@tanstack/router-plugin": "^1.168.35",
     "@types/node": "^20",
@@ -58,6 +59,7 @@
     "@vitejs/plugin-react": "^4.7.0",
     "drizzle-kit": "^0.31.10",
     "typescript": "^5",
-    "vite": "^7.0.0"
+    "vite": "^7.0.0",
+    "wrangler": "^4.129.0"
   }
 }
