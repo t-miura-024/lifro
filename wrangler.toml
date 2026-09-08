@@ -23,4 +23,4 @@ enabled = true
 binding = "DB"
 database_name = "lifro"
 database_id = "b8843a20-059a-49e7-b5e2-37a7822aa73d"
-migrations_dir = "drizzle""
+migrations_dir = "drizzle"
