@@ -1,0 +1,25 @@
+"$schema" = "./node_modules/wrangler/config-schema.json"
+
+# Hosting: Cloudflare Workers (ADR 0011: Static Assets＋Workers全量配信)。
+# workers.dev 公開・本番のみ (環境分離なし)・カスタムドメインなし。
+name = "lifro"
+compatibility_date = "2026-09-07"
+compatibility_flags = ["nodejs_compat"]
+
+# TanStack Start のサーバエントリを Worker とする。
+# client 環境のビルド出力は @cloudflare/vite-plugin が
+# 静的資産として自動配信するため [assets] は指定しない。
+main = "@tanstack/react-start/server-entry"
+
+[observability]
+enabled = true
+
+# DB: D1 バインディング (ADR 0012)。client.ts の configureDatabase(env.DB) による注入が必須
+# （未注入時は resolveInjectedClient が throw し、共有インスタンスは getSharedDb が遅延生成）。
+# database_id はプレースホルダ。Human作業 `bunx wrangler d1 create lifro`
+# (要Cloudflareログイン) で発行された実IDに置換すること。
+# 詳細は tmp/cloudflare-manual-deploy-guide.md 手順2-1・手順3 を参照。
+[[d1_databases]]
+binding = "DB"
+database_name = "lifro"
+database_id = "PLACEHOLDER-create-via-wrangler-d1-create"

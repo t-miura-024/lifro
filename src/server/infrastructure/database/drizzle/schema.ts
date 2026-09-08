@@ -1,22 +1,24 @@
+import { sql } from 'drizzle-orm'
 import {
-  date,
-  doublePrecision,
+  check,
   foreignKey,
   index,
   integer,
-  pgEnum,
-  pgTable,
-  serial,
+  real,
+  sqliteTable,
   text,
-  timestamp,
   uniqueIndex,
-} from 'drizzle-orm/pg-core'
+} from 'drizzle-orm/sqlite-core'
 
 /**
- * Drizzle スキーマ定義
+ * Drizzle スキーマ定義（D1/SQLite。ADR 0012）。
  *
- * 既存DB（9 migrations適用済み）に対して差分を出さない純粋移行のため、
- * テーブル名・カラム名・型・index名・unique名・FK名・enum名を既存定義から温存している。
+ * Neon/Postgres からの純粋移行のため、テーブル名・カラム名・index名・unique名・
+ * FK名・値域は既存定義から温存している。方言差で不可避の型写像のみ行い、
+ * スキーマ再設計はしない（Postgres→SQLite写像: serial→INTEGER PK AUTOINCREMENT、
+ * timestamp(3)→INTEGER(ms)、date→TEXT、double precision→REAL、enum→TEXT+CHECK）。
+ * TSレベルの型（number/string/Date/カテゴリunion）は Postgres 版と等価のため、
+ * 呼び出し側（repositories/services）の型互換は維持される。
  *
  * M4（ADR 0008）で追加した better-auth 既定テーブル（`user` / `session` /
  * `account` / `verification`）は `./auth-schema` で定義し、drizzle-kit の
@@ -24,35 +26,49 @@ import {
  */
 export { account, session, user, verification } from './auth-schema'
 
-export const bodyPartCategoryEnum = pgEnum('BodyPartCategory', [
-  'CHEST',
-  'BACK',
-  'SHOULDER',
-  'ARM',
-  'ABS',
-  'LEG',
-])
+export const bodyPartCategoryValues = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG'] as const
 
-export const users = pgTable(
+/**
+ * SQL TEXT リテラルへのエスケープ (`'` → `''`)。
+ *
+ * CHECK 制約は DDL のため束縛変数 (`?`) を使えず、マイグレーション SQL に
+ * リテラルとして埋め込む必要がある。将来値にクォートが混ざっても壊れないよう
+ * 手組みクォートではなく本ヘルパー経由で組み立てること。
+ */
+function toSqlTextLiteral(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+/**
+ * `body_parts.category` CHECK 式の単一生成点。
+ *
+ * 値域の真実の源は `bodyPartCategoryValues` のみとし、raw 文字列との二重化を
+ * 避けるため本関数経由で組み立てる。
+ */
+function bodyPartCategoryCheckSql() {
+  return sql.raw(`"category" IN (${bodyPartCategoryValues.map(toSqlTextLiteral).join(', ')})`)
+}
+
+export const users = sqliteTable(
   'users',
   {
-    id: serial('id').primaryKey(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
     email: text('email').notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [uniqueIndex('users_email_key').on(t.email)],
 )
 
-export const exercises = pgTable(
+export const exercises = sqliteTable(
   'exercises',
   {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id').notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
     name: text('name').notNull(),
-    sortIndex: integer('sort_index').notNull().default(0),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('exercises_user_id_idx').on(t.userId),
@@ -62,18 +78,18 @@ export const exercises = pgTable(
   ],
 )
 
-export const sets = pgTable(
+export const sets = sqliteTable(
   'sets',
   {
-    id: serial('id').primaryKey(),
-    exerciseId: integer('exercise_id').notNull(),
-    userId: integer('user_id').notNull(),
-    weight: doublePrecision('weight').notNull(),
-    reps: integer('reps').notNull(),
-    date: date('date').notNull(),
-    sortIndex: integer('sort_index').notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    exerciseId: integer('exercise_id', { mode: 'number' }).notNull(),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
+    weight: real('weight').notNull(),
+    reps: integer('reps', { mode: 'number' }).notNull(),
+    date: text('date').notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('sets_user_id_idx').on(t.userId),
@@ -89,15 +105,15 @@ export const sets = pgTable(
   ],
 )
 
-export const trainingMemos = pgTable(
+export const trainingMemos = sqliteTable(
   'training_memos',
   {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id').notNull(),
-    date: date('date').notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
+    date: text('date').notNull(),
     content: text('content').notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('training_memos_user_id_date_idx').on(t.userId, t.date),
@@ -112,17 +128,17 @@ export const trainingMemos = pgTable(
 )
 
 /// NextAuth — OAuth アカウント
-export const accounts = pgTable(
+export const accounts = sqliteTable(
   'accounts',
   {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id').notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
     type: text('type').notNull(),
     provider: text('provider').notNull(),
     providerAccountId: text('provider_account_id').notNull(),
     refreshToken: text('refresh_token'),
     accessToken: text('access_token'),
-    expiresAt: integer('expires_at'),
+    expiresAt: integer('expires_at', { mode: 'number' }),
     tokenType: text('token_type'),
     scope: text('scope'),
     idToken: text('id_token'),
@@ -138,13 +154,13 @@ export const accounts = pgTable(
 )
 
 /// NextAuth — セッション（データベースセッション戦略）
-export const sessions = pgTable(
+export const sessions = sqliteTable(
   'sessions',
   {
     id: text('id').primaryKey(),
     sessionToken: text('session_token').notNull(),
-    userId: integer('user_id').notNull(),
-    expires: timestamp('expires', { precision: 3 }).notNull(),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
+    expires: integer('expires', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     uniqueIndex('sessions_session_token_key').on(t.sessionToken),
@@ -155,15 +171,15 @@ export const sessions = pgTable(
   ],
 )
 
-export const timers = pgTable(
+export const timers = sqliteTable(
   'timers',
   {
-    id: serial('id').primaryKey(),
-    userId: integer('user_id').notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
     name: text('name').notNull(),
-    sortIndex: integer('sort_index').notNull().default(0),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('timers_user_id_idx').on(t.userId),
@@ -173,19 +189,19 @@ export const timers = pgTable(
   ],
 )
 
-export const unitTimers = pgTable(
+export const unitTimers = sqliteTable(
   'unit_timers',
   {
-    id: serial('id').primaryKey(),
-    timerId: integer('timer_id').notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    timerId: integer('timer_id', { mode: 'number' }).notNull(),
     name: text('name'),
-    sortIndex: integer('sort_index').notNull().default(0),
-    duration: integer('duration').notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    duration: integer('duration', { mode: 'number' }).notNull(),
     countSound: text('count_sound'),
     countSoundLast3Sec: text('count_sound_last_3_sec'),
     endSound: text('end_sound'),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('unit_timers_timer_id_idx').on(t.timerId),
@@ -200,32 +216,38 @@ export const unitTimers = pgTable(
 )
 
 /// 部位マスタ
-export const bodyParts = pgTable(
+export const bodyParts = sqliteTable(
   'body_parts',
   {
-    id: serial('id').primaryKey(),
-    category: bodyPartCategoryEnum('category').notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    category: text('category', { enum: bodyPartCategoryValues }).notNull(),
     name: text('name').notNull(),
-    sortIndex: integer('sort_index').notNull().default(0),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('body_parts_category_idx').on(t.category),
     uniqueIndex('body_parts_category_name_key').on(t.category, t.name),
+    // drizzle の sqlite text+enum は TS 型のみで CHECK を発行しないため、
+    // Postgres enum の値域温存としてテーブル CHECK を明示する。
+    check(
+      'body_parts_category_check',
+      bodyPartCategoryCheckSql(),
+    ),
   ],
 )
 
 /// 種目-部位中間テーブル
-export const exerciseBodyParts = pgTable(
+export const exerciseBodyParts = sqliteTable(
   'exercise_body_parts',
   {
-    id: serial('id').primaryKey(),
-    exerciseId: integer('exercise_id').notNull(),
-    bodyPartId: integer('body_part_id').notNull(),
-    loadRatio: integer('load_ratio').notNull(),
-    createdAt: timestamp('created_at', { precision: 3 }).notNull().defaultNow(),
-    updatedAt: timestamp('updated_at', { precision: 3 }).notNull(),
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    exerciseId: integer('exercise_id', { mode: 'number' }).notNull(),
+    bodyPartId: integer('body_part_id', { mode: 'number' }).notNull(),
+    loadRatio: integer('load_ratio', { mode: 'number' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
     index('exercise_body_parts_exercise_id_idx').on(t.exerciseId),

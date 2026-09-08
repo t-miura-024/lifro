@@ -43,6 +43,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# wrangler (local cache / generated artifacts)
+/.wrangler/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

@@ -1,9 +1,10 @@
 import type { Timer, TimerInput, UnitTimer } from '@/server/domain/entities'
 import type { ITimerRepository, TimerSortOrderInput } from '@/server/domain/repositories'
-import { and, asc, eq, inArray, max, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, max } from 'drizzle-orm'
 import { db } from '../../database/drizzle/client'
 import { timers, unitTimers } from '../../database/drizzle/schema'
 import { toISOString } from './helper'
+import { bulkUpdateSortOrder } from './sort-order-helper'
 
 // Drizzleの行型からドメインエンティティへの変換
 type DrizzleTimerRow = typeof timers.$inferSelect & {
@@ -194,21 +195,12 @@ export class DrizzleTimerRepository implements ITimerRepository {
   }
 
   async updateSortOrder(userId: number, timersInput: TimerSortOrderInput[]): Promise<void> {
-    if (timersInput.length === 0) return
-
-    // VALUES句を構築: (id, sortIndex), (id, sortIndex), ...
-    const values = sql.join(
-      timersInput.map((t) => sql`(${t.id}::int, ${t.sortIndex}::int)`),
-      sql`, `,
+    await bulkUpdateSortOrder(
+      db,
+      'timers',
+      userId,
+      timersInput,
     )
-
-    // 1回のクエリで一括更新
-    await db.execute(sql`
-      UPDATE timers AS t
-      SET sort_index = v.sort_index, updated_at = NOW()
-      FROM (VALUES ${values}) AS v(id, sort_index)
-      WHERE t.id = v.id AND t.user_id = ${userId}
-    `)
   }
 
   async delete(userId: number, timerId: number): Promise<void> {

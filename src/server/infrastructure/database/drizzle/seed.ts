@@ -1,7 +1,7 @@
 import { and, eq } from 'drizzle-orm'
-import { closeDb, db } from '@/server/infrastructure/database/drizzle/client'
+import { db } from '@/server/infrastructure/database/drizzle/client'
 import { bodyParts, exercises, sets, users } from '@/server/infrastructure/database/drizzle/schema'
-import { toLocalDateString } from '@/server/infrastructure/repositories/drizzle/helper'
+import { toLocalDateString } from '@/server/shared/date-utils'
 
 /**
  * 部位マスタデータ
@@ -173,8 +173,5 @@ if (isDirectRun) {
     .catch((e) => {
       console.error('❌ Seeding failed:', e)
       process.exit(1)
-    })
-    .finally(async () => {
-      await closeDb()
     })
 }

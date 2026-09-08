@@ -3,7 +3,8 @@ import type { ITrainingMemoRepository } from '@/server/domain/repositories'
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm'
 import { db } from '../../database/drizzle/client'
 import { trainingMemos } from '../../database/drizzle/schema'
-import { toDateString, toISOString, toLocalDateString } from './helper'
+import { toDateString, toISOString } from './helper'
+import { toLocalDateString } from '@/server/shared/date-utils'
 
 export class DrizzleTrainingMemoRepository implements ITrainingMemoRepository {
   async findByDate(userId: number, date: string): Promise<TrainingMemo[]> {

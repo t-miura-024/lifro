@@ -1,5 +1,6 @@
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { cloudflare } from '@cloudflare/vite-plugin'
 import {
   createApi,
   createContext,
@@ -112,7 +113,13 @@ const serwistStart = (): Plugin[] => {
 }
 
 export default defineConfig({
-  plugins: [tanstackStart(), viteReact(), serwistStart()],
+  // Cloudflare Workers 配信 (ADR 0011: Static Assets＋Workers全量配信)。
+  // 公式手順通り `@cloudflare/vite-plugin` を Start より前に置き、
+  // Start の SSR 環境 (`ssr`) を Worker バンドル対象に指定する。
+  // client 環境の出力はプラグインが静的資産として自動配信するため
+  // `[assets]` の手動指定はしない。serwist (PWA) の precache 対象
+  // (`dist/client`)・sw.js 生成条件は変更なし。
+  plugins: [cloudflare({ viteEnvironment: { name: 'ssr' } }), tanstackStart(), viteReact(), serwistStart()],
   resolve: {
     // tsconfig の paths (`@/*` → `./src/*`) と対応させる。
     // Next.js では自動解決されていた分を Vite 側に明示する。

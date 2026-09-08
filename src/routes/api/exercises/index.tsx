@@ -1,3 +1,4 @@
+import { ensureDatabase } from '@/routes/api/-db'
 import { toOrpcResponse as toResponse } from '@/server/orpc/http'
 import { call } from '@orpc/server'
 import { createFileRoute } from '@tanstack/react-router'
@@ -7,6 +8,7 @@ export const Route = createFileRoute('/api/exercises/')({
     handlers: {
       GET: async ({ request }) => {
         try {
+          await ensureDatabase()
           const [{ createORPCContext }, { router }] = await Promise.all([
             import('@/server/orpc/context'),
             import('@/server/orpc/router'),
@@ -20,6 +22,7 @@ export const Route = createFileRoute('/api/exercises/')({
       },
       POST: async ({ request }) => {
         try {
+          await ensureDatabase()
           const [{ createORPCContext }, { router }] = await Promise.all([
             import('@/server/orpc/context'),
             import('@/server/orpc/router'),

@@ -1,1 +1,1 @@
-export { toDateString, toISOString, toLocalDateString } from './dateConverter'
+export { toDateString, toISOString } from './dateConverter'

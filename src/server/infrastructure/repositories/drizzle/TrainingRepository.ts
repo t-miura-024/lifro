@@ -12,7 +12,8 @@ import type { ITrainingRepository } from '@/server/domain/repositories'
 import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../database/drizzle/client'
 import { exercises, sets, trainingMemos } from '../../database/drizzle/schema'
-import { toDateString, toISOString, toLocalDateString } from './helper'
+import { toDateString, toISOString } from './helper'
+import { toLocalDateString } from '@/server/shared/date-utils'
 
 export class DrizzleTrainingRepository implements ITrainingRepository {
   async findByMonth(userId: number, year: number, month: number): Promise<TrainingSummary[]> {
@@ -327,11 +328,11 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
   }
 
   async getAvailableYearMonths(userId: number): Promise<YearMonth[]> {
-    // SQLの集計でDBレベルで年月をグループ化（データ転送量削減）
-    const result = await db.execute<{ year: number; month: number }>(sql`
+    // sets.date は TEXT (YYYY-MM-DD) のため strftime で年月を抜き出す。
+    const result = await db.all<{ year: number; month: number }>(sql`
       SELECT
-        EXTRACT(YEAR FROM date)::int AS year,
-        EXTRACT(MONTH FROM date)::int AS month
+        CAST(strftime('%Y', date) AS INTEGER) AS year,
+        CAST(strftime('%m', date) AS INTEGER) AS month
       FROM sets
       WHERE user_id = ${userId}
       GROUP BY year, month

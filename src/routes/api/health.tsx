@@ -9,6 +9,10 @@ import { createFileRoute } from '@tanstack/react-router'
  * health は意図的に oRPC 外に置く（ADR 0009の置換対象は4系統44APIのみ）。
  * file route の precedence で静的 `/api/health` が動的 route より優先され、
  * 秘密欠落時も本 route は評価できる。
+ *
+ * DB 配線なしの理由: 本 route は DB を使わない公開 health check であり、
+ * D1 欠落時も応答できる独立性を保つため `ensureDatabase()` を呼ばない。
+ * DB 系ルートの配線は `src/routes/api/-db.ts` を参照 (M1 スコープ・Issue #20)。
  */
 async function handleHealth(): Promise<Response> {
   return Response.json({ ...HEALTH_PAYLOAD })
