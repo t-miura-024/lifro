@@ -46,14 +46,8 @@ yarn-error.log*
 # wrangler (local cache / generated artifacts)
 /.wrangler/
 
-# local DB migration artifacts (may contain secrets / PII - never commit)
-# NOTE: drizzle/*.sql migrations MUST stay tracked; only these root files are ignored.
-/neon-dump.sql
-/d1-data.sql
-/d1-verify.sqlite
-/neon.db
-/neon.load
-/convert-neon-to-d1.py
+# Temp files
+/tmp
 
 # typescript
 *.tsbuildinfo
