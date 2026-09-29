@@ -1,5 +1,5 @@
 import { orpc } from '@/lib/orpc-client'
-import { queryKeys, resetCacheForExercises } from '@/lib/query-keys'
+import { queryKeys, refreshExercisesCache } from '@/lib/query-keys'
 import {
   DndContext,
   type DragEndEvent,
@@ -534,7 +534,7 @@ function ExerciseList() {
         await orpc.exercises.updateSortOrder(changedItems)
       } catch (error) {
         // 失敗時はサーバーの正しい順序へ戻す（楽観更新のロールバック）
-        await resetCacheForExercises(queryClient)
+        await refreshExercisesCache(queryClient)
         console.error('[exercises] updateSortOrder failed', error)
       } finally {
         setIsSorting(false)
@@ -553,8 +553,8 @@ function ExerciseList() {
 
     startTransition(async () => {
       await orpc.exercises.create(exerciseName.trim())
-      // 種目系（＋記録・統計系）のキャッシュを破棄して再取得させる（ADR 0014）
-      await resetCacheForExercises(queryClient)
+      // 種目系（＋記録・統計系）のキャッシュを更新する（再取得の完了は待たない）
+      void refreshExercisesCache(queryClient)
       setCreateDialogOpen(false)
       setExerciseName('')
     })
@@ -572,8 +572,8 @@ function ExerciseList() {
 
     startTransition(async () => {
       await orpc.exercises.update(selectedExercise.id, exerciseName.trim())
-      // 種目系（＋記録・統計系）のキャッシュを破棄して再取得させる（ADR 0014）
-      await resetCacheForExercises(queryClient)
+      // 種目系（＋記録・統計系）のキャッシュを更新する（再取得の完了は待たない）
+      void refreshExercisesCache(queryClient)
       setEditDialogOpen(false)
       setSelectedExercise(null)
       setExerciseName('')
@@ -599,8 +599,8 @@ function ExerciseList() {
       }
 
       await orpc.exercises.remove(selectedExercise.id)
-      // 種目系（＋記録・統計系）のキャッシュを破棄して再取得させる（ADR 0014）
-      await resetCacheForExercises(queryClient)
+      // 種目系（＋記録・統計系）のキャッシュを更新する（再取得の完了は待たない）
+      void refreshExercisesCache(queryClient)
       setDeleteDialogOpen(false)
       setSelectedExercise(null)
     })
@@ -885,7 +885,7 @@ function ExerciseList() {
             loadRatio: bp.loadRatio,
           })) ?? []
         }
-        onSave={() => resetCacheForExercises(queryClient)}
+        onSave={() => refreshExercisesCache(queryClient)}
       />
 
       {/* エラースナックバー */}

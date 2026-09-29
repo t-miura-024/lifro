@@ -20,7 +20,7 @@
 ## 更新ポリシー
 
 - 通常の画面遷移では再取得しない（キャッシュをそのまま表示する）。
-- 保存・更新の成功時にドメイン単位で粗く破棄する（`resetCacheForLogs` / `resetCacheForExercises` / `resetCacheForTimers`）。依存漏れによる古い表示を構造的に防ぐため、キー単位ではなくドメイン単位とする。
+- 保存・更新の成功時にドメイン単位で粗く更新する（`refreshLogsCache` / `refreshExercisesCache` / `refreshTimersCache`）。依存漏れによる古い表示を構造的に防ぐため、キー単位ではなくドメイン単位とする。表示中のキーはデータを保持したまま裏で再取得し（開いているモーダルの unmount を避ける）、非表示のキーは破棄して次回表示時に取得する。
   - 記録・メモの保存/削除 → logs + statistics
   - 種目（部位含む）の変更 → exercises + logs + statistics（記録表示に種目名・部位が埋め込まれるため）
   - タイマーの変更 → timers

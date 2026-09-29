@@ -1,6 +1,6 @@
 import { useTimer } from '@/components/timer/TimerContext'
 import { orpc } from '@/lib/orpc-client'
-import { queryKeys, resetCacheForLogs } from '@/lib/query-keys'
+import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
 import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -387,7 +387,11 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         setIsInitialLoading(false)
       }
 
-      loadData()
+      loadData().catch((error) => {
+        // 取得失敗時もローディングを解除する（失敗のまま操作不能にしない）
+        console.error('[logs] initial load failed', error)
+        setIsInitialLoading(false)
+      })
     }
   }, [open, initialSets, selectedDate, queryClient])
 
@@ -484,7 +488,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     setTimerAnchorEl(event.currentTarget)
     setIsLoadingTimers(true)
     try {
-      // キャッシュ済みなら再取得しない（タイマー変更時は resetCacheForTimers で破棄される）
+      // キャッシュ済みなら再取得しない（タイマー変更時は refreshTimersCache で更新される）
       const loadedTimers = await queryClient.fetchQuery({
         queryKey: queryKeys.timers.list,
         queryFn: () => orpc.timers.list(),
@@ -1298,7 +1302,7 @@ const EMPTY_TRAINING_ROWS: TrainingRow[] = []
 function LogsPage() {
   const queryClient = useQueryClient()
 
-  // 年月一覧（初回のみ取得。保存時に resetCacheForLogs で破棄される）
+  // 年月一覧（初回のみ取得。保存時に refreshLogsCache で更新される）
   const yearMonthsQuery = useQuery({
     queryKey: queryKeys.logs.yearMonths,
     queryFn: () => orpc.logs.listYearMonths(),
@@ -1369,20 +1373,17 @@ function LogsPage() {
     setModalOpen(true)
   }
 
-  // 保存完了時（記録系キャッシュを破棄して最新化し、保存された月を選択）
-  const handleSaved = async (savedDate: Date) => {
+  // 保存完了時（記録系キャッシュを更新し、保存された月を選択）
+  const handleSaved = (savedDate: Date) => {
     const savedYear = savedDate.getFullYear()
     const savedMonth = savedDate.getMonth() + 1
 
-    // 記録系＋統計系を破棄（表示中の年月一覧・月次一覧は再取得される）
-    await resetCacheForLogs(queryClient)
+    // 記録系＋統計系を更新する。再取得の完了は待たない
+    // （待つとネットワーク停滞時に保存操作が戻らなくなるため）
+    void refreshLogsCache(queryClient)
 
-    // 保存された年月を選択（破棄後の最新データから探す）
-    const yearMonths = queryClient.getQueryData<YearMonth[]>(queryKeys.logs.yearMonths) ?? []
-    const savedYearMonth = yearMonths.find((ym) => ym.year === savedYear && ym.month === savedMonth)
-    if (savedYearMonth) {
-      setSelectedYearMonth(savedYearMonth)
-    }
+    // 保存された年月を選択（年月一覧の再取得を待たずに直接指定する）
+    setSelectedYearMonth({ year: savedYear, month: savedMonth })
 
     setSnackbar({
       open: true,

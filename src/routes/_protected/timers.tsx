@@ -7,7 +7,7 @@ import {
   type SoundFile,
 } from '@/constants/sounds'
 import { orpc } from '@/lib/orpc-client'
-import { queryKeys, resetCacheForTimers } from '@/lib/query-keys'
+import { queryKeys, refreshTimersCache } from '@/lib/query-keys'
 import type { Timer, UnitTimerInput } from '@/server/domain/entities'
 import { audioScheduler } from '@/utils/soundPlayer'
 import {
@@ -631,8 +631,8 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
           unitTimers: unitTimerInputs,
         })
       }
-      // 保存成功: タイマー系キャッシュを破棄して再取得させる（ADR 0014）
-      await resetCacheForTimers(queryClient)
+      // 保存成功: タイマー系キャッシュを更新する（再取得の完了は待たない）
+      void refreshTimersCache(queryClient)
       onSaved()
     })
   }
@@ -647,8 +647,8 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
 
     startTransition(async () => {
       await orpc.timers.remove(timer.id)
-      // 削除成功: タイマー系キャッシュを破棄して再取得させる（ADR 0014）
-      await resetCacheForTimers(queryClient)
+      // 削除成功: タイマー系キャッシュを更新する（再取得の完了は待たない）
+      void refreshTimersCache(queryClient)
       setDeleteConfirmOpen(false)
       onSaved()
     })
@@ -849,7 +849,7 @@ function TimerList() {
         await orpc.timers.updateSortOrder(changedItems)
       } catch (error) {
         // 失敗時はサーバーの正しい順序へ戻す（楽観更新のロールバック）
-        await resetCacheForTimers(queryClient)
+        await refreshTimersCache(queryClient)
         console.error('[timers] updateSortOrder failed', error)
       } finally {
         setIsSorting(false)
