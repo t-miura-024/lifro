@@ -5,7 +5,7 @@ import { QueryClient } from '@tanstack/react-query'
  *
  * - メモリのみ。リロード・再起動・別タブでは破棄する
  * - 画面遷移では再取得しない（キャッシュ済みデータをそのまま表示する）
- * - 更新は「保存・更新成功時の resetCacheFor*」と「リロード（全破棄）」のみ
+ * - 更新は「保存・更新成功時の refreshXxxCache」と「リロード（全破棄）」のみ
  * - サーバー側（Workers Cache）と Service Worker の API キャッシュは持たない
  */
 export function createQueryClient(): QueryClient {
