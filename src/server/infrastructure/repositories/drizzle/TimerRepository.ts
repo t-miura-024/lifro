@@ -1,6 +1,6 @@
 import type { Timer, TimerInput, UnitTimer } from '@/server/domain/entities'
 import type { ITimerRepository, TimerSortOrderInput } from '@/server/domain/repositories'
-import { and, asc, eq, inArray, max } from 'drizzle-orm'
+import { and, asc, eq, inArray, max, sql } from 'drizzle-orm'
 import { db } from '../../database/drizzle/client'
 import { timers, unitTimers } from '../../database/drizzle/schema'
 import { toISOString } from './helper'
@@ -58,7 +58,10 @@ async function findUnitsByTimerIds(timerIds: number[]): Promise<Map<number, Unit
   return byTimerId
 }
 
-async function findTimerWithUnits(timerId: number, userId?: number): Promise<DrizzleTimerRow | null> {
+async function findTimerWithUnits(
+  timerId: number,
+  userId?: number,
+): Promise<DrizzleTimerRow | null> {
   const timerRows = await db
     .select()
     .from(timers)
@@ -107,68 +110,78 @@ export class DrizzleTimerRepository implements ITimerRepository {
       .where(eq(timers.userId, userId))
     const nextSortIndex = (maxRows[0]?.value ?? -1) + 1
 
-    // 旧Prisma版はnested createで原子だったため、timers+unitTimersをtxで一体化する
+    // D1 は SQL の BEGIN/SAVEPOINT 文を拒否する（Cloudflare error 7500）ため
+    // db.transaction は使えない。timers+unitTimers の作成は db.batch（D1 側の
+    // 暗黙トランザクション）で一体化する。2文目の timer_id は1文目の結果を
+    // 待てないため last_insert_rowid()（直前の INSERT の rowid）で参照する。
     const now = new Date()
-    const created = await db.transaction(async (tx) => {
-      const [timer] = await tx
-        .insert(timers)
-        .values({
-          userId,
-          name: input.name,
-          sortIndex: nextSortIndex,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning()
+    const insertTimer = db
+      .insert(timers)
+      .values({
+        userId,
+        name: input.name,
+        sortIndex: nextSortIndex,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+
+    if (input.unitTimers.length === 0) {
+      const [[timer]] = await db.batch([insertTimer])
       if (!timer) throw new Error('Failed to create timer')
+      return toTimer({ ...timer, unitTimers: [] })
+    }
 
-      const createdUnits =
-        input.unitTimers.length > 0
-          ? await tx
-              .insert(unitTimers)
-              .values(
-                input.unitTimers.map((u, index) => ({
-                  timerId: timer.id,
-                  name: u.name,
-                  sortIndex: index,
-                  duration: u.duration,
-                  countSound: u.countSound,
-                  countSoundLast3Sec: u.countSoundLast3Sec,
-                  endSound: u.endSound,
-                  createdAt: now,
-                  updatedAt: now,
-                })),
-              )
-              .returning()
-          : []
+    const [[timer], createdUnits] = await db.batch([
+      insertTimer,
+      db
+        .insert(unitTimers)
+        .values(
+          input.unitTimers.map((u, index) => ({
+            timerId: sql<number>`last_insert_rowid()`,
+            name: u.name,
+            sortIndex: index,
+            duration: u.duration,
+            countSound: u.countSound,
+            countSoundLast3Sec: u.countSoundLast3Sec,
+            endSound: u.endSound,
+            createdAt: now,
+            updatedAt: now,
+          })),
+        )
+        .returning(),
+    ])
 
-      return { ...timer, unitTimers: createdUnits }
-    })
+    if (!timer) throw new Error('Failed to create timer')
 
-    return toTimer(created)
+    return toTimer({ ...timer, unitTimers: createdUnits })
   }
 
   async update(userId: number, timerId: number, input: TimerInput): Promise<Timer> {
-    // トランザクションで更新
-    await db.transaction(async (tx) => {
-      // タイマー本体を更新
-      const [updated] = await tx
-        .update(timers)
-        .set({ name: input.name, updatedAt: new Date() })
-        .where(and(eq(timers.id, timerId), eq(timers.userId, userId)))
-        .returning()
+    // 所有権チェックを兼ねた更新を先に行う（不存在・非所有なら unitTimers に触れない）。
+    // D1 は対話的トランザクション（BEGIN/SAVEPOINT）を拒否するため、ユニットタイマーの
+    // 全置換（削除+作成）は db.batch に一括して原子性を保つ。
+    const [updated] = await db
+      .update(timers)
+      .set({ name: input.name, updatedAt: new Date() })
+      .where(and(eq(timers.id, timerId), eq(timers.userId, userId)))
+      .returning()
 
-      if (!updated) {
-        throw new Error('Timer not found or not owned by user')
-      }
+    if (!updated) {
+      throw new Error('Timer not found or not owned by user')
+    }
 
-      // 既存のユニットタイマーを削除
-      await tx.delete(unitTimers).where(eq(unitTimers.timerId, timerId))
+    // 既存のユニットタイマーを削除
+    const deleteUnits = db.delete(unitTimers).where(eq(unitTimers.timerId, timerId))
 
-      // 新しいユニットタイマーを作成
+    if (input.unitTimers.length === 0) {
+      await db.batch([deleteUnits])
+    } else {
+      // 削除と新しいユニットタイマーの作成を一括実行する
       const now = new Date()
-      if (input.unitTimers.length > 0) {
-        await tx.insert(unitTimers).values(
+      await db.batch([
+        deleteUnits,
+        db.insert(unitTimers).values(
           input.unitTimers.map((u, index) => ({
             timerId,
             name: u.name,
@@ -180,9 +193,9 @@ export class DrizzleTimerRepository implements ITimerRepository {
             createdAt: now,
             updatedAt: now,
           })),
-        )
-      }
-    })
+        ),
+      ])
+    }
 
     // 更新後のタイマーを取得
     const timer = await findTimerWithUnits(timerId, userId)
@@ -195,12 +208,7 @@ export class DrizzleTimerRepository implements ITimerRepository {
   }
 
   async updateSortOrder(userId: number, timersInput: TimerSortOrderInput[]): Promise<void> {
-    await bulkUpdateSortOrder(
-      db,
-      'timers',
-      userId,
-      timersInput,
-    )
+    await bulkUpdateSortOrder(db, 'timers', userId, timersInput)
   }
 
   async delete(userId: number, timerId: number): Promise<void> {

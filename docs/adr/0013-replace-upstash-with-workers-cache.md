@@ -1,5 +1,7 @@
 # UpstashからWorkers Cacheへ置換する
 
+> **Superseded**: [ADR 0014](0014-client-state-cache-and-remove-server-cache.md) により、サーバー側キャッシュ（Workers Cache）は廃止された。
+
 Upstash RedisからWorkers Cache（Cache API）へ置換することを決定した。KV単体・併用の代替案を退け、Issue指定と課金要素最小化を優先した。
 
 ## Context

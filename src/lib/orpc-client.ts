@@ -28,7 +28,8 @@ export class ApiError extends Error {
 }
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init)
+  // API は常に最新を読む。ブラウザ HTTP キャッシュに乗せない（ADR 0014）。
+  const res = await fetch(path, { ...init, cache: 'no-store' })
   if (!res.ok) {
     let body: unknown
     try {

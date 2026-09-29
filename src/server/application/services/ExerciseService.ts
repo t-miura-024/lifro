@@ -1,6 +1,5 @@
 import type { Exercise } from '@/server/domain/entities'
 import type { ExerciseSortOrderInput, IExerciseRepository } from '@/server/domain/repositories'
-import { cacheService } from '@/server/infrastructure/cache'
 import { exerciseRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class ExerciseService {
@@ -10,8 +9,7 @@ export class ExerciseService {
    * ユーザーの全種目を取得（sortIndex順）
    */
   async getAllExercises(userId: number): Promise<Exercise[]> {
-    const cacheKey = cacheService.buildKey(userId, 'exercise', 'getAllExercises')
-    return cacheService.through(cacheKey, () => this.repository.findAllByUserId(userId))
+    return this.repository.findAllByUserId(userId)
   }
 
   /**
@@ -21,8 +19,7 @@ export class ExerciseService {
     if (!query.trim()) {
       return this.getAllExercises(userId)
     }
-    const cacheKey = cacheService.buildKey(userId, 'exercise', 'searchExercises', query)
-    return cacheService.through(cacheKey, () => this.repository.searchByName(userId, query))
+    return this.repository.searchByName(userId, query)
   }
 
   /**
@@ -34,8 +31,6 @@ export class ExerciseService {
       throw new Error('種目名は必須です')
     }
     const result = await this.repository.create(userId, trimmedName)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'exercise')
     return result
   }
 
@@ -48,8 +43,6 @@ export class ExerciseService {
       throw new Error('種目名は必須です')
     }
     const result = await this.repository.update(userId, exerciseId, trimmedName)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'exercise')
     return result
   }
 
@@ -58,8 +51,6 @@ export class ExerciseService {
    */
   async updateSortOrder(userId: number, exercises: ExerciseSortOrderInput[]): Promise<void> {
     await this.repository.updateSortOrder(userId, exercises)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'exercise')
   }
 
   /**
@@ -76,8 +67,6 @@ export class ExerciseService {
    */
   async deleteExercise(userId: number, exerciseId: number): Promise<void> {
     await this.repository.delete(userId, exerciseId)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'exercise')
   }
 }
 

@@ -1,6 +1,5 @@
 import type { Timer, TimerInput } from '@/server/domain/entities'
 import type { ITimerRepository, TimerSortOrderInput } from '@/server/domain/repositories'
-import { cacheService } from '@/server/infrastructure/cache'
 import { timerRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class TimerService {
@@ -10,16 +9,14 @@ export class TimerService {
    * ユーザーの全タイマーを取得（sortIndex順）
    */
   async getAllTimers(userId: number): Promise<Timer[]> {
-    const cacheKey = cacheService.buildKey(userId, 'timer', 'getAllTimers')
-    return cacheService.through(cacheKey, () => this.repository.findAllByUserId(userId))
+    return this.repository.findAllByUserId(userId)
   }
 
   /**
    * タイマーをIDで取得
    */
   async getTimer(userId: number, timerId: number): Promise<Timer | null> {
-    const cacheKey = cacheService.buildKey(userId, 'timer', 'getTimer', timerId.toString())
-    return cacheService.through(cacheKey, () => this.repository.findById(userId, timerId))
+    return this.repository.findById(userId, timerId)
   }
 
   /**
@@ -44,8 +41,6 @@ export class TimerService {
       ...input,
       name: trimmedName,
     })
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'timer')
     return result
   }
 
@@ -71,8 +66,6 @@ export class TimerService {
       ...input,
       name: trimmedName,
     })
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'timer')
     return result
   }
 
@@ -81,8 +74,6 @@ export class TimerService {
    */
   async updateSortOrder(userId: number, timers: TimerSortOrderInput[]): Promise<void> {
     await this.repository.updateSortOrder(userId, timers)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'timer')
   }
 
   /**
@@ -90,8 +81,6 @@ export class TimerService {
    */
   async deleteTimer(userId: number, timerId: number): Promise<void> {
     await this.repository.delete(userId, timerId)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'timer')
   }
 }
 

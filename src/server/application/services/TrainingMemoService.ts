@@ -1,6 +1,5 @@
 import type { TrainingMemo, TrainingMemoInput } from '@/server/domain/entities'
 import type { ITrainingMemoRepository } from '@/server/domain/repositories'
-import { cacheService } from '@/server/infrastructure/cache'
 import { trainingMemoRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class TrainingMemoService {
@@ -11,8 +10,7 @@ export class TrainingMemoService {
    * @param date YYYY-MM-DD形式
    */
   async getMemosByDate(userId: number, date: string): Promise<TrainingMemo[]> {
-    const cacheKey = cacheService.buildKey(userId, 'memo', 'getMemosByDate', date)
-    return cacheService.through(cacheKey, () => this.repository.findByDate(userId, date))
+    return this.repository.findByDate(userId, date)
   }
 
   /**
@@ -21,8 +19,6 @@ export class TrainingMemoService {
    */
   async createMemo(userId: number, date: string, content: string): Promise<TrainingMemo> {
     const result = await this.repository.create(userId, date, content)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'memo')
     return result
   }
 
@@ -31,8 +27,6 @@ export class TrainingMemoService {
    */
   async updateMemo(userId: number, memoId: number, content: string): Promise<TrainingMemo> {
     const result = await this.repository.update(userId, memoId, content)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'memo')
     return result
   }
 
@@ -41,18 +35,18 @@ export class TrainingMemoService {
    */
   async deleteMemo(userId: number, memoId: number): Promise<void> {
     await this.repository.delete(userId, memoId)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'memo')
   }
 
   /**
    * メモを一括保存
    * @param date YYYY-MM-DD形式
    */
-  async saveMemos(userId: number, date: string, memos: TrainingMemoInput[]): Promise<TrainingMemo[]> {
+  async saveMemos(
+    userId: number,
+    date: string,
+    memos: TrainingMemoInput[],
+  ): Promise<TrainingMemo[]> {
     const result = await this.repository.saveAll(userId, date, memos)
-    // キャッシュを無効化
-    await cacheService.invalidateUserDomain(userId, 'memo')
     return result
   }
 }

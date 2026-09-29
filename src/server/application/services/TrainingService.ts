@@ -7,7 +7,6 @@ import type {
   YearMonth,
 } from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
-import { cacheService } from '@/server/infrastructure/cache'
 import { trainingRepository } from '@/server/infrastructure/repositories/drizzle'
 
 export class TrainingService {
@@ -21,13 +20,7 @@ export class TrainingService {
     year: number,
     month: number,
   ): Promise<TrainingSummary[]> {
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'training',
-      'getMonthlyTrainings',
-      `${year}-${month}`,
-    )
-    return cacheService.through(cacheKey, () => this.repository.findByMonth(userId, year, month))
+    return this.repository.findByMonth(userId, year, month)
   }
 
   /**
@@ -35,8 +28,7 @@ export class TrainingService {
    * @param date YYYY-MM-DD形式
    */
   async getTrainingByDate(userId: number, date: string): Promise<Training | null> {
-    const cacheKey = cacheService.buildKey(userId, 'training', 'getTrainingByDate', date)
-    return cacheService.through(cacheKey, () => this.repository.findByDate(userId, date))
+    return this.repository.findByDate(userId, date)
   }
 
   /**
@@ -50,8 +42,6 @@ export class TrainingService {
       sortIndex: s.sortIndex ?? i,
     }))
     const result = await this.repository.save(userId, date, setsWithIndex)
-    // トレーニングと統計のキャッシュを無効化
-    await cacheService.invalidateUserDomains(userId, ['training', 'statistics'])
     return result
   }
 
@@ -61,8 +51,6 @@ export class TrainingService {
    */
   async deleteTraining(userId: number, date: string): Promise<void> {
     await this.repository.deleteByDate(userId, date)
-    // トレーニングと統計のキャッシュを無効化
-    await cacheService.invalidateUserDomains(userId, ['training', 'statistics'])
   }
 
   /**
@@ -105,8 +93,7 @@ export class TrainingService {
    * セット情報が存在する年月の一覧を取得（降順）
    */
   async getAvailableYearMonths(userId: number): Promise<YearMonth[]> {
-    const cacheKey = cacheService.buildKey(userId, 'training', 'getAvailableYearMonths')
-    return cacheService.through(cacheKey, () => this.repository.getAvailableYearMonths(userId))
+    return this.repository.getAvailableYearMonths(userId)
   }
 }
 

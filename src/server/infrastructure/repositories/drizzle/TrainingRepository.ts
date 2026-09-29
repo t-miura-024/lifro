@@ -9,11 +9,11 @@ import type {
   YearMonth,
 } from '@/server/domain/entities'
 import type { ITrainingRepository } from '@/server/domain/repositories'
+import { toLocalDateString } from '@/server/shared/date-utils'
 import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
 import { db } from '../../database/drizzle/client'
 import { exercises, sets, trainingMemos } from '../../database/drizzle/schema'
 import { toDateString, toISOString } from './helper'
-import { toLocalDateString } from '@/server/shared/date-utils'
 
 export class DrizzleTrainingRepository implements ITrainingRepository {
   async findByMonth(userId: number, year: number, month: number): Promise<TrainingSummary[]> {
@@ -27,13 +27,7 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
         .select({ set: sets, exercise: exercises })
         .from(sets)
         .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
-        .where(
-          and(
-            eq(sets.userId, userId),
-            gte(sets.date, startStr),
-            lte(sets.date, endStr),
-          ),
-        )
+        .where(and(eq(sets.userId, userId), gte(sets.date, startStr), lte(sets.date, endStr)))
         .orderBy(desc(sets.date), asc(sets.sortIndex)),
       db
         .select()
@@ -147,17 +141,20 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
   }
 
   async save(userId: number, date: string, setsInput: SetInput[]): Promise<Training> {
-    // トランザクションで既存セットの削除と新規セットの作成を行う
-    await db.transaction(async (tx) => {
-      // 既存のセットを削除
-      await tx
-        .delete(sets)
-        .where(and(eq(sets.userId, userId), eq(sets.date, date)))
+    // D1 は SQL の BEGIN/SAVEPOINT 文を拒否する（Cloudflare error 7500）ため
+    // db.transaction は使えない。削除→作成の原子性は、D1 側で暗黙の
+    // トランザクションとして実行される db.batch で保つ。
+    const deleteExisting = db.delete(sets).where(and(eq(sets.userId, userId), eq(sets.date, date)))
 
-      // 新規セットを作成
-      if (setsInput.length > 0) {
-        const now = new Date()
-        await tx.insert(sets).values(
+    if (setsInput.length === 0) {
+      // 既存セットの削除のみ
+      await db.batch([deleteExisting])
+    } else {
+      const now = new Date()
+      // 既存セットの削除と新規セットの作成を一括実行する
+      await db.batch([
+        deleteExisting,
+        db.insert(sets).values(
           setsInput.map((s) => ({
             exerciseId: s.exerciseId,
             userId,
@@ -168,9 +165,9 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
             createdAt: now,
             updatedAt: now,
           })),
-        )
-      }
-    })
+        ),
+      ])
+    }
 
     // 保存後のデータを取得して返す
     const result = await this.findByDate(userId, date)
