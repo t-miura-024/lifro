@@ -175,7 +175,15 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
   }
 
   async deleteByDate(userId: number, date: string): Promise<void> {
-    await db.delete(sets).where(and(eq(sets.userId, userId), eq(sets.date, date)))
+    // その日のメモも一緒に削除する。メモは記録モーダルで管理される記録の一部であり、
+    // 記録だけを消すと UI から削除できない「孤児メモ」が残るため
+    // （新規作成時に過去のメモが表示される不具合の原因）。
+    await db.batch([
+      db
+        .delete(trainingMemos)
+        .where(and(eq(trainingMemos.userId, userId), eq(trainingMemos.date, date))),
+      db.delete(sets).where(and(eq(sets.userId, userId), eq(sets.date, date))),
+    ])
   }
 
   async getLatestHistory(
