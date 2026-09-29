@@ -1,5 +1,7 @@
-import { sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import type { AppDatabase } from '../../database/drizzle/client'
+import { exercises, timers } from '../../database/drizzle/schema'
 
 /** sort_index 一括更新の入力 */
 export type SortOrderItem = {
@@ -36,8 +38,8 @@ function assertPositiveInt(value: number, name: string): void {
  *
  * D1/SQLite に Postgres の UPDATE..FROM(VALUES)+列別名はないため、
  * 単文の CASE 式で一括更新する。updated_at はスキーマ (INTEGER ms) に合わせ
- * JS 時刻を束縛する。書き込みは `db.run` で実行し `meta.changes` で更新件数を
- * 検証する（0件更新・所有権不一致の検出）。
+ * JS 時刻を束縛する。書き込みは `db.batch` で実行し、RETURNING の行数で
+ * 更新件数を検証する（0件更新・所有権不一致の検出）。
  *
  * db は実行引数で受ける（共有インスタンスの直接importはしない）。
  * chunkSize は有限・正整数・上限以下でなければ throw する
@@ -48,9 +50,10 @@ function assertPositiveInt(value: number, name: string): void {
  * sortIndex は非負整数）でなければ throw する（NaN/Infinity/非整数の
  * 黙示変換・破損 sort_index 書込を防ぐため。検証は束縛前に行う）。
  *
- * 全チャンクは `db.transaction` で一括し、途中失敗時は全体をロールバックする
- * （チャンク毎の独立 run では2チャンク目以降の失敗で先行確定だけが残り
- * 半適用になるため。旧単文 UPDATE の原子性をチャンク分割後も保つ）。
+ * 全チャンクは `db.batch` にまとめて実行する（D1 側の暗黙トランザクションで
+ * 原子的に commit/rollback される。チャンク毎の独立実行では2チャンク目以降の
+ * 失敗で先行確定だけが残り半適用になるため。D1 は SQL の BEGIN/SAVEPOINT を
+ * 拒否する (Cloudflare error 7500) ため `db.transaction` は使えない）。
  */
 export async function bulkUpdateSortOrder(
   db: AppDatabase,
@@ -76,7 +79,11 @@ export async function bulkUpdateSortOrder(
   assertPositiveInt(userId, 'userId')
   for (const item of items) {
     assertPositiveInt(item.id, 'item.id')
-    if (!Number.isFinite(item.sortIndex) || !Number.isInteger(item.sortIndex) || item.sortIndex < 0) {
+    if (
+      !Number.isFinite(item.sortIndex) ||
+      !Number.isInteger(item.sortIndex) ||
+      item.sortIndex < 0
+    ) {
       throw new Error(`[sort-order] invalid item.sortIndex: ${String(item.sortIndex)}`)
     }
   }
@@ -85,36 +92,47 @@ export async function bulkUpdateSortOrder(
 
   const entityLabel = SORT_ORDER_ENTITY_LABELS[tableName]
 
-  await db.transaction(async (tx) => {
-    for (let offset = 0; offset < items.length; offset += chunkSize) {
-      const chunk = items.slice(offset, offset + chunkSize)
-      const nowMs = Date.now()
-      const cases = sql.join(
-        chunk.map((item) => sql`WHEN ${item.id} THEN ${item.sortIndex}`),
-        sql` `,
-      )
-      const ids = sql.join(
-        chunk.map((item) => sql`${item.id}`),
-        sql`, `,
-      )
-      const table = sql.raw(tableName)
-      const result = await tx.run(sql`
-        UPDATE ${table}
-        SET sort_index = CASE id ${cases} ELSE sort_index END, updated_at = ${nowMs}
-        WHERE user_id = ${userId} AND id IN (${ids})
-      `)
-      const changes = (result as unknown as { meta?: { changes?: unknown } }).meta?.changes
-      if (typeof changes !== 'number') {
-        console.warn(`[sort-order] missing meta.changes for ${entityLabel} chunk at offset ${offset}`)
-        throw new Error(
-          `${entityLabel} sort order update failed: meta.changes is not a number (offset ${offset})`,
+  // D1 は SQL の BEGIN/SAVEPOINT 文を拒否する（Cloudflare error 7500）ため
+  // db.transaction は使えない。全チャンクを db.batch にまとめ、D1 側の暗黙
+  // トランザクションで原子性を保つ。
+  const table = tableName === 'exercises' ? exercises : timers
+  const statements: BatchItem<'sqlite'>[] = []
+  const expectedChanges: number[] = []
+
+  for (let offset = 0; offset < items.length; offset += chunkSize) {
+    const chunk = items.slice(offset, offset + chunkSize)
+    const nowMs = Date.now()
+    const cases = sql.join(
+      chunk.map((item) => sql`WHEN ${item.id} THEN ${item.sortIndex}`),
+      sql` `,
+    )
+    statements.push(
+      db
+        .update(table)
+        .set({
+          sortIndex: sql`CASE id ${cases} ELSE sort_index END`,
+          updatedAt: new Date(nowMs),
+        })
+        .where(
+          and(
+            eq(table.userId, userId),
+            inArray(
+              table.id,
+              chunk.map((item) => item.id),
+            ),
+          ),
         )
-      }
-      if (changes !== chunk.length) {
-        throw new Error(
-          `${entityLabel} sort order update mismatch: expected ${chunk.length}, updated ${changes}`,
-        )
-      }
+        .returning({ id: table.id }),
+    )
+    expectedChanges.push(chunk.length)
+  }
+
+  const results = await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
+  for (const [index, rows] of results.entries()) {
+    if (rows.length !== expectedChanges[index]) {
+      throw new Error(
+        `${entityLabel} sort order update mismatch: expected ${expectedChanges[index]}, updated ${rows.length}`,
+      )
     }
-  })
+  }
 }

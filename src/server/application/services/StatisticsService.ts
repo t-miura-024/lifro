@@ -1,15 +1,10 @@
-import { cacheService } from '@/server/infrastructure/cache'
 import { db } from '@/server/infrastructure/database/drizzle/client'
-import { toLocalDateString } from '@/server/shared/date-utils'
-import {
-  formatPeriodKey,
-  toPeriodKey,
-  type PeriodGranularity,
-} from '@/server/shared/period'
 import { getPeriodExprSql } from '@/server/infrastructure/repositories/drizzle/statistics-sql'
-import { sql } from 'drizzle-orm'
+import { toLocalDateString } from '@/server/shared/date-utils'
+import { type PeriodGranularity, formatPeriodKey, toPeriodKey } from '@/server/shared/period'
 import dayjs from 'dayjs'
 import isoWeek from 'dayjs/plugin/isoWeek'
+import { sql } from 'drizzle-orm'
 
 dayjs.extend(isoWeek)
 
@@ -155,25 +150,16 @@ export class StatisticsService {
   ): Promise<ExerciseVolumeByPeriod[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getVolumeByExercise',
-      `${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const periodExpr = getPeriodExprSql(sql`s.date`, granularity)
+    const periodExpr = getPeriodExprSql(sql`s.date`, granularity)
 
-      const results = await db.all<
-        {
-          period: string
-          exercise_id: number
-          exercise_name: string
-          volume: number
-          set_count: number
-        }>
-      (sql`
+    const results = await db.all<{
+      period: string
+      exercise_id: number
+      exercise_name: string
+      volume: number
+      set_count: number
+    }>(sql`
         SELECT
           ${periodExpr} as period,
           s.exercise_id,
@@ -189,21 +175,20 @@ export class StatisticsService {
         ORDER BY period ASC
       `)
 
-      // 不正period行は warn して skip し、残り集計を返す
-      const mapped: ExerciseVolumeByPeriod[] = []
-      for (const r of results) {
-        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
-        if (period === null) continue
-        mapped.push({
-          period,
-          exerciseId: r.exercise_id,
-          exerciseName: r.exercise_name,
-          volume: r.volume,
-          setCount: Number(r.set_count),
-        })
-      }
-      return mapped
-    })
+    // 不正period行は warn して skip し、残り集計を返す
+    const mapped: ExerciseVolumeByPeriod[] = []
+    for (const r of results) {
+      const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+      if (period === null) continue
+      mapped.push({
+        period,
+        exerciseId: r.exercise_id,
+        exerciseName: r.exercise_name,
+        volume: r.volume,
+        setCount: Number(r.set_count),
+      })
+    }
+    return mapped
   }
 
   /**
@@ -217,22 +202,13 @@ export class StatisticsService {
   ): Promise<ExerciseVolumeTotal[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getExerciseVolumeTotals',
-      `${startStr}_${endStr}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const results = await db.all<
-        {
-          exercise_id: number
-          exercise_name: string
-          volume: number
-          set_count: number
-        }>
-      (sql`
+    const results = await db.all<{
+      exercise_id: number
+      exercise_name: string
+      volume: number
+      set_count: number
+    }>(sql`
         SELECT
           s.exercise_id,
           e.name as exercise_name,
@@ -247,13 +223,12 @@ export class StatisticsService {
         ORDER BY volume DESC
       `)
 
-      return results.map((r) => ({
-        exerciseId: r.exercise_id,
-        exerciseName: r.exercise_name,
-        volume: r.volume,
-        setCount: Number(r.set_count),
-      }))
-    })
+    return results.map((r) => ({
+      exerciseId: r.exercise_id,
+      exerciseName: r.exercise_name,
+      volume: r.volume,
+      setCount: Number(r.set_count),
+    }))
   }
 
   /**
@@ -268,22 +243,13 @@ export class StatisticsService {
   ): Promise<PeriodVolume[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getVolumeByPeriod',
-      `${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const periodExpr = getPeriodExprSql(sql`date`, granularity)
+    const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.all<
-        {
-          period: string
-          volume: number
-        }>
-      (sql`
+    const results = await db.all<{
+      period: string
+      volume: number
+    }>(sql`
         SELECT
           ${periodExpr} as period,
           CAST(SUM(weight * reps) AS REAL) as volume
@@ -294,21 +260,20 @@ export class StatisticsService {
         GROUP BY 1
       `)
 
-      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
-      const volumeMap = new Map<string, number>()
-      for (const r of results) {
-        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
-        if (period === null) continue
-        volumeMap.set(period, r.volume)
-      }
+    // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
+    const volumeMap = new Map<string, number>()
+    for (const r of results) {
+      const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+      if (period === null) continue
+      volumeMap.set(period, r.volume)
+    }
 
-      // 期間内の全期間キーを生成（データがない期間は 0）
-      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-      return periodKeys.map((period) => ({
-        period,
-        volume: volumeMap.get(period) || 0,
-      }))
-    })
+    // 期間内の全期間キーを生成（データがない期間は 0）
+    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+    return periodKeys.map((period) => ({
+      period,
+      volume: volumeMap.get(period) || 0,
+    }))
   }
 
   /**
@@ -324,22 +289,13 @@ export class StatisticsService {
   ): Promise<MaxWeightRecord[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getMaxWeightHistory',
-      `${exerciseId}_${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const periodExpr = getPeriodExprSql(sql`date`, granularity)
+    const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.all<
-        {
-          period: string
-          max_weight: number
-        }>
-      (sql`
+    const results = await db.all<{
+      period: string
+      max_weight: number
+    }>(sql`
         SELECT
           ${periodExpr} as period,
           CAST(MAX(weight) AS REAL) as max_weight
@@ -352,26 +308,25 @@ export class StatisticsService {
         ORDER BY period ASC
       `)
 
-      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
-      const maxWeightMap = new Map<string, number>()
-      for (const r of results) {
-        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
-        if (period === null) continue
-        maxWeightMap.set(period, r.max_weight)
-      }
+    // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
+    const maxWeightMap = new Map<string, number>()
+    for (const r of results) {
+      const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+      if (period === null) continue
+      maxWeightMap.set(period, r.max_weight)
+    }
 
-      // 期間内の全期間キーを生成
-      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-      const result: MaxWeightRecord[] = []
-      for (const period of periodKeys) {
-        const weight = maxWeightMap.get(period)
-        if (weight !== undefined) {
-          result.push({ period, weight })
-        }
+    // 期間内の全期間キーを生成
+    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+    const result: MaxWeightRecord[] = []
+    for (const period of periodKeys) {
+      const weight = maxWeightMap.get(period)
+      if (weight !== undefined) {
+        result.push({ period, weight })
       }
+    }
 
-      return result
-    })
+    return result
   }
 
   /**
@@ -388,22 +343,13 @@ export class StatisticsService {
   ): Promise<OneRMRecord[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getOneRMHistory',
-      `${exerciseId}_${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const periodExpr = getPeriodExprSql(sql`date`, granularity)
+    const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.all<
-        {
-          period: string
-          max_one_rm: number
-        }>
-      (sql`
+    const results = await db.all<{
+      period: string
+      max_one_rm: number
+    }>(sql`
         SELECT
           ${periodExpr} as period,
           CAST(MAX(weight * (1 + reps / 29.5)) AS REAL) as max_one_rm
@@ -416,26 +362,25 @@ export class StatisticsService {
         ORDER BY period ASC
       `)
 
-      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
-      const oneRMMap = new Map<string, number>()
-      for (const r of results) {
-        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
-        if (period === null) continue
-        oneRMMap.set(period, r.max_one_rm)
-      }
+    // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
+    const oneRMMap = new Map<string, number>()
+    for (const r of results) {
+      const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+      if (period === null) continue
+      oneRMMap.set(period, r.max_one_rm)
+    }
 
-      // 期間内の全期間キーを生成
-      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-      const result: OneRMRecord[] = []
-      for (const period of periodKeys) {
-        const oneRM = oneRMMap.get(period)
-        if (oneRM !== undefined) {
-          result.push({ period, oneRM: Math.round(oneRM * 10) / 10 })
-        }
+    // 期間内の全期間キーを生成
+    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+    const result: OneRMRecord[] = []
+    for (const period of periodKeys) {
+      const oneRM = oneRMMap.get(period)
+      if (oneRM !== undefined) {
+        result.push({ period, oneRM: Math.round(oneRM * 10) / 10 })
       }
+    }
 
-      return result
-    })
+    return result
   }
 
   /**
@@ -443,17 +388,12 @@ export class StatisticsService {
    * SQL集計版
    */
   async getSummary(userId: number): Promise<StatsSummary> {
-    const cacheKey = cacheService.buildKey(userId, 'statistics', 'getSummary')
-
-    return cacheService.through(cacheKey, async () => {
-      // 集計クエリ
-      const statsResult = await db.all<
-        {
-          total_volume: number | null
-          total_sets: number
-          total_workouts: number
-        }>
-      (sql`
+    // 集計クエリ
+    const statsResult = await db.all<{
+      total_volume: number | null
+      total_sets: number
+      total_workouts: number
+    }>(sql`
         SELECT
           CAST(SUM(weight * reps) AS REAL) as total_volume,
           CAST(COUNT(*) AS INTEGER) as total_sets,
@@ -462,36 +402,35 @@ export class StatisticsService {
         WHERE user_id = ${userId}
       `)
 
-      const stats = statsResult[0]
-      if (!stats || Number(stats.total_sets) === 0) {
-        return {
-          totalVolume: 0,
-          totalSets: 0,
-          totalWorkouts: 0,
-          currentStreak: 0,
-          maxStreak: 0,
-        }
+    const stats = statsResult[0]
+    if (!stats || Number(stats.total_sets) === 0) {
+      return {
+        totalVolume: 0,
+        totalSets: 0,
+        totalWorkouts: 0,
+        currentStreak: 0,
+        maxStreak: 0,
       }
+    }
 
-      // ストリーク計算用に日付のみ取得
-      const datesResult = await db.all<{ date: string }>(sql`
+    // ストリーク計算用に日付のみ取得
+    const datesResult = await db.all<{ date: string }>(sql`
         SELECT DISTINCT date
         FROM sets
         WHERE user_id = ${userId}
         ORDER BY date DESC
       `)
 
-      const sortedDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
-      const { currentStreak, maxStreak } = this.calculateStreaks(sortedDates)
+    const sortedDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
+    const { currentStreak, maxStreak } = this.calculateStreaks(sortedDates)
 
-      return {
-        totalVolume: stats.total_volume || 0,
-        totalSets: Number(stats.total_sets),
-        totalWorkouts: Number(stats.total_workouts),
-        currentStreak,
-        maxStreak,
-      }
-    })
+    return {
+      totalVolume: stats.total_volume || 0,
+      totalSets: Number(stats.total_sets),
+      totalWorkouts: Number(stats.total_workouts),
+      currentStreak,
+      maxStreak,
+    }
   }
 
   /**
@@ -505,16 +444,9 @@ export class StatisticsService {
   ): Promise<ContinuityStats> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getContinuityStats',
-      `${startStr}_${endStr}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      // 期間内のユニーク日数を取得
-      const totalDaysResult = await db.all<{ total_days: number }>(sql`
+    // 期間内のユニーク日数を取得
+    const totalDaysResult = await db.all<{ total_days: number }>(sql`
         SELECT CAST(COUNT(DISTINCT date) AS INTEGER) as total_days
         FROM sets
         WHERE user_id = ${userId}
@@ -522,19 +454,19 @@ export class StatisticsService {
           AND date <= ${endStr}
       `)
 
-      const totalDays = Number(totalDaysResult[0]?.total_days || 0)
+    const totalDays = Number(totalDaysResult[0]?.total_days || 0)
 
-      if (totalDays === 0) {
-        return {
-          totalDays: 0,
-          currentStreakWeeks: 0,
-          currentStreakMonths: 0,
-        }
+    if (totalDays === 0) {
+      return {
+        totalDays: 0,
+        currentStreakWeeks: 0,
+        currentStreakMonths: 0,
       }
+    }
 
-      // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
-      const oneYearAgoStr = dayjs().subtract(1, 'year').format('YYYY-MM-DD')
-      const datesResult = await db.all<{ date: string }>(sql`
+    // ストリーク計算用：直近1年分の日付を取得（全件取得を回避）
+    const oneYearAgoStr = dayjs().subtract(1, 'year').format('YYYY-MM-DD')
+    const datesResult = await db.all<{ date: string }>(sql`
         SELECT DISTINCT date
         FROM sets
         WHERE user_id = ${userId}
@@ -542,37 +474,36 @@ export class StatisticsService {
         ORDER BY date DESC
       `)
 
-      const allUniqueDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
+    const allUniqueDates = datesResult.map((r) => dayjs(r.date).format('YYYY-MM-DD'))
 
-      // 週ごとのトレーニング有無
-      const weeksWithTraining = new Set<string>()
-      for (const dateStr of allUniqueDates) {
-        const date = dayjs(dateStr)
-        weeksWithTraining.add(`${date.isoWeekYear()}-W${String(date.isoWeek()).padStart(2, '0')}`)
-      }
+    // 週ごとのトレーニング有無
+    const weeksWithTraining = new Set<string>()
+    for (const dateStr of allUniqueDates) {
+      const date = dayjs(dateStr)
+      weeksWithTraining.add(`${date.isoWeekYear()}-W${String(date.isoWeek()).padStart(2, '0')}`)
+    }
 
-      // 月ごとのトレーニング有無
-      const monthsWithTraining = new Set<string>()
-      for (const dateStr of allUniqueDates) {
-        const date = dayjs(dateStr)
-        monthsWithTraining.add(date.format('YYYY-MM'))
-      }
+    // 月ごとのトレーニング有無
+    const monthsWithTraining = new Set<string>()
+    for (const dateStr of allUniqueDates) {
+      const date = dayjs(dateStr)
+      monthsWithTraining.add(date.format('YYYY-MM'))
+    }
 
-      const currentStreakWeeks = this.calculatePeriodStreak(
-        Array.from(weeksWithTraining).sort().reverse(),
-        'week',
-      )
-      const currentStreakMonths = this.calculatePeriodStreak(
-        Array.from(monthsWithTraining).sort().reverse(),
-        'month',
-      )
+    const currentStreakWeeks = this.calculatePeriodStreak(
+      Array.from(weeksWithTraining).sort().reverse(),
+      'week',
+    )
+    const currentStreakMonths = this.calculatePeriodStreak(
+      Array.from(monthsWithTraining).sort().reverse(),
+      'month',
+    )
 
-      return {
-        totalDays,
-        currentStreakWeeks,
-        currentStreakMonths,
-      }
-    })
+    return {
+      totalDays,
+      currentStreakWeeks,
+      currentStreakMonths,
+    }
   }
 
   /**
@@ -587,22 +518,13 @@ export class StatisticsService {
   ): Promise<TrainingDaysByPeriod[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getTrainingDaysByPeriod',
-      `${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const periodExpr = getPeriodExprSql(sql`date`, granularity)
+    const periodExpr = getPeriodExprSql(sql`date`, granularity)
 
-      const results = await db.all<
-        {
-          period: string
-          days: number
-        }>
-      (sql`
+    const results = await db.all<{
+      period: string
+      days: number
+    }>(sql`
         SELECT
           ${periodExpr} as period,
           CAST(COUNT(DISTINCT date) AS INTEGER) as days
@@ -613,21 +535,20 @@ export class StatisticsService {
         GROUP BY 1
       `)
 
-      // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
-      const daysMap = new Map<string, number>()
-      for (const r of results) {
-        const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
-        if (period === null) continue
-        daysMap.set(period, Number(r.days))
-      }
+    // 結果をMapに変換（不正period行は warn して skip し、残り集計を返す）
+    const daysMap = new Map<string, number>()
+    for (const r of results) {
+      const period = toPeriodKey(r.period, granularity, warnInvalidPeriod)
+      if (period === null) continue
+      daysMap.set(period, Number(r.days))
+    }
 
-      // 期間内の全期間キーを生成
-      const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
-      return periodKeys.map((period) => ({
-        period,
-        days: daysMap.get(period) || 0,
-      }))
-    })
+    // 期間内の全期間キーを生成
+    const periodKeys = this.generatePeriodKeys(startDate, endDate, granularity)
+    return periodKeys.map((period) => ({
+      period,
+      days: daysMap.get(period) || 0,
+    }))
   }
 
   /**
@@ -641,21 +562,12 @@ export class StatisticsService {
   ): Promise<ExerciseTrainingDays[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getExerciseTrainingDays',
-      `${startStr}_${endStr}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const results = await db.all<
-        {
-          exercise_id: number
-          exercise_name: string
-          days: number
-        }>
-      (sql`
+    const results = await db.all<{
+      exercise_id: number
+      exercise_name: string
+      days: number
+    }>(sql`
         SELECT
           s.exercise_id,
           e.name as exercise_name,
@@ -669,12 +581,11 @@ export class StatisticsService {
         ORDER BY days DESC
       `)
 
-      return results.map((r) => ({
-        exerciseId: r.exercise_id,
-        exerciseName: r.exercise_name,
-        days: Number(r.days),
-      }))
-    })
+    return results.map((r) => ({
+      exerciseId: r.exercise_id,
+      exerciseName: r.exercise_name,
+      days: Number(r.days),
+    }))
   }
 
   /**
@@ -802,23 +713,14 @@ export class StatisticsService {
   ): Promise<BodyPartVolumeTotal[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getBodyPartVolumeTotals',
-      `${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      if (granularity === 'category') {
-        // カテゴリ単位で集計
-        const results = await db.all<
-          {
-            category: string
-            volume: number
-            set_count: number
-          }>
-        (sql`
+    if (granularity === 'category') {
+      // カテゴリ単位で集計
+      const results = await db.all<{
+        category: string
+        volume: number
+        set_count: number
+      }>(sql`
           SELECT
             bp.category,
             CAST(SUM(s.weight * s.reps * ebp.load_ratio / 100.0) AS REAL) as volume,
@@ -833,24 +735,22 @@ export class StatisticsService {
           ORDER BY volume DESC
         `)
 
-        return results.map((r) => ({
-          bodyPartId: 0, // カテゴリ集計時は0
-          category: r.category,
-          bodyPartName: '', // カテゴリ集計時は空
-          volume: r.volume,
-          setCount: Number(r.set_count),
-        }))
-      }
-      // 部位単位で集計
-      const results = await db.all<
-        {
-          body_part_id: number
-          category: string
-          body_part_name: string
-          volume: number
-          set_count: number
-        }>
-      (sql`
+      return results.map((r) => ({
+        bodyPartId: 0, // カテゴリ集計時は0
+        category: r.category,
+        bodyPartName: '', // カテゴリ集計時は空
+        volume: r.volume,
+        setCount: Number(r.set_count),
+      }))
+    }
+    // 部位単位で集計
+    const results = await db.all<{
+      body_part_id: number
+      category: string
+      body_part_name: string
+      volume: number
+      set_count: number
+    }>(sql`
           SELECT
             bp.id as body_part_id,
             bp.category,
@@ -867,14 +767,13 @@ export class StatisticsService {
           ORDER BY volume DESC
         `)
 
-      return results.map((r) => ({
-        bodyPartId: r.body_part_id,
-        category: r.category,
-        bodyPartName: r.body_part_name,
-        volume: r.volume,
-        setCount: Number(r.set_count),
-      }))
-    })
+    return results.map((r) => ({
+      bodyPartId: r.body_part_id,
+      category: r.category,
+      bodyPartName: r.body_part_name,
+      volume: r.volume,
+      setCount: Number(r.set_count),
+    }))
   }
 
   /**
@@ -890,25 +789,16 @@ export class StatisticsService {
   ): Promise<BodyPartVolumeByPeriod[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getVolumeByBodyPart',
-      `${startStr}_${endStr}_${timeGranularity}_${bodyPartGranularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      const periodExpr = getPeriodExprSql(sql`s.date`, timeGranularity)
+    const periodExpr = getPeriodExprSql(sql`s.date`, timeGranularity)
 
-      if (bodyPartGranularity === 'category') {
-        // カテゴリ単位で集計
-        const results = await db.all<
-          {
-            period: string
-            category: string
-            volume: number
-          }>
-        (sql`
+    if (bodyPartGranularity === 'category') {
+      // カテゴリ単位で集計
+      const results = await db.all<{
+        period: string
+        category: string
+        volume: number
+      }>(sql`
           SELECT
             ${periodExpr} as period,
             bp.category,
@@ -923,31 +813,29 @@ export class StatisticsService {
           ORDER BY period ASC
         `)
 
-        // 不正period行は warn して skip し、残り集計を返す
-        const mapped: BodyPartVolumeByPeriod[] = []
-        for (const r of results) {
-          const period = toPeriodKey(r.period, timeGranularity, warnInvalidPeriod)
-          if (period === null) continue
-          mapped.push({
-            period,
-            bodyPartId: 0,
-            category: r.category,
-            bodyPartName: '',
-            volume: r.volume,
-          })
-        }
-        return mapped
+      // 不正period行は warn して skip し、残り集計を返す
+      const mapped: BodyPartVolumeByPeriod[] = []
+      for (const r of results) {
+        const period = toPeriodKey(r.period, timeGranularity, warnInvalidPeriod)
+        if (period === null) continue
+        mapped.push({
+          period,
+          bodyPartId: 0,
+          category: r.category,
+          bodyPartName: '',
+          volume: r.volume,
+        })
       }
-      // 部位単位で集計
-      const results = await db.all<
-        {
-          period: string
-          body_part_id: number
-          category: string
-          body_part_name: string
-          volume: number
-        }>
-      (sql`
+      return mapped
+    }
+    // 部位単位で集計
+    const results = await db.all<{
+      period: string
+      body_part_id: number
+      category: string
+      body_part_name: string
+      volume: number
+    }>(sql`
           SELECT
             ${periodExpr} as period,
             bp.id as body_part_id,
@@ -964,21 +852,20 @@ export class StatisticsService {
           ORDER BY period ASC
         `)
 
-      // 不正period行は warn して skip し、残り集計を返す
-      const mapped: BodyPartVolumeByPeriod[] = []
-      for (const r of results) {
-        const period = toPeriodKey(r.period, timeGranularity, warnInvalidPeriod)
-        if (period === null) continue
-        mapped.push({
-          period,
-          bodyPartId: r.body_part_id,
-          category: r.category,
-          bodyPartName: r.body_part_name,
-          volume: r.volume,
-        })
-      }
-      return mapped
-    })
+    // 不正period行は warn して skip し、残り集計を返す
+    const mapped: BodyPartVolumeByPeriod[] = []
+    for (const r of results) {
+      const period = toPeriodKey(r.period, timeGranularity, warnInvalidPeriod)
+      if (period === null) continue
+      mapped.push({
+        period,
+        bodyPartId: r.body_part_id,
+        category: r.category,
+        bodyPartName: r.body_part_name,
+        volume: r.volume,
+      })
+    }
+    return mapped
   }
 
   /**
@@ -993,22 +880,13 @@ export class StatisticsService {
   ): Promise<BodyPartTrainingDays[]> {
     const startStr = toLocalDateString(startDate)
     const endStr = toLocalDateString(endDate)
-    const cacheKey = cacheService.buildKey(
-      userId,
-      'statistics',
-      'getBodyPartTrainingDays',
-      `${startStr}_${endStr}_${granularity}`,
-    )
 
-    return cacheService.through(cacheKey, async () => {
-      if (granularity === 'category') {
-        // カテゴリ単位で集計
-        const results = await db.all<
-          {
-            category: string
-            days: number
-          }>
-        (sql`
+    if (granularity === 'category') {
+      // カテゴリ単位で集計
+      const results = await db.all<{
+        category: string
+        days: number
+      }>(sql`
           SELECT
             bp.category,
             CAST(COUNT(DISTINCT s.date) AS INTEGER) as days
@@ -1022,22 +900,20 @@ export class StatisticsService {
           ORDER BY days DESC
         `)
 
-        return results.map((r) => ({
-          bodyPartId: 0,
-          category: r.category,
-          bodyPartName: '',
-          days: Number(r.days),
-        }))
-      }
-      // 部位単位で集計
-      const results = await db.all<
-        {
-          body_part_id: number
-          category: string
-          body_part_name: string
-          days: number
-        }>
-      (sql`
+      return results.map((r) => ({
+        bodyPartId: 0,
+        category: r.category,
+        bodyPartName: '',
+        days: Number(r.days),
+      }))
+    }
+    // 部位単位で集計
+    const results = await db.all<{
+      body_part_id: number
+      category: string
+      body_part_name: string
+      days: number
+    }>(sql`
           SELECT
             bp.id as body_part_id,
             bp.category,
@@ -1053,13 +929,12 @@ export class StatisticsService {
           ORDER BY days DESC
         `)
 
-      return results.map((r) => ({
-        bodyPartId: r.body_part_id,
-        category: r.category,
-        bodyPartName: r.body_part_name,
-        days: Number(r.days),
-      }))
-    })
+    return results.map((r) => ({
+      bodyPartId: r.body_part_id,
+      category: r.category,
+      bodyPartName: r.body_part_name,
+      days: Number(r.days),
+    }))
   }
 }
 

@@ -1,4 +1,5 @@
 import { orpc } from '@/lib/orpc-client'
+import { queryKeys, resetCacheForExercises } from '@/lib/query-keys'
 import {
   DndContext,
   type DragEndEvent,
@@ -51,8 +52,9 @@ import {
   Tooltip,
   Typography,
 } from '@mui/material'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState, useTransition } from 'react'
 /** 部位情報 */
 type BodyPartInfo = {
   bodyPartId: number
@@ -238,17 +240,18 @@ function BodyPartEditDialog({
   onSave,
 }: BodyPartEditDialogProps) {
   const [isPending, startTransition] = useTransition()
-  const [allBodyParts, setAllBodyParts] = useState<BodyPart[]>([])
   const [selectedBodyParts, setSelectedBodyParts] = useState<ExerciseBodyPartInput[]>([])
   const [error, setError] = useState<string | null>(null)
 
-  // 部位マスタを取得
+  // 部位マスタを取得（モーダルを開いたときのみ。不変マスタのため再取得しない）
+  const { data: allBodyParts = [] } = useQuery({
+    queryKey: queryKeys.bodyParts.list,
+    queryFn: () => orpc.exercises.listBodyParts(),
+    enabled: open,
+  })
+
   useEffect(() => {
     if (open) {
-      startTransition(async () => {
-        const data = await orpc.exercises.listBodyParts()
-        setAllBodyParts(data)
-      })
       setSelectedBodyParts(initialBodyParts)
       setError(null)
     }
@@ -433,15 +436,20 @@ function BodyPartEditDialog({
 /** APIレスポンスから推論された種目型 */
 type ExerciseWithBodyParts = Awaited<ReturnType<typeof orpc.exercises.listWithBodyParts>>[number]
 
+/** 空配列の安定参照（クエリ未取得時の既定値） */
+const EMPTY_EXERCISES: ExerciseWithBodyParts[] = []
+
 /** カテゴリの表示順 */
 const categoryOrder = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG']
 
 function ExerciseList() {
-  const [exercises, setExercises] = useState<ExerciseWithBodyParts[]>([])
+  const queryClient = useQueryClient()
+  const { data: exercises = EMPTY_EXERCISES, isPending: isInitialLoading } = useQuery({
+    queryKey: queryKeys.exercises.withBodyParts,
+    queryFn: () => orpc.exercises.listWithBodyParts(),
+  })
   const [isPending, startTransition] = useTransition()
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isSorting, setIsSorting] = useState(false)
-  const isInitialLoadRef = useRef(true)
 
   // ダイアログ状態
   const [createDialogOpen, setCreateDialogOpen] = useState(false)
@@ -485,22 +493,6 @@ function ExerciseList() {
     return groups
   }, [exercises])
 
-  // 種目リストを取得
-  const loadExercises = useCallback(() => {
-    startTransition(async () => {
-      const data = await orpc.exercises.listWithBodyParts()
-      setExercises(data)
-      if (isInitialLoadRef.current) {
-        setIsInitialLoading(false)
-        isInitialLoadRef.current = false
-      }
-    })
-  }, [])
-
-  useEffect(() => {
-    loadExercises()
-  }, [loadExercises])
-
   // ドラッグ終了時の処理（同一カテゴリ内のみ許可）
   const handleDragEnd = (event: DragEndEvent, categoryExercises: ExerciseWithBodyParts[]) => {
     const { active, over } = event
@@ -514,17 +506,20 @@ function ExerciseList() {
 
     const newItems = arrayMove(categoryExercises, oldIndex, newIndex)
 
-    // ローカル状態を更新
-    setExercises((prev) => {
-      const updated = [...prev]
-      for (let i = 0; i < newItems.length; i++) {
-        const exerciseIndex = updated.findIndex((e) => e.id === newItems[i].id)
-        if (exerciseIndex !== -1) {
-          updated[exerciseIndex] = { ...updated[exerciseIndex], sortIndex: i }
+    // クライアントキャッシュを即座に更新（楽観更新）
+    queryClient.setQueryData<ExerciseWithBodyParts[]>(
+      queryKeys.exercises.withBodyParts,
+      (prev = []) => {
+        const updated = [...prev]
+        for (let i = 0; i < newItems.length; i++) {
+          const exerciseIndex = updated.findIndex((e) => e.id === newItems[i].id)
+          if (exerciseIndex !== -1) {
+            updated[exerciseIndex] = { ...updated[exerciseIndex], sortIndex: i }
+          }
         }
-      }
-      return updated
-    })
+        return updated
+      },
+    )
 
     // 変更されたアイテムのみを抽出して並び順を保存
     const minIndex = Math.min(oldIndex, newIndex)
@@ -535,8 +530,15 @@ function ExerciseList() {
 
     setIsSorting(true)
     startTransition(async () => {
-      await orpc.exercises.updateSortOrder(changedItems)
-      setIsSorting(false)
+      try {
+        await orpc.exercises.updateSortOrder(changedItems)
+      } catch (error) {
+        // 失敗時はサーバーの正しい順序へ戻す（楽観更新のロールバック）
+        await resetCacheForExercises(queryClient)
+        console.error('[exercises] updateSortOrder failed', error)
+      } finally {
+        setIsSorting(false)
+      }
     })
   }
 
@@ -551,9 +553,10 @@ function ExerciseList() {
 
     startTransition(async () => {
       await orpc.exercises.create(exerciseName.trim())
+      // 種目系（＋記録・統計系）のキャッシュを破棄して再取得させる（ADR 0014）
+      await resetCacheForExercises(queryClient)
       setCreateDialogOpen(false)
       setExerciseName('')
-      loadExercises()
     })
   }
 
@@ -569,10 +572,11 @@ function ExerciseList() {
 
     startTransition(async () => {
       await orpc.exercises.update(selectedExercise.id, exerciseName.trim())
+      // 種目系（＋記録・統計系）のキャッシュを破棄して再取得させる（ADR 0014）
+      await resetCacheForExercises(queryClient)
       setEditDialogOpen(false)
       setSelectedExercise(null)
       setExerciseName('')
-      loadExercises()
     })
   }
 
@@ -595,9 +599,10 @@ function ExerciseList() {
       }
 
       await orpc.exercises.remove(selectedExercise.id)
+      // 種目系（＋記録・統計系）のキャッシュを破棄して再取得させる（ADR 0014）
+      await resetCacheForExercises(queryClient)
       setDeleteDialogOpen(false)
       setSelectedExercise(null)
-      loadExercises()
     })
   }
 
@@ -880,7 +885,7 @@ function ExerciseList() {
             loadRatio: bp.loadRatio,
           })) ?? []
         }
-        onSave={loadExercises}
+        onSave={() => resetCacheForExercises(queryClient)}
       />
 
       {/* エラースナックバー */}

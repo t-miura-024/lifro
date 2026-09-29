@@ -1,10 +1,11 @@
 import type { TrainingMemo, TrainingMemoInput } from '@/server/domain/entities'
 import type { ITrainingMemoRepository } from '@/server/domain/repositories'
+import { toLocalDateString } from '@/server/shared/date-utils'
 import { and, asc, eq, gte, inArray, lte } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import { db } from '../../database/drizzle/client'
 import { trainingMemos } from '../../database/drizzle/schema'
 import { toDateString, toISOString } from './helper'
-import { toLocalDateString } from '@/server/shared/date-utils'
 
 export class DrizzleTrainingMemoRepository implements ITrainingMemoRepository {
   async findByDate(userId: number, date: string): Promise<TrainingMemo[]> {
@@ -98,70 +99,80 @@ export class DrizzleTrainingMemoRepository implements ITrainingMemoRepository {
   }
 
   async saveAll(userId: number, date: string, memos: TrainingMemoInput[]): Promise<TrainingMemo[]> {
-    return await db.transaction(async (tx) => {
-      // 既存のメモを取得
-      const existingMemos = await tx
-        .select()
-        .from(trainingMemos)
-        .where(and(eq(trainingMemos.userId, userId), eq(trainingMemos.date, date)))
+    // D1 は対話的トランザクション（BEGIN/SAVEPOINT）を拒否するため、既存メモの
+    // 読み取りはバッチの外で行い、書き込み（削除・更新・作成）だけを db.batch に
+    // 一括して原子性を保つ。
+    const existingMemos = await db
+      .select()
+      .from(trainingMemos)
+      .where(and(eq(trainingMemos.userId, userId), eq(trainingMemos.date, date)))
 
-      const existingIds = existingMemos.map((m) => m.id)
-      const inputIds = memos.filter((m) => m.id !== undefined).map((m) => m.id as number)
+    const existingIds = existingMemos.map((m) => m.id)
+    const inputIds = memos.filter((m) => m.id !== undefined).map((m) => m.id as number)
 
-      // 削除対象: 既存にあって入力にないもの
-      const toDelete = existingIds.filter((id) => !inputIds.includes(id))
+    // 削除対象: 既存にあって入力にないもの
+    const toDelete = existingIds.filter((id) => !inputIds.includes(id))
 
-      // 更新対象: 入力にidがあるもの
-      const toUpdate = memos.filter(
-        (m) => m.id !== undefined && existingIds.includes(m.id as number),
-      )
+    // 更新対象: 入力にidがあるもの
+    const toUpdate = memos.filter((m) => m.id !== undefined && existingIds.includes(m.id as number))
 
-      // 新規作成対象: 入力にidがないもの
-      const toCreate = memos.filter((m) => m.id === undefined)
+    // 新規作成対象: 入力にidがないもの
+    const toCreate = memos.filter((m) => m.id === undefined)
 
-      // 削除
-      if (toDelete.length > 0) {
-        await tx
+    const statements: BatchItem<'sqlite'>[] = []
+
+    // 削除
+    if (toDelete.length > 0) {
+      statements.push(
+        db
           .delete(trainingMemos)
-          .where(and(inArray(trainingMemos.id, toDelete), eq(trainingMemos.userId, userId)))
-      }
+          .where(and(inArray(trainingMemos.id, toDelete), eq(trainingMemos.userId, userId))),
+      )
+    }
 
-      // 更新
-      for (const memo of toUpdate) {
-        await tx
+    // 更新
+    for (const memo of toUpdate) {
+      statements.push(
+        db
           .update(trainingMemos)
           .set({ content: memo.content, updatedAt: new Date() })
-          .where(and(eq(trainingMemos.id, memo.id as number), eq(trainingMemos.userId, userId)))
-      }
+          .where(and(eq(trainingMemos.id, memo.id as number), eq(trainingMemos.userId, userId))),
+      )
+    }
 
-      // 新規作成
-      if (toCreate.length > 0) {
-        await tx.insert(trainingMemos).values(
+    // 新規作成
+    if (toCreate.length > 0) {
+      statements.push(
+        db.insert(trainingMemos).values(
           toCreate.map((m) => ({
             userId,
             date,
             content: m.content,
             updatedAt: new Date(),
           })),
-        )
-      }
+        ),
+      )
+    }
 
-      // 最新のメモ一覧を取得して返す
-      const result = await tx
-        .select()
-        .from(trainingMemos)
-        .where(and(eq(trainingMemos.userId, userId), eq(trainingMemos.date, date)))
-        .orderBy(asc(trainingMemos.createdAt))
+    if (statements.length > 0) {
+      await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
+    }
 
-      return result.map((m) => ({
-        id: m.id,
-        userId: m.userId,
-        date: toDateString(m.date),
-        content: m.content,
-        createdAt: toISOString(m.createdAt),
-        updatedAt: toISOString(m.updatedAt),
-      }))
-    })
+    // 最新のメモ一覧を取得して返す
+    const result = await db
+      .select()
+      .from(trainingMemos)
+      .where(and(eq(trainingMemos.userId, userId), eq(trainingMemos.date, date)))
+      .orderBy(asc(trainingMemos.createdAt))
+
+    return result.map((m) => ({
+      id: m.id,
+      userId: m.userId,
+      date: toDateString(m.date),
+      content: m.content,
+      createdAt: toISOString(m.createdAt),
+      updatedAt: toISOString(m.updatedAt),
+    }))
   }
 }
 

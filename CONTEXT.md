@@ -53,8 +53,12 @@ Cloudflare側を課金発生させずに運用すること。超過時は停止�
 _Avoid_: 実質無料、少額課金許容
 
 **Cloudflare系**:
-Workers＋D1＋Workers Cache＋Static Assetsの総称。Vercel/Neon/Upstashの置換先。
+Workers＋D1＋Static Assetsの総称。Vercel/Neon/Upstashの置換先。
 _Avoid_: Pages単体、KV単体
+
+**クライアント state キャッシュ**:
+画面データをブラウザのメモリ（React state）に保持するキャッシュ。保存・更新時にドメイン単位で破棄し、通常の画面遷移では再取得しない（ADR 0014）。
+_Avoid_: サーバーキャッシュ、Service Worker キャッシュ
 
 **完全Vercel脱却**:
 Vercel/Neon/Upstash依存をゼロにし、Authコールバック・Env・PWA静的資産・vercel.svg除去まで含めてCloudflare側に寄せること。

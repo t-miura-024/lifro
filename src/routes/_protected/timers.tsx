@@ -7,6 +7,7 @@ import {
   type SoundFile,
 } from '@/constants/sounds'
 import { orpc } from '@/lib/orpc-client'
+import { queryKeys, resetCacheForTimers } from '@/lib/query-keys'
 import type { Timer, UnitTimerInput } from '@/server/domain/entities'
 import { audioScheduler } from '@/utils/soundPlayer'
 import {
@@ -54,6 +55,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import { memo, useCallback, useEffect, useRef, useState, useTransition } from 'react'
 type SortableTimerItemProps = {
@@ -503,11 +505,11 @@ function SortableUnitTimerItem({
 }
 
 function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalProps) {
+  const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [unitTimers, setUnitTimers] = useState<UnitTimerFormData[]>([createEmptyUnit()])
   const [isPending, startTransition] = useTransition()
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
-  const [soundFiles, setSoundFiles] = useState<SoundFile[]>([])
   const [expandedKeys, setExpandedKeys] = useState<Set<string>>(new Set())
 
   const isEditMode = timer !== null
@@ -558,14 +560,12 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
     return `${m}:${s.toString().padStart(2, '0')}`
   }
 
-  // 音声ファイル一覧を取得
-  useEffect(() => {
-    if (open) {
-      orpc.timers.listSounds().then((data) => {
-        setSoundFiles(data)
-      })
-    }
-  }, [open])
+  // 音声ファイル一覧を取得（モーダルを開いたときのみ。キャッシュ済みなら再取得しない）
+  const { data: soundFiles = [] } = useQuery({
+    queryKey: queryKeys.timers.sounds,
+    queryFn: () => orpc.timers.listSounds(),
+    enabled: open,
+  })
 
   // モーダルが開いたときに初期化
   useEffect(() => {
@@ -631,6 +631,8 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
           unitTimers: unitTimerInputs,
         })
       }
+      // 保存成功: タイマー系キャッシュを破棄して再取得させる（ADR 0014）
+      await resetCacheForTimers(queryClient)
       onSaved()
     })
   }
@@ -645,6 +647,8 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
 
     startTransition(async () => {
       await orpc.timers.remove(timer.id)
+      // 削除成功: タイマー系キャッシュを破棄して再取得させる（ADR 0014）
+      await resetCacheForTimers(queryClient)
       setDeleteConfirmOpen(false)
       onSaved()
     })
@@ -797,11 +801,13 @@ function TimerDetailModal({ open, onClose, onSaved, timer }: TimerDetailModalPro
 }
 
 function TimerList() {
-  const [timers, setTimers] = useState<Timer[]>([])
+  const queryClient = useQueryClient()
+  const { data: timers = [], isPending: isInitialLoading } = useQuery({
+    queryKey: queryKeys.timers.list,
+    queryFn: () => orpc.timers.list(),
+  })
   const [isPending, startTransition] = useTransition()
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [isSorting, setIsSorting] = useState(false)
-  const isInitialLoadRef = useRef(true)
 
   // モーダル状態
   const [modalOpen, setModalOpen] = useState(false)
@@ -817,22 +823,6 @@ function TimerList() {
     }),
   )
 
-  // タイマーリストを取得
-  const loadTimers = useCallback(() => {
-    startTransition(async () => {
-      const data = await orpc.timers.list()
-      setTimers(data)
-      if (isInitialLoadRef.current) {
-        setIsInitialLoading(false)
-        isInitialLoadRef.current = false
-      }
-    })
-  }, [])
-
-  useEffect(() => {
-    loadTimers()
-  }, [loadTimers])
-
   // ドラッグ終了時の処理
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event
@@ -843,8 +833,8 @@ function TimerList() {
     const newIndex = timers.findIndex((item) => item.id === over.id)
     const newItems = arrayMove(timers, oldIndex, newIndex)
 
-    // ローカル状態を即座に更新
-    setTimers(newItems)
+    // クライアントキャッシュを即座に更新（楽観更新）
+    queryClient.setQueryData(queryKeys.timers.list, newItems)
 
     // 変更されたアイテムのみを抽出して並び順を保存
     const minIndex = Math.min(oldIndex, newIndex)
@@ -855,8 +845,15 @@ function TimerList() {
 
     setIsSorting(true)
     startTransition(async () => {
-      await orpc.timers.updateSortOrder(changedItems)
-      setIsSorting(false)
+      try {
+        await orpc.timers.updateSortOrder(changedItems)
+      } catch (error) {
+        // 失敗時はサーバーの正しい順序へ戻す（楽観更新のロールバック）
+        await resetCacheForTimers(queryClient)
+        console.error('[timers] updateSortOrder failed', error)
+      } finally {
+        setIsSorting(false)
+      }
     })
   }
 
@@ -888,8 +885,8 @@ function TimerList() {
 
   // 保存後
   const handleSaved = () => {
+    // キャッシュの破棄・再取得は保存/削除の各ハンドラで実施済み（ADR 0014）
     handleModalClose()
-    loadTimers()
   }
 
   // 時間をフォーマット（秒 → mm:ss）

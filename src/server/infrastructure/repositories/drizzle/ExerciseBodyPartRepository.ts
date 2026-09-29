@@ -50,9 +50,7 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
       .where(eq(exerciseBodyParts.exerciseId, exerciseId))
       .orderBy(desc(exerciseBodyParts.loadRatio))
 
-    return rows.map((r) =>
-      toExerciseBodyPart({ ...r.exerciseBodyPart, bodyPart: r.bodyPart }),
-    )
+    return rows.map((r) => toExerciseBodyPart({ ...r.exerciseBodyPart, bodyPart: r.bodyPart }))
   }
 
   async saveAll(
@@ -76,15 +74,22 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
       throw new Error('Total load ratio must be 100%')
     }
 
-    // トランザクションで全置換
-    await db.transaction(async (tx) => {
-      // 既存の紐付けを削除
-      await tx.delete(exerciseBodyParts).where(eq(exerciseBodyParts.exerciseId, exerciseId))
+    // D1 は SQL の BEGIN/SAVEPOINT 文を拒否する（Cloudflare error 7500）ため
+    // db.transaction は使えない。全置換の原子性は、D1 側で暗黙の
+    // トランザクションとして実行される db.batch で保つ。
+    const deleteExisting = db
+      .delete(exerciseBodyParts)
+      .where(eq(exerciseBodyParts.exerciseId, exerciseId))
 
-      // 新しい紐付けを作成
-      if (bodyPartsInput.length > 0) {
-        const now = new Date()
-        await tx.insert(exerciseBodyParts).values(
+    if (bodyPartsInput.length === 0) {
+      // 既存の紐付けの削除のみ
+      await db.batch([deleteExisting])
+    } else {
+      const now = new Date()
+      // 既存の紐付けの削除と新しい紐付けの作成を一括実行する
+      await db.batch([
+        deleteExisting,
+        db.insert(exerciseBodyParts).values(
           bodyPartsInput.map((bp) => ({
             exerciseId,
             bodyPartId: bp.bodyPartId,
@@ -92,9 +97,9 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
             createdAt: now,
             updatedAt: now,
           })),
-        )
-      }
-    })
+        ),
+      ])
+    }
 
     return this.findByExerciseId(exerciseId)
   }
@@ -133,9 +138,7 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
 
       // 主要カテゴリ = 負荷割合が最も高い部位のカテゴリ
       const primaryCategory =
-        bodyPartsList.length > 0
-          ? (bodyPartsList[0].bodyPart?.category as BodyPartCategory)
-          : null
+        bodyPartsList.length > 0 ? (bodyPartsList[0].bodyPart?.category as BodyPartCategory) : null
 
       return {
         id: e.id,

@@ -1,4 +1,5 @@
 import { orpc } from '@/lib/orpc-client'
+import { queryKeys } from '@/lib/query-keys'
 import type {
   BodyPartGranularity,
   BodyPartTrainingDays,
@@ -37,10 +38,11 @@ import {
 } from '@mui/material'
 import { DatePicker, LocalizationProvider } from '@mui/x-date-pickers'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
+import { useQuery } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/ja'
-import { useCallback, useEffect, useRef, useState, useTransition } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import {
   Bar,
@@ -1328,137 +1330,147 @@ function StatisticsPage() {
   const [timeRange, setTimeRange] = useState<TimeRange>({ preset: '1month' })
   const [activeTab, setActiveTab] = useState(0)
 
-  // ボリュームタブのデータ
-  const [totalVolume, setTotalVolume] = useState<number>(0)
-  const [volumeByExercise, setVolumeByExercise] = useState<ExerciseVolumeByPeriod[]>([])
-  const [exerciseVolumeTotals, setExerciseVolumeTotals] = useState<ExerciseVolumeTotal[]>([])
-
-  // 重量タブのデータ
-  const [exercises, setExercises] = useState<Exercise[]>([])
-  const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null)
-  const [maxWeightHistory, setMaxWeightHistory] = useState<MaxWeightRecord[]>([])
-  const [oneRMHistory, setOneRMHistory] = useState<OneRMRecord[]>([])
-
-  // 継続タブのデータ
-  const [continuityStats, setContinuityStats] = useState<ContinuityStats | null>(null)
-  const [trainingDaysByPeriod, setTrainingDaysByPeriod] = useState<TrainingDaysByPeriod[]>([])
-  const [exerciseTrainingDays, setExerciseTrainingDays] = useState<ExerciseTrainingDays[]>([])
-
-  // 部位別統計のデータ
+  // 部位別統計のフィルター
   const [bodyPartGranularity, setBodyPartGranularity] = useState<BodyPartGranularity>('category')
-  const [bodyPartVolumeTotals, setBodyPartVolumeTotals] = useState<BodyPartVolumeTotal[]>([])
-  const [volumeByBodyPart, setVolumeByBodyPart] = useState<BodyPartVolumeByPeriod[]>([])
-  const [bodyPartTrainingDays, setBodyPartTrainingDays] = useState<BodyPartTrainingDays[]>([])
 
-  const [isLoading, startLoading] = useTransition()
+  // 重量タブの選択種目（表示状態）
+  const [selectedExerciseId, setSelectedExerciseId] = useState<number | null>(null)
 
-  // 共通のデータ取得
-  const loadExercises = useCallback(async () => {
-    const data = await orpc.statistics.listExercises()
-    setExercises(data)
-    if (data.length > 0 && selectedExerciseId === null) {
-      setSelectedExerciseId(data[0].id)
+  const { preset, customStartDate, customEndDate } = timeRange
+  const orpcPreset = toOrpcPreset(preset)
+
+  // 種目一覧（重量タブの選択肢）
+  const exercisesQuery = useQuery({
+    queryKey: queryKeys.statistics.exerciseList,
+    queryFn: () => orpc.statistics.listExercises(),
+  })
+  const exercises = exercisesQuery.data ?? []
+
+  // 先頭の種目を初期選択（既存挙動）
+  useEffect(() => {
+    if (exercises.length > 0 && selectedExerciseId === null) {
+      setSelectedExerciseId(exercises[0].id)
     }
-  }, [selectedExerciseId])
+  }, [exercises, selectedExerciseId])
 
-  // ボリュームタブのデータ取得（統合アクション使用）
-  const loadVolumeData = useCallback(async () => {
-    const { preset, customStartDate, customEndDate } = timeRange
-    const orpcPreset = toOrpcPreset(preset)
-    const [data, bodyPartTotalsData, volumeByBodyPartData] = await Promise.all([
-      orpc.statistics.getVolumeTab({
-        granularity,
-        preset: orpcPreset,
-        customStartDate,
-        customEndDate,
-      }),
-      orpc.statistics.getBodyPartVolumeTotals({
-        preset: orpcPreset,
-        customStartDate,
-        customEndDate,
-        bodyPartGranularity,
-      }),
-      orpc.statistics.getVolumeByBodyPart({
-        granularity,
-        bodyPartGranularity,
-        preset: orpcPreset,
-        customStartDate,
-        customEndDate,
-      }),
-    ])
-    setTotalVolume(data.totalVolume)
-    setVolumeByExercise(data.volumeByExercise)
-    setExerciseVolumeTotals(data.exerciseVolumeTotals)
-    setBodyPartVolumeTotals(bodyPartTotalsData)
-    setVolumeByBodyPart(volumeByBodyPartData)
-  }, [granularity, timeRange, bodyPartGranularity])
-
-  // 重量タブのデータ取得（統合アクション使用）
-  const loadWeightData = useCallback(async () => {
-    if (!selectedExerciseId) return
-    const { preset, customStartDate, customEndDate } = timeRange
-    const data = await orpc.statistics.getWeightTab({
-      exerciseId: Number(selectedExerciseId),
+  // ボリュームタブ（表示中のみ取得。キャッシュ済みなら再取得しない）
+  const volumeQuery = useQuery({
+    queryKey: queryKeys.statistics.volumeTab(
       granularity,
-      preset: toOrpcPreset(preset),
+      orpcPreset,
       customStartDate,
       customEndDate,
-    })
-    setMaxWeightHistory(data.maxWeightHistory)
-    setOneRMHistory(data.oneRMHistory)
-  }, [granularity, timeRange, selectedExerciseId])
-
-  // 継続タブのデータ取得（統合アクション使用）
-  const loadContinuityData = useCallback(async () => {
-    const { preset, customStartDate, customEndDate } = timeRange
-    const [data, bodyPartDaysData] = await Promise.all([
-      orpc.statistics.getContinuityTab({
-        granularity,
-        preset: toOrpcPreset(preset),
-        customStartDate,
-        customEndDate,
-      }),
-      orpc.statistics.getBodyPartTrainingDays({
-        preset: toOrpcPreset(preset),
-        customStartDate,
-        customEndDate,
-        bodyPartGranularity,
-      }),
-    ])
-    setContinuityStats(data.stats)
-    setTrainingDaysByPeriod(data.daysByPeriod)
-    setExerciseTrainingDays(data.exerciseDays)
-    setBodyPartTrainingDays(bodyPartDaysData)
-  }, [granularity, timeRange, bodyPartGranularity])
-
-  // 初回ロード
-  useEffect(() => {
-    startLoading(async () => {
-      await loadExercises()
-    })
-  }, [loadExercises])
-
-  // タブ切り替え時のデータ取得
-  useEffect(() => {
-    startLoading(async () => {
-      if (activeTab === 0) {
-        await loadVolumeData()
-      } else if (activeTab === 1) {
-        await loadWeightData()
-      } else if (activeTab === 2) {
-        await loadContinuityData()
+      bodyPartGranularity,
+    ),
+    queryFn: async () => {
+      const [data, bodyPartTotalsData, volumeByBodyPartData] = await Promise.all([
+        orpc.statistics.getVolumeTab({
+          granularity,
+          preset: orpcPreset,
+          customStartDate,
+          customEndDate,
+        }),
+        orpc.statistics.getBodyPartVolumeTotals({
+          preset: orpcPreset,
+          customStartDate,
+          customEndDate,
+          bodyPartGranularity,
+        }),
+        orpc.statistics.getVolumeByBodyPart({
+          granularity,
+          bodyPartGranularity,
+          preset: orpcPreset,
+          customStartDate,
+          customEndDate,
+        }),
+      ])
+      return {
+        totalVolume: data.totalVolume,
+        volumeByExercise: data.volumeByExercise,
+        exerciseVolumeTotals: data.exerciseVolumeTotals,
+        bodyPartVolumeTotals: bodyPartTotalsData,
+        volumeByBodyPart: volumeByBodyPartData,
       }
-    })
-  }, [activeTab, loadVolumeData, loadWeightData, loadContinuityData])
+    },
+    enabled: activeTab === 0,
+  })
 
-  // 種目選択時のデータ再取得（重量タブ）
-  useEffect(() => {
-    if (activeTab === 1 && selectedExerciseId) {
-      startLoading(async () => {
-        await loadWeightData()
-      })
+  const totalVolume = volumeQuery.data?.totalVolume ?? 0
+  const volumeByExercise = volumeQuery.data?.volumeByExercise ?? []
+  const exerciseVolumeTotals = volumeQuery.data?.exerciseVolumeTotals ?? []
+  const bodyPartVolumeTotals = volumeQuery.data?.bodyPartVolumeTotals ?? []
+  const volumeByBodyPart = volumeQuery.data?.volumeByBodyPart ?? []
+
+  // 重量タブ（表示中かつ種目選択済みのみ取得）
+  const weightQuery = useQuery({
+    queryKey: queryKeys.statistics.weightTab(
+      selectedExerciseId ?? 0,
+      granularity,
+      orpcPreset,
+      customStartDate,
+      customEndDate,
+    ),
+    queryFn: () =>
+      orpc.statistics.getWeightTab({
+        exerciseId: Number(selectedExerciseId),
+        granularity,
+        preset: orpcPreset,
+        customStartDate,
+        customEndDate,
+      }),
+    enabled: activeTab === 1 && selectedExerciseId !== null,
+  })
+
+  const maxWeightHistory = weightQuery.data?.maxWeightHistory ?? []
+  const oneRMHistory = weightQuery.data?.oneRMHistory ?? []
+
+  // 継続タブ（表示中のみ取得）
+  const continuityQuery = useQuery({
+    queryKey: queryKeys.statistics.continuityTab(
+      granularity,
+      orpcPreset,
+      customStartDate,
+      customEndDate,
+      bodyPartGranularity,
+    ),
+    queryFn: async () => {
+      const [data, bodyPartDaysData] = await Promise.all([
+        orpc.statistics.getContinuityTab({
+          granularity,
+          preset: orpcPreset,
+          customStartDate,
+          customEndDate,
+        }),
+        orpc.statistics.getBodyPartTrainingDays({
+          preset: orpcPreset,
+          customStartDate,
+          customEndDate,
+          bodyPartGranularity,
+        }),
+      ])
+      return {
+        stats: data.stats,
+        daysByPeriod: data.daysByPeriod,
+        exerciseDays: data.exerciseDays,
+        bodyPartTrainingDays: bodyPartDaysData,
+      }
+    },
+    enabled: activeTab === 2,
+  })
+
+  const continuityStats = continuityQuery.data?.stats ?? null
+  const trainingDaysByPeriod = continuityQuery.data?.daysByPeriod ?? []
+  const exerciseTrainingDays = continuityQuery.data?.exerciseDays ?? []
+  const bodyPartTrainingDays = continuityQuery.data?.bodyPartTrainingDays ?? []
+
+  // 表示中タブが初回取得中のみスケルトン（キャッシュ済みなら即表示）
+  const isLoading = (() => {
+    if (activeTab === 0) return volumeQuery.isPending
+    if (activeTab === 1) {
+      return exercisesQuery.isPending || (selectedExerciseId !== null && weightQuery.isPending)
     }
-  }, [selectedExerciseId, activeTab, loadWeightData])
+    return continuityQuery.isPending
+  })()
 
   const handleTabChange = (_: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue)

@@ -1,5 +1,6 @@
 import { useTimer } from '@/components/timer/TimerContext'
 import { orpc } from '@/lib/orpc-client'
+import { queryKeys, resetCacheForLogs } from '@/lib/query-keys'
 import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -42,6 +43,7 @@ import {
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
 import { DatePicker } from '@mui/x-date-pickers/DatePicker'
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { createFileRoute } from '@tanstack/react-router'
 import dayjs, { type Dayjs } from 'dayjs'
 import 'dayjs/locale/ja'
@@ -217,6 +219,7 @@ const formatDelta = (current: number, previous: number | null) => {
 }
 
 function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: LogInputModalProps) {
+  const queryClient = useQueryClient()
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([emptyExerciseGroup()])
   const [exercises, setExercises] = useState<ExerciseWithBodyParts[]>([])
   const [memos, setMemos] = useState<MemoFormData[]>([])
@@ -301,12 +304,18 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
       const excludeDateStr = selectedDate.format('YYYY-MM-DD')
 
       const loadData = async () => {
-        // 種目リストを取得（部位情報付き）
-        const exercisesData = await orpc.exercises.listWithBodyParts()
+        // 種目リストを取得（部位情報付き。キャッシュ済みなら再取得しない）
+        const exercisesData = await queryClient.fetchQuery({
+          queryKey: queryKeys.exercises.withBodyParts,
+          queryFn: () => orpc.exercises.listWithBodyParts(),
+        })
         setExercises(exercisesData)
 
-        // メモを取得
-        const fetchedMemos = await orpc.logs.getMemos(excludeDateStr)
+        // メモを取得（キャッシュ済みなら再取得しない）
+        const fetchedMemos = await queryClient.fetchQuery({
+          queryKey: queryKeys.logs.memos(excludeDateStr),
+          queryFn: () => orpc.logs.getMemos(excludeDateStr),
+        })
         let loadedMemos: MemoFormData[] = []
         if (fetchedMemos.length > 0) {
           loadedMemos = fetchedMemos.map((m) => ({
@@ -347,7 +356,10 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             .map((g) => g.exerciseId)
             .filter((id): id is number => id !== null)
           if (exerciseIds.length > 0) {
-            const latestSetsMap = await orpc.logs.getLatestSetsMultiple(exerciseIds, excludeDateStr)
+            const latestSetsMap = await queryClient.fetchQuery({
+              queryKey: queryKeys.logs.latestSetsMultiple(exerciseIds, excludeDateStr),
+              queryFn: () => orpc.logs.getLatestSetsMultiple(exerciseIds, excludeDateStr),
+            })
             for (const group of groups) {
               if (group.exerciseId && latestSetsMap[group.exerciseId]) {
                 group.latestSets = latestSetsMap[group.exerciseId]
@@ -377,7 +389,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
       loadData()
     }
-  }, [open, initialSets, selectedDate])
+  }, [open, initialSets, selectedDate, queryClient])
 
   // 種目変更時に前回値を取得
   const handleExerciseChange = async (groupIndex: number, exerciseId: number | null) => {
@@ -395,8 +407,11 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         exerciseId: exercise.id,
         exerciseName: exercise.name,
       }))
-      // 前回値を取得（当日分は除外）
-      const latestSets = await orpc.logs.getLatestSets(exercise.id, excludeDateStr)
+      // 前回値を取得（当日分は除外。キャッシュ済みなら再取得しない）
+      const latestSets = await queryClient.fetchQuery({
+        queryKey: queryKeys.logs.latestSets(exercise.id, excludeDateStr),
+        queryFn: () => orpc.logs.getLatestSets(exercise.id, excludeDateStr),
+      })
       group.latestSets = latestSets
     } else {
       group.exerciseId = null
@@ -469,7 +484,11 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     setTimerAnchorEl(event.currentTarget)
     setIsLoadingTimers(true)
     try {
-      const loadedTimers = await orpc.timers.list()
+      // キャッシュ済みなら再取得しない（タイマー変更時は resetCacheForTimers で破棄される）
+      const loadedTimers = await queryClient.fetchQuery({
+        queryKey: queryKeys.timers.list,
+        queryFn: () => orpc.timers.list(),
+      })
       setTimers(loadedTimers)
     } catch (error) {
       console.error('Failed to load timers:', error)
@@ -1273,12 +1292,20 @@ function trainingToSetFormData(
  * `@/lib/orpc-client` 経由、
  * タイマーは `@/components/timer/TimerContext` 経由）。
  */
+const EMPTY_YEAR_MONTHS: YearMonth[] = []
+const EMPTY_TRAINING_ROWS: TrainingRow[] = []
+
 function LogsPage() {
-  const [availableYearMonths, setAvailableYearMonths] = useState<YearMonth[]>([])
+  const queryClient = useQueryClient()
+
+  // 年月一覧（初回のみ取得。保存時に resetCacheForLogs で破棄される）
+  const yearMonthsQuery = useQuery({
+    queryKey: queryKeys.logs.yearMonths,
+    queryFn: () => orpc.logs.listYearMonths(),
+  })
+  const availableYearMonths = yearMonthsQuery.data ?? EMPTY_YEAR_MONTHS
+
   const [selectedYearMonth, setSelectedYearMonth] = useState<YearMonth | null>(null)
-  const [rows, setRows] = useState<TrainingRow[]>([])
-  const [isLoading, startLoading] = useTransition()
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date>(new Date())
   const [initialSets, setInitialSets] = useState<SetFormData[] | undefined>(undefined)
@@ -1288,32 +1315,23 @@ function LogsPage() {
     severity: 'success' | 'error'
   }>({ open: false, message: '', severity: 'success' })
 
-  // 初回ロード: 年月一覧を取得
+  // 初回データ到着時に最新の年月を選択（降順なので先頭）
   useEffect(() => {
-    const loadYearMonths = async () => {
-      const yearMonths = await orpc.logs.listYearMonths()
-      setAvailableYearMonths(yearMonths)
-      // 最新の年月を選択（降順なので先頭）
-      if (yearMonths.length > 0) {
-        setSelectedYearMonth(yearMonths[0])
-      }
-      setIsInitialLoading(false)
+    if (!selectedYearMonth && availableYearMonths.length > 0) {
+      setSelectedYearMonth(availableYearMonths[0])
     }
-    loadYearMonths()
-  }, [])
+  }, [availableYearMonths, selectedYearMonth])
 
-  // 選択された年月のデータを取得
-  const loadData = useCallback(() => {
-    if (!selectedYearMonth) return
-    startLoading(async () => {
-      const summaries = await orpc.logs.listByMonth(selectedYearMonth.year, selectedYearMonth.month)
-      setRows(summaries.map(summaryToRow))
-    })
-  }, [selectedYearMonth])
-
-  useEffect(() => {
-    loadData()
-  }, [loadData])
+  // 選択された年月の一覧（キャッシュ済みなら再取得しない）
+  const monthQuery = useQuery({
+    queryKey: queryKeys.logs.month(selectedYearMonth?.year ?? 0, selectedYearMonth?.month ?? 0),
+    queryFn: () =>
+      orpc.logs.listByMonth(selectedYearMonth?.year ?? 0, selectedYearMonth?.month ?? 0),
+    enabled: selectedYearMonth !== null,
+    select: (summaries) => summaries.map(summaryToRow),
+  })
+  const rows = monthQuery.data ?? EMPTY_TRAINING_ROWS
+  const isMonthLoading = selectedYearMonth !== null && monthQuery.isPending
 
   // 年月選択変更
   const handleYearMonthChange = (event: SelectChangeEvent) => {
@@ -1326,7 +1344,10 @@ function LogsPage() {
     const today = new Date()
     setSelectedDate(today)
     const dateStr = today.toISOString().split('T')[0]
-    const training = await orpc.logs.getByDate(dateStr as string)
+    const training = await queryClient.fetchQuery({
+      queryKey: queryKeys.logs.byDate(dateStr as string),
+      queryFn: () => orpc.logs.getByDate(dateStr as string),
+    })
     // 当日のデータが存在する場合は詳細モーダルを表示、存在しない場合は新規作成
     if (training && training.sets.length > 0) {
       setInitialSets(trainingToSetFormData(training))
@@ -1340,21 +1361,24 @@ function LogsPage() {
   const handleRowClick = async (dateStr: string) => {
     const date = new Date(dateStr)
     setSelectedDate(date)
-    const training = await orpc.logs.getByDate(dateStr)
+    const training = await queryClient.fetchQuery({
+      queryKey: queryKeys.logs.byDate(dateStr),
+      queryFn: () => orpc.logs.getByDate(dateStr),
+    })
     setInitialSets(trainingToSetFormData(training))
     setModalOpen(true)
   }
 
-  // 保存完了時（年月一覧を更新し、保存された月を選択）
+  // 保存完了時（記録系キャッシュを破棄して最新化し、保存された月を選択）
   const handleSaved = async (savedDate: Date) => {
     const savedYear = savedDate.getFullYear()
     const savedMonth = savedDate.getMonth() + 1
 
-    // 年月一覧を再取得
-    const yearMonths = await orpc.logs.listYearMonths()
-    setAvailableYearMonths(yearMonths)
+    // 記録系＋統計系を破棄（表示中の年月一覧・月次一覧は再取得される）
+    await resetCacheForLogs(queryClient)
 
-    // 保存された年月を選択
+    // 保存された年月を選択（破棄後の最新データから探す）
+    const yearMonths = queryClient.getQueryData<YearMonth[]>(queryKeys.logs.yearMonths) ?? []
     const savedYearMonth = yearMonths.find((ym) => ym.year === savedYear && ym.month === savedMonth)
     if (savedYearMonth) {
       setSelectedYearMonth(savedYearMonth)
@@ -1394,7 +1418,7 @@ function LogsPage() {
   )
 
   // 初期ロード中
-  if (isInitialLoading) {
+  if (yearMonthsQuery.isPending) {
     return (
       <Stack spacing={2}>
         <Box display="flex" justifyContent="space-between" alignItems="center" gap={1}>
@@ -1438,7 +1462,7 @@ function LogsPage() {
         </Button>
       </Box>
 
-      {isLoading ? (
+      {isMonthLoading ? (
         renderSkeleton()
       ) : rows.length === 0 ? (
         <Paper variant="outlined" sx={{ p: 4, textAlign: 'center' }}>

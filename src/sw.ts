@@ -1,12 +1,6 @@
 /// <reference lib="webworker" />
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from 'serwist'
-import {
-  CacheFirst,
-  ExpirationPlugin,
-  NetworkOnly,
-  Serwist,
-  StaleWhileRevalidate,
-} from 'serwist'
+import { CacheFirst, ExpirationPlugin, NetworkOnly, Serwist, StaleWhileRevalidate } from 'serwist'
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -30,33 +24,10 @@ const runtimeCaching: RuntimeCaching[] = [
       ],
     }),
   },
-  // ログ詳細API: キャッシュしない（常に最新データを取得）
+  // API: キャッシュしない（常に最新を取得。クライアント state キャッシュへ一本化。ADR 0014）
   {
-    matcher: ({ url, request }) =>
-      /^\/api\/trainings\/\d{4}-\d{2}-\d{2}$/.test(url.pathname) &&
-      request.method === 'GET',
+    matcher: ({ url, request }) => url.pathname.startsWith('/api/') && request.method === 'GET',
     handler: new NetworkOnly(),
-  },
-  // メモAPI: キャッシュしない（常に最新データを取得）
-  {
-    matcher: ({ url, request }) =>
-      /^\/api\/trainings\/\d{4}-\d{2}-\d{2}\/memos$/.test(url.pathname) &&
-      request.method === 'GET',
-    handler: new NetworkOnly(),
-  },
-  // GET API: Stale-While-Revalidate（即座にキャッシュを返し、バックグラウンドで更新）
-  {
-    matcher: ({ url, request }) =>
-      url.pathname.startsWith('/api/') && request.method === 'GET',
-    handler: new StaleWhileRevalidate({
-      cacheName: 'api-cache',
-      plugins: [
-        new ExpirationPlugin({
-          maxEntries: 200,
-          maxAgeSeconds: 24 * 60 * 60, // 24時間
-        }),
-      ],
-    }),
   },
   // 静的アセット（画像、フォントなど）: Cache First
   {
@@ -77,8 +48,7 @@ const runtimeCaching: RuntimeCaching[] = [
   // Google Fonts: Cache First
   {
     matcher: ({ url }) =>
-      url.origin === 'https://fonts.googleapis.com' ||
-      url.origin === 'https://fonts.gstatic.com',
+      url.origin === 'https://fonts.googleapis.com' || url.origin === 'https://fonts.gstatic.com',
     handler: new CacheFirst({
       cacheName: 'google-fonts-cache',
       plugins: [
@@ -107,6 +77,11 @@ const serwist = new Serwist({
       },
     ],
   },
+})
+
+// 旧 API キャッシュ（ADR 0014 以前の SWR 実装）の残骸を削除する
+self.addEventListener('activate', (event) => {
+  event.waitUntil(caches.delete('api-cache'))
 })
 
 serwist.addEventListeners()
