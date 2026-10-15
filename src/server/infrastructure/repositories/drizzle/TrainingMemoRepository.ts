@@ -142,16 +142,22 @@ export class DrizzleTrainingMemoRepository implements ITrainingMemoRepository {
 
     // 新規作成
     if (toCreate.length > 0) {
-      statements.push(
-        db.insert(trainingMemos).values(
-          toCreate.map((m) => ({
-            userId,
-            date,
-            content: m.content,
-            updatedAt: new Date(),
-          })),
-        ),
-      )
+      // D1 の1文あたり bound parameter 上限は 100。1行あたり4カラムなので
+      // 25 行まで。それ以上は複数の INSERT 文に分割する。
+      const now = new Date()
+      for (let i = 0; i < toCreate.length; i += 20) {
+        const chunk = toCreate.slice(i, i + 20)
+        statements.push(
+          db.insert(trainingMemos).values(
+            chunk.map((m) => ({
+              userId,
+              date,
+              content: m.content,
+              updatedAt: now,
+            })),
+          ),
+        )
+      }
     }
 
     if (statements.length > 0) {

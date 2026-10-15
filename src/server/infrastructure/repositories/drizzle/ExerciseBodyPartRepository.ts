@@ -9,6 +9,7 @@ import type {
   IExerciseBodyPartRepository,
 } from '@/server/domain/repositories'
 import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import { db } from '../../database/drizzle/client'
 import { bodyParts, exerciseBodyParts, exercises } from '../../database/drizzle/schema'
 import { toISOString } from './helper'
@@ -86,19 +87,25 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
       await db.batch([deleteExisting])
     } else {
       const now = new Date()
-      // 既存の紐付けの削除と新しい紐付けの作成を一括実行する
-      await db.batch([
-        deleteExisting,
-        db.insert(exerciseBodyParts).values(
-          bodyPartsInput.map((bp) => ({
-            exerciseId,
-            bodyPartId: bp.bodyPartId,
-            loadRatio: bp.loadRatio,
-            createdAt: now,
-            updatedAt: now,
-          })),
-        ),
-      ])
+      // D1 の1文あたり bound parameter 上限は 100。1行あたり5カラムなので
+      // 20 行まで。それ以上は複数の INSERT 文に分割し、同じ batch で原子性を保つ。
+      const rowsPerStatement = 18
+      const statements: BatchItem<'sqlite'>[] = [deleteExisting]
+      for (let i = 0; i < bodyPartsInput.length; i += rowsPerStatement) {
+        const chunk = bodyPartsInput.slice(i, i + rowsPerStatement)
+        statements.push(
+          db.insert(exerciseBodyParts).values(
+            chunk.map((bp) => ({
+              exerciseId,
+              bodyPartId: bp.bodyPartId,
+              loadRatio: bp.loadRatio,
+              createdAt: now,
+              updatedAt: now,
+            })),
+          ),
+        )
+      }
+      await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
     }
 
     return this.findByExerciseId(exerciseId)

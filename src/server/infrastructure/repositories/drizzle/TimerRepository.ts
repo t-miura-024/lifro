@@ -1,6 +1,7 @@
 import type { Timer, TimerInput, UnitTimer } from '@/server/domain/entities'
 import type { ITimerRepository, TimerSortOrderInput } from '@/server/domain/repositories'
 import { and, asc, eq, inArray, max, sql } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import { db } from '../../database/drizzle/client'
 import { timers, unitTimers } from '../../database/drizzle/schema'
 import { toISOString } from './helper'
@@ -179,22 +180,29 @@ export class DrizzleTimerRepository implements ITimerRepository {
     } else {
       // 削除と新しいユニットタイマーの作成を一括実行する
       const now = new Date()
-      await db.batch([
-        deleteUnits,
-        db.insert(unitTimers).values(
-          input.unitTimers.map((u, index) => ({
-            timerId,
-            name: u.name,
-            sortIndex: index,
-            duration: u.duration,
-            countSound: u.countSound,
-            countSoundLast3Sec: u.countSoundLast3Sec,
-            endSound: u.endSound,
-            createdAt: now,
-            updatedAt: now,
-          })),
-        ),
-      ])
+      // D1 の1文あたり bound parameter 上限は 100。1行あたり9カラムなので
+      // 11 行まで。それ以上は複数の INSERT 文に分割し、同じ batch に並べる。
+      const rowsPerStatement = 10
+      const statements: BatchItem<'sqlite'>[] = [deleteUnits]
+      for (let i = 0; i < input.unitTimers.length; i += rowsPerStatement) {
+        const chunk = input.unitTimers.slice(i, i + rowsPerStatement)
+        statements.push(
+          db.insert(unitTimers).values(
+            chunk.map((u, idx) => ({
+              timerId,
+              name: u.name,
+              sortIndex: i + idx,
+              duration: u.duration,
+              countSound: u.countSound,
+              countSoundLast3Sec: u.countSoundLast3Sec,
+              endSound: u.endSound,
+              createdAt: now,
+              updatedAt: now,
+            })),
+          ),
+        )
+      }
+      await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
     }
 
     // 更新後のタイマーを取得
