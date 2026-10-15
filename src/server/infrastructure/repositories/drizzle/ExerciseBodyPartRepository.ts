@@ -120,17 +120,15 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
 
     if (exerciseRows.length === 0) return []
 
-    // 紐付けをIN一括で取得し、メモリ上で種目ごとに結合する
+    // 紐付けを取得し、メモリ上で種目ごとに結合する。
+    // D1 の1文あたり bound parameter 上限を避けるため、exercise id の IN は
+    // 使わず、所有者（userId）で結合して絞り込む。
     const ebpRows = await db
       .select({ exerciseBodyPart: exerciseBodyParts, bodyPart: bodyParts })
       .from(exerciseBodyParts)
       .innerJoin(bodyParts, eq(exerciseBodyParts.bodyPartId, bodyParts.id))
-      .where(
-        inArray(
-          exerciseBodyParts.exerciseId,
-          exerciseRows.map((e) => e.id),
-        ),
-      )
+      .innerJoin(exercises, eq(exerciseBodyParts.exerciseId, exercises.id))
+      .where(eq(exercises.userId, userId))
       .orderBy(desc(exerciseBodyParts.loadRatio))
 
     const bodyPartsByExerciseId = new Map<number, ExerciseBodyPart[]>()

@@ -45,13 +45,20 @@ async function findUnitsByTimerIds(timerIds: number[]): Promise<Map<number, Unit
   const byTimerId = new Map<number, UnitTimerRow[]>()
   if (timerIds.length === 0) return byTimerId
 
-  const rows = await db
-    .select()
-    .from(unitTimers)
-    .where(inArray(unitTimers.timerId, timerIds))
-    .orderBy(asc(unitTimers.sortIndex))
+  // D1 の1文あたり bound parameter 上限は 100。timerId 1件あたり1変数なので
+  // 100件ごとに分割し、結果を結合する。
+  const allRows: UnitTimerRow[] = []
+  for (let i = 0; i < timerIds.length; i += 90) {
+    const chunk = timerIds.slice(i, i + 90)
+    const rows = await db
+      .select()
+      .from(unitTimers)
+      .where(inArray(unitTimers.timerId, chunk))
+      .orderBy(asc(unitTimers.sortIndex))
+    allRows.push(...rows)
+  }
 
-  for (const row of rows) {
+  for (const row of allRows) {
     const list = byTimerId.get(row.timerId) ?? []
     list.push(row)
     byTimerId.set(row.timerId, list)

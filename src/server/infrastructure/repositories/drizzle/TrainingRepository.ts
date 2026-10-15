@@ -294,18 +294,31 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
 
     // 各種目の最新日付を取得するサブクエリを使用
     // まず全種目の全セットを取得し、種目ごとに最新日付のものだけをフィルタ
-    const allRows = await db
-      .select({ set: sets, exercise: exercises })
-      .from(sets)
-      .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
-      .where(
-        and(
-          eq(sets.userId, userId),
-          inArray(sets.exerciseId, exerciseIds),
-          ...(excludeDate ? [ne(sets.date, excludeDate)] : []),
-        ),
-      )
-      .orderBy(desc(sets.date), asc(sets.sortIndex))
+    // D1 の1文あたり bound parameter 上限を避けるため、exerciseId の IN は
+    // 90件ごとに分割して取得し、結果を結合・再ソートする。
+    const allRows: { set: typeof sets.$inferSelect; exercise: typeof exercises.$inferSelect }[] = []
+    for (let i = 0; i < exerciseIds.length; i += 90) {
+      const chunk = exerciseIds.slice(i, i + 90)
+      const rows = await db
+        .select({ set: sets, exercise: exercises })
+        .from(sets)
+        .innerJoin(exercises, eq(sets.exerciseId, exercises.id))
+        .where(
+          and(
+            eq(sets.userId, userId),
+            inArray(sets.exerciseId, chunk),
+            ...(excludeDate ? [ne(sets.date, excludeDate)] : []),
+          ),
+        )
+        .orderBy(desc(sets.date), asc(sets.sortIndex))
+      allRows.push(...rows)
+    }
+    // 分割取得のためソート順が崩れる可能性があるため再ソート
+    allRows.sort((a, b) => {
+      const dateCmp = String(b.set.date).localeCompare(String(a.set.date))
+      if (dateCmp !== 0) return dateCmp
+      return a.set.sortIndex - b.set.sortIndex
+    })
 
     // 種目ごとの最新日付を特定
     const latestDateByExercise = new Map<number, string>()
