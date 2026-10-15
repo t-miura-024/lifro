@@ -11,6 +11,7 @@ import type {
 import type { ITrainingRepository } from '@/server/domain/repositories'
 import { toLocalDateString } from '@/server/shared/date-utils'
 import { and, asc, desc, eq, gte, inArray, lte, ne, sql } from 'drizzle-orm'
+import type { BatchItem } from 'drizzle-orm/batch'
 import { db } from '../../database/drizzle/client'
 import { exercises, sets, trainingMemos } from '../../database/drizzle/schema'
 import { toDateString, toISOString } from './helper'
@@ -151,22 +152,30 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
       await db.batch([deleteExisting])
     } else {
       const now = new Date()
-      // 既存セットの削除と新規セットの作成を一括実行する
-      await db.batch([
-        deleteExisting,
-        db.insert(sets).values(
-          setsInput.map((s) => ({
-            exerciseId: s.exerciseId,
-            userId,
-            weight: s.weight,
-            reps: s.reps,
-            date,
-            sortIndex: s.sortIndex,
-            createdAt: now,
-            updatedAt: now,
-          })),
-        ),
-      ])
+      // D1 の1文あたり bound parameter 上限は 100。1行あたり8カラムなので
+      // 1文で挿入できるのは 12 行まで。それ以上のセットは複数の INSERT 文に
+      // 分割し、同じ batch に並べて原子性を保つ。
+      const rowsPerStatement = 12
+      const statements: BatchItem<'sqlite'>[] = [deleteExisting]
+      for (let i = 0; i < setsInput.length; i += rowsPerStatement) {
+        const chunk = setsInput.slice(i, i + rowsPerStatement)
+        statements.push(
+          db.insert(sets).values(
+            chunk.map((s) => ({
+              exerciseId: s.exerciseId,
+              userId,
+              weight: s.weight,
+              reps: s.reps,
+              date,
+              sortIndex: s.sortIndex,
+              createdAt: now,
+              updatedAt: now,
+            })),
+          ),
+        )
+      }
+      // db.batch は配列長が不定なため型が合わない; cast する
+      await db.batch(statements as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
     }
 
     // 保存後のデータを取得して返す
