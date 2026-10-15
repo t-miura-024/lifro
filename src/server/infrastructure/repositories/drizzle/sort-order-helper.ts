@@ -22,7 +22,7 @@ const SORT_ORDER_ENTITY_LABELS: Record<SortOrderTableName, string> = {
 }
 
 /** D1/SQLite の束縛上限・書き込み保持長期化を避けるための1文あたりの上限 */
-export const SORT_ORDER_CHUNK_SIZE = 100
+export const SORT_ORDER_CHUNK_SIZE = 90
 
 /** chunkSize の上限。巨大値で束縛対策を迂回させない */
 export const SORT_ORDER_CHUNK_SIZE_MAX = 200
