@@ -16,6 +16,7 @@
 
 - `docs/requirements/`: 要求定義・要件定義
 - `docs/design/`: 設計ドキュメント
+- `docs/deployment.md`: 本番デプロイ（GitHub Actions）
 
 ## セットアップ
 

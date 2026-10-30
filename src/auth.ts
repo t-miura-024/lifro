@@ -97,12 +97,12 @@ const googleClientSecret = requireEnv('GOOGLE_CLIENT_SECRET')
  * 倒す。非本番は `development`/`test` の明示時のみ。
  */
 function isProduction(): boolean {
-  const nodeEnv = process.env['NODE_ENV']?.trim()
+  const nodeEnv = process.env.NODE_ENV?.trim()
   return nodeEnv !== 'development' && nodeEnv !== 'test'
 }
 
 function resolveAuthURL(): { baseURL: string; trustedOrigins: string[] } | null {
-  const raw = process.env['BETTER_AUTH_URL']?.trim()
+  const raw = process.env.BETTER_AUTH_URL?.trim()
   if (!raw) {
     if (isProduction()) {
       throw new Error('[auth] Missing required environment variable in production: BETTER_AUTH_URL')
