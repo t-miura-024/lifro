@@ -1,4 +1,6 @@
+import { LogVolumeSummary } from '@/components/log-volume-summary'
 import { useTimer } from '@/components/timer/TimerContext'
+import { calculateLogVolumes } from '@/lib/log-volume'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
 import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
@@ -287,6 +289,12 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const isRequiredFieldsFilled = useMemo(() => {
     return exerciseGroups.some((group) => group.exerciseId !== null)
   }, [exerciseGroups])
+
+  // フッターに表示する総ボリュームと部位別ボリューム
+  const logVolumeTotals = useMemo(
+    () => calculateLogVolumes(exerciseGroups, exercises),
+    [exerciseGroups, exercises],
+  )
 
   const isTimerPopoverOpen = Boolean(timerAnchorEl)
 
@@ -1202,7 +1210,16 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             )}
           </Stack>
         </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2 }}>
+        <Box sx={{ px: 3, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
+          <LogVolumeSummary totals={logVolumeTotals} isLoading={isInitialLoading} />
+        </Box>
+        <DialogActions
+          sx={{
+            px: 3,
+            pt: 0.5,
+            pb: 'calc(16px + env(safe-area-inset-bottom))',
+          }}
+        >
           <Button onClick={onClose} disabled={isPending || isInitialLoading}>
             閉じる
           </Button>
