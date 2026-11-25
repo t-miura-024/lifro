@@ -3,7 +3,7 @@ import { getSessionUserIdServerFn } from '@/lib/auth-session-server'
 import { Outlet, createFileRoute, redirect } from '@tanstack/react-router'
 
 /**
- * 保護 layout（pathless）。配下6 route（`/`・exercises・logs・statistics・timers・settings）の
+ * 保護 layout（pathless）。配下7 route（`/`・exercises・logs・routines・statistics・timers・settings）の
  * URL は不変（例: `_protected/exercises.tsx`→`/exercises`）。
  * Next 版 `(protected)/layout.tsx` 相当。各 child は Shell ラッパを持たず、ここで一括提供する。
  * 認証は beforeLoad のサーバ検証が正本（ai-4 格上げ）：

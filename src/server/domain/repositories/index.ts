@@ -13,6 +13,8 @@ import type {
   ExerciseHistory,
   ExerciseWithBodyParts,
   LatestExerciseSets,
+  Routine,
+  RoutineInput,
   SetInput,
   Timer,
   TimerInput,
@@ -203,6 +205,45 @@ export interface ITimerRepository {
    * タイマーを削除
    */
   delete(userId: number, timerId: number): Promise<void>
+}
+
+/** ルーティンの並び順更新用入力 */
+export type RoutineSortOrderInput = {
+  id: number
+  sortIndex: number
+}
+
+/** ルーティンリポジトリ */
+export interface IRoutineRepository {
+  /**
+   * ユーザーの全ルーティンを取得（sortIndex順）
+   */
+  findAllByUserId(userId: number): Promise<Routine[]>
+
+  /**
+   * ルーティンをIDで取得
+   */
+  findById(userId: number, routineId: number): Promise<Routine | null>
+
+  /**
+   * ルーティンを作成（項目も含めて）
+   */
+  create(userId: number, input: RoutineInput): Promise<Routine>
+
+  /**
+   * ルーティンを更新（項目も含めて）
+   */
+  update(userId: number, routineId: number, input: RoutineInput): Promise<Routine>
+
+  /**
+   * ルーティンの並び順を一括更新
+   */
+  updateSortOrder(userId: number, routines: RoutineSortOrderInput[]): Promise<void>
+
+  /**
+   * ルーティンを削除
+   */
+  delete(userId: number, routineId: number): Promise<void>
 }
 
 /** 部位リポジトリ */

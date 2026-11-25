@@ -96,7 +96,11 @@ export const sets = sqliteTable(
     index('sets_exercise_id_idx').on(t.exerciseId),
     index('sets_user_id_date_idx').on(t.userId, t.date),
     index('sets_user_id_exercise_id_date_idx').on(t.userId, t.exerciseId, t.date),
-    foreignKey({ columns: [t.exerciseId], foreignColumns: [exercises.id], name: 'sets_exercise_id_fkey' })
+    foreignKey({
+      columns: [t.exerciseId],
+      foreignColumns: [exercises.id],
+      name: 'sets_exercise_id_fkey',
+    })
       .onDelete('cascade')
       .onUpdate('cascade'),
     foreignKey({ columns: [t.userId], foreignColumns: [users.id], name: 'sets_user_id_fkey' })
@@ -215,6 +219,61 @@ export const unitTimers = sqliteTable(
   ],
 )
 
+/// ルーティン（1回のトレーニング分の種目テンプレート）
+export const routines = sqliteTable(
+  'routines',
+  {
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    userId: integer('user_id', { mode: 'number' }).notNull(),
+    name: text('name').notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('routines_user_id_idx').on(t.userId),
+    uniqueIndex('routines_user_id_name_key').on(t.userId, t.name),
+    foreignKey({ columns: [t.userId], foreignColumns: [users.id], name: 'routines_user_id_fkey' })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+  ],
+)
+
+/// ルーティン項目（順序付きの種目。同一種目の重複を許容する）
+export const routineItems = sqliteTable(
+  'routine_items',
+  {
+    id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
+    routineId: integer('routine_id', { mode: 'number' }).notNull(),
+    exerciseId: integer('exercise_id', { mode: 'number' }).notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    setCount: integer('set_count', { mode: 'number' }).notNull(),
+    targetReps: integer('target_reps', { mode: 'number' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [
+    index('routine_items_routine_id_idx').on(t.routineId),
+    index('routine_items_exercise_id_idx').on(t.exerciseId),
+    check('routine_items_set_count_check', sql`${t.setCount} > 0`),
+    check('routine_items_target_reps_check', sql`${t.targetReps} IS NULL OR ${t.targetReps} > 0`),
+    foreignKey({
+      columns: [t.routineId],
+      foreignColumns: [routines.id],
+      name: 'routine_items_routine_id_fkey',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+    foreignKey({
+      columns: [t.exerciseId],
+      foreignColumns: [exercises.id],
+      name: 'routine_items_exercise_id_fkey',
+    })
+      .onDelete('cascade')
+      .onUpdate('cascade'),
+  ],
+)
+
 /// 部位マスタ
 export const bodyParts = sqliteTable(
   'body_parts',
@@ -231,10 +290,7 @@ export const bodyParts = sqliteTable(
     uniqueIndex('body_parts_category_name_key').on(t.category, t.name),
     // drizzle の sqlite text+enum は TS 型のみで CHECK を発行しないため、
     // Postgres enum の値域温存としてテーブル CHECK を明示する。
-    check(
-      'body_parts_category_check',
-      bodyPartCategoryCheckSql(),
-    ),
+    check('body_parts_category_check', bodyPartCategoryCheckSql()),
   ],
 )
 
@@ -252,10 +308,7 @@ export const exerciseBodyParts = sqliteTable(
   (t) => [
     index('exercise_body_parts_exercise_id_idx').on(t.exerciseId),
     index('exercise_body_parts_body_part_id_idx').on(t.bodyPartId),
-    uniqueIndex('exercise_body_parts_exercise_id_body_part_id_key').on(
-      t.exerciseId,
-      t.bodyPartId,
-    ),
+    uniqueIndex('exercise_body_parts_exercise_id_body_part_id_key').on(t.exerciseId, t.bodyPartId),
     foreignKey({
       columns: [t.exerciseId],
       foreignColumns: [exercises.id],

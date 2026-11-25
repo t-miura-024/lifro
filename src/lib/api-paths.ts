@@ -41,5 +41,8 @@ export const apiPath = {
   timersSortOrder: '/api/timers/sort-order',
   timers: '/api/timers',
   timersById: (id: string | number) => `/api/timers/${id}`,
+  routinesSortOrder: '/api/routines/sort-order',
+  routines: '/api/routines',
+  routinesById: (id: string | number) => `/api/routines/${id}`,
   health: '/api/health',
 } as const

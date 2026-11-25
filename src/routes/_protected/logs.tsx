@@ -5,7 +5,10 @@ import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
 import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
 import AddIcon from '@mui/icons-material/Add'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import DeleteIcon from '@mui/icons-material/Delete'
+import RepeatIcon from '@mui/icons-material/Repeat'
 import TimerIcon from '@mui/icons-material/Timer'
 import {
   Alert,
@@ -40,6 +43,7 @@ import {
   TableHead,
   TableRow,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs'
@@ -136,6 +140,7 @@ function LogList({ rows, onRowClick }: LogListProps) {
 type ExerciseWithBodyParts = Awaited<ReturnType<typeof orpc.exercises.listWithBodyParts>>[number]
 type LatestExerciseSets = NonNullable<Awaited<ReturnType<typeof orpc.logs.getLatestSets>>>
 type Timer = Awaited<ReturnType<typeof orpc.timers.list>>[number]
+type Routine = Awaited<ReturnType<typeof orpc.routines.list>>[number]
 
 /** 部位カテゴリの表示名 */
 const categoryLabels: Record<string, string> = {
@@ -238,6 +243,12 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const [isLoadingTimers, setIsLoadingTimers] = useState(false)
   const { startTimer } = useTimer()
 
+  // ルーティン適用の状態（適用は新規記録のときのみ）
+  const [routineAnchorEl, setRoutineAnchorEl] = useState<HTMLButtonElement | null>(null)
+  const [routines, setRoutines] = useState<Routine[]>([])
+  const [isLoadingRoutines, setIsLoadingRoutines] = useState(false)
+  const [routineError, setRoutineError] = useState<string | null>(null)
+
   // 変更検知用のベースライン状態
   const [baseline, setBaseline] = useState<BaselineState | null>(null)
 
@@ -290,6 +301,9 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     return exerciseGroups.some((group) => group.exerciseId !== null)
   }, [exerciseGroups])
 
+  // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
+  const hasExistingData = initialSets?.some((set) => set.id !== undefined) ?? false
+
   // フッターに表示する総ボリュームと部位別ボリューム
   const logVolumeTotals = useMemo(
     () => calculateLogVolumes(exerciseGroups, exercises),
@@ -302,6 +316,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   useEffect(() => {
     if (open) {
       setSelectedDate(dayjs(initialDate))
+      setRoutineError(null)
     }
   }, [open, initialDate])
 
@@ -476,6 +491,15 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     }
   }
 
+  const handleMoveExerciseGroup = (from: number, to: number) => {
+    if (to < 0 || to >= exerciseGroups.length || from === to) return
+    const next = [...exerciseGroups]
+    const [moved] = next.splice(from, 1)
+    if (!moved) return
+    next.splice(to, 0, moved)
+    setExerciseGroups(next)
+  }
+
   // メモ操作
   const handleAddMemo = () => {
     setMemos([...memos, emptyMemo()])
@@ -528,6 +552,99 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   // タイマーの総時間を計算
   const getTotalTimerDuration = (timer: Timer): number => {
     return timer.unitTimers.reduce((sum, unit) => sum + unit.duration, 0)
+  }
+
+  // ルーティン操作
+  const handleOpenRoutinePopover = async (event: React.MouseEvent<HTMLButtonElement>) => {
+    if (hasExistingData) return
+    setRoutineAnchorEl(event.currentTarget)
+    setRoutineError(null)
+    setIsLoadingRoutines(true)
+    try {
+      // キャッシュ済みなら再取得しない（ルーティン変更時は refreshRoutinesCache で更新される）
+      const loadedRoutines = await queryClient.fetchQuery({
+        queryKey: queryKeys.routines.list,
+        queryFn: () => orpc.routines.list(),
+      })
+      setRoutines(loadedRoutines)
+    } catch (error) {
+      console.error('Failed to load routines:', error)
+      setRoutineError('ルーティンの取得に失敗しました')
+    } finally {
+      setIsLoadingRoutines(false)
+    }
+  }
+
+  const handleCloseRoutinePopover = () => {
+    setRoutineAnchorEl(null)
+  }
+
+  const handleApplyRoutine = async (routine: Routine) => {
+    handleCloseRoutinePopover()
+
+    if (hasExistingData) {
+      setRoutineError('既存の記録がある日にはルーティンを適用できません')
+      return
+    }
+
+    const dateStr = selectedDate.format('YYYY-MM-DD')
+    try {
+      const { exists } = await orpc.logs.checkExists(dateStr)
+      if (exists) {
+        setRoutineError(
+          `${selectedDate.format('YYYY年M月D日')} には既にトレーニング記録があります。ルーティンは新規記録にのみ適用できます。`,
+        )
+        return
+      }
+
+      const exerciseIds = [...new Set(routine.routineItems.map((item) => item.exerciseId))]
+      if (exerciseIds.length === 0) {
+        setRoutineError('このルーティンには種目が登録されていません')
+        return
+      }
+
+      // 削除済み種目（キャッシュが古い場合）は展開対象から除く
+      const applicableItems = routine.routineItems.filter((item) =>
+        exercises.some((exercise) => exercise.id === item.exerciseId),
+      )
+      if (applicableItems.length === 0) {
+        setRoutineError('このルーティンには有効な種目が登録されていません')
+        return
+      }
+
+      // 前回セット（当日分は除外）を一括取得し、現行どおり前回表示・差分表示に使う
+      const latestSetsMap = await queryClient.fetchQuery({
+        queryKey: queryKeys.logs.latestSetsMultiple(exerciseIds, dateStr),
+        queryFn: () => orpc.logs.getLatestSetsMultiple(exerciseIds, dateStr),
+      })
+
+      const groups: ExerciseGroup[] = [...applicableItems]
+        .sort((a, b) => a.sortIndex - b.sortIndex)
+        .map((item) => {
+          const exercise = exercises.find((e) => e.id === item.exerciseId)
+          const exerciseName = exercise?.name ?? ''
+          const reps = item.targetReps === null ? '' : item.targetReps.toString()
+          return {
+            key: `group-${Date.now()}-${groupKeyCounter++}`,
+            exerciseId: item.exerciseId,
+            exerciseName,
+            sets: Array.from({ length: item.setCount }, () => ({
+              key: `set-${Date.now()}-${modalSetKeyCounter++}`,
+              exerciseId: item.exerciseId,
+              exerciseName,
+              weight: '',
+              reps,
+            })),
+            latestSets: latestSetsMap[item.exerciseId] ?? null,
+          }
+        })
+
+      setExerciseGroups(groups)
+      setRoutineError(null)
+    } catch (error) {
+      console.error('Failed to apply routine:', error)
+      setRoutineError('ルーティンの適用に失敗しました')
+    }
   }
 
   const handleSave = () => {
@@ -681,9 +798,6 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     </Paper>
   )
 
-  // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
-  const hasExistingData = initialSets?.some((set) => set.id !== undefined) ?? false
-
   // 種目が0件の場合の判定
   const hasNoExercises = exercises.length === 0
 
@@ -709,6 +823,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                 if (newDate) {
                   setSelectedDate(newDate)
                   setDateError(null)
+                  setRoutineError(null)
                 }
               }}
               maxDate={today}
@@ -726,6 +841,20 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
               }}
             />
             <Stack direction="row" spacing={0.5}>
+              <Tooltip
+                title={hasExistingData ? '既存の記録があるため適用できません' : 'ルーティンを適用'}
+              >
+                <span>
+                  <IconButton
+                    onClick={handleOpenRoutinePopover}
+                    disabled={isPending || isInitialLoading || hasExistingData}
+                    aria-label="ルーティンを適用"
+                    color="primary"
+                  >
+                    <RepeatIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
               <IconButton
                 onClick={handleOpenTimerPopover}
                 disabled={isPending}
@@ -788,11 +917,73 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             )}
           </Box>
         </Popover>
+
+        {/* ルーティン選択ポップオーバー（新規記録のみ） */}
+        <Popover
+          open={routineAnchorEl !== null}
+          anchorEl={routineAnchorEl}
+          onClose={handleCloseRoutinePopover}
+          anchorOrigin={{
+            vertical: 'bottom',
+            horizontal: 'right',
+          }}
+          transformOrigin={{
+            vertical: 'top',
+            horizontal: 'right',
+          }}
+        >
+          <Box sx={{ width: 300, maxHeight: 320, overflow: 'auto' }}>
+            {isLoadingRoutines ? (
+              <Box sx={{ p: 2 }}>
+                <Skeleton variant="text" width="80%" />
+                <Skeleton variant="text" width="60%" />
+                <Skeleton variant="text" width="70%" />
+              </Box>
+            ) : routines.length === 0 ? (
+              <Box sx={{ p: 2 }}>
+                <Typography variant="body2" color="text.secondary">
+                  ルーティンが登録されていません
+                </Typography>
+              </Box>
+            ) : (
+              <List dense disablePadding>
+                {routines.map((routine) => {
+                  const totalSets = routine.routineItems.reduce(
+                    (sum, item) => sum + item.setCount,
+                    0,
+                  )
+                  return (
+                    <ListItemButton
+                      key={routine.id}
+                      onClick={() => handleApplyRoutine(routine)}
+                      disabled={routine.routineItems.length === 0}
+                    >
+                      <ListItemText
+                        primary={routine.name}
+                        secondary={
+                          routine.routineItems.length === 0
+                            ? '種目が登録されていません'
+                            : `${routine.routineItems.length}種目 / 合計${totalSets}セット`
+                        }
+                      />
+                    </ListItemButton>
+                  )
+                })}
+              </List>
+            )}
+          </Box>
+        </Popover>
+
         <DialogContent dividers>
           <Stack spacing={3}>
             {dateError && (
               <Alert severity="error" onClose={() => setDateError(null)}>
                 {dateError}
+              </Alert>
+            )}
+            {routineError && (
+              <Alert severity="warning" onClose={() => setRoutineError(null)}>
+                {routineError}
               </Alert>
             )}
             {isInitialLoading ? (
@@ -897,14 +1088,34 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                             </Select>
                           </FormControl>
                           {exerciseGroups.length > 1 && (
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRemoveExerciseGroup(groupIndex)}
-                              aria-label="種目を削除"
-                              sx={{ flexShrink: 0 }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex - 1)}
+                                disabled={groupIndex === 0}
+                                aria-label="種目を上へ移動"
+                                sx={{ flexShrink: 0 }}
+                              >
+                                <ArrowUpwardIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex + 1)}
+                                disabled={groupIndex === exerciseGroups.length - 1}
+                                aria-label="種目を下へ移動"
+                                sx={{ flexShrink: 0 }}
+                              >
+                                <ArrowDownwardIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => handleRemoveExerciseGroup(groupIndex)}
+                                aria-label="種目を削除"
+                                sx={{ flexShrink: 0 }}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </>
                           )}
                         </Stack>
                         {group.latestSets && (

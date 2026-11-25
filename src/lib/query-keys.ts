@@ -29,6 +29,11 @@ export const queryKeys = {
     list: ['timers', 'list'] as const,
     sounds: ['timers', 'sounds'] as const,
   },
+  routines: {
+    all: ['routines'] as const,
+    list: ['routines', 'list'] as const,
+    detail: (id: number) => ['routines', 'detail', id] as const,
+  },
   bodyParts: {
     all: ['bodyParts'] as const,
     list: ['bodyParts', 'list'] as const,
@@ -124,4 +129,9 @@ export function refreshExercisesCache(client: QueryClient): Promise<void> {
 /** タイマーの変更後 */
 export function refreshTimersCache(client: QueryClient): Promise<void> {
   return refreshDomains(client, [queryKeys.timers.all])
+}
+
+/** ルーティンの変更後（適用済みログはコピー済みのため更新不要） */
+export function refreshRoutinesCache(client: QueryClient): Promise<void> {
+  return refreshDomains(client, [queryKeys.routines.all])
 }
