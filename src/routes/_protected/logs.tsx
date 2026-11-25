@@ -304,6 +304,12 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   // 既存データがあるかどうかを判定（initialSetsが存在し、かつidが設定されているセットがある場合）
   const hasExistingData = initialSets?.some((set) => set.id !== undefined) ?? false
 
+  // 種目グループが空かどうかの判定（ルーティンは空のときのみ適用できる）
+  const hasExerciseGroups = useMemo(
+    () => exerciseGroups.length > 1 || exerciseGroups.some((group) => group.exerciseId !== null),
+    [exerciseGroups],
+  )
+
   // フッターに表示する総ボリュームと部位別ボリューム
   const logVolumeTotals = useMemo(
     () => calculateLogVolumes(exerciseGroups, exercises),
@@ -556,7 +562,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
   // ルーティン操作
   const handleOpenRoutinePopover = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    if (hasExistingData) return
+    if (hasExistingData || hasExerciseGroups) return
     setRoutineAnchorEl(event.currentTarget)
     setRoutineError(null)
     setIsLoadingRoutines(true)
@@ -584,6 +590,13 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
     if (hasExistingData) {
       setRoutineError('既存の記録がある日にはルーティンを適用できません')
+      return
+    }
+
+    if (hasExerciseGroups) {
+      setRoutineError(
+        '種目が入力されているためルーティンを適用できません。適用するにはモーダルを閉じて開き直してください。',
+      )
       return
     }
 
@@ -842,12 +855,18 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             />
             <Stack direction="row" spacing={0.5}>
               <Tooltip
-                title={hasExistingData ? '既存の記録があるため適用できません' : 'ルーティンを適用'}
+                title={
+                  hasExistingData
+                    ? '既存の記録があるため適用できません'
+                    : hasExerciseGroups
+                      ? '種目が入力されているため適用できません（閉じて開き直してください）'
+                      : 'ルーティンを適用'
+                }
               >
                 <span>
                   <IconButton
                     onClick={handleOpenRoutinePopover}
-                    disabled={isPending || isInitialLoading || hasExistingData}
+                    disabled={isPending || isInitialLoading || hasExistingData || hasExerciseGroups}
                     aria-label="ルーティンを適用"
                     color="primary"
                   >
