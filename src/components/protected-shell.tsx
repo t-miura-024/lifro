@@ -2,9 +2,9 @@ import { useTimerStatus } from '@/components/timer/TimerContext'
 import TimerOverlay from '@/components/timer/TimerOverlay'
 import { authClient } from '@/lib/auth-client'
 import BarChartIcon from '@mui/icons-material/BarChart'
+import ChecklistIcon from '@mui/icons-material/Checklist'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import ListAltIcon from '@mui/icons-material/ListAlt'
-import RepeatIcon from '@mui/icons-material/Repeat'
 import SettingsIcon from '@mui/icons-material/Settings'
 import TimerIcon from '@mui/icons-material/Timer'
 import {
@@ -23,7 +23,7 @@ import { useEffect } from 'react'
 const navItems = [
   { label: '種目', icon: <ListAltIcon />, path: '/exercises' },
   { label: 'ログ', icon: <FitnessCenterIcon />, path: '/logs' },
-  { label: 'ルーティン', icon: <RepeatIcon />, path: '/routines' },
+  { label: 'ルーティン', icon: <ChecklistIcon />, path: '/routines' },
   { label: '統計', icon: <BarChartIcon />, path: '/statistics' },
   { label: 'タイマー', icon: <TimerIcon />, path: '/timers' },
   { label: '設定', icon: <SettingsIcon />, path: '/settings' },
@@ -125,14 +125,25 @@ export default function ProtectedShell({
           onChange={(_, newValue) => {
             navigate({ to: navItems[newValue].path })
           }}
+          sx={{
+            // 6項目をスマホ幅でも1行表示にする（「ルーティン」の折り返し対策）。
+            // フォントサイズと左右余白のみ調整し、アイコンサイズは変えない。
+            '& .MuiBottomNavigationAction-root': {
+              minWidth: 0,
+              px: 0.25,
+            },
+            '& .MuiBottomNavigationAction-label': {
+              fontSize: '0.625rem',
+              lineHeight: 1.2,
+              whiteSpace: 'nowrap',
+            },
+            '& .MuiBottomNavigationAction-label.Mui-selected': {
+              fontSize: '0.625rem',
+            },
+          }}
         >
           {navItems.map((item) => (
-            <BottomNavigationAction
-              key={item.path}
-              label={item.label}
-              icon={item.icon}
-              sx={{ minWidth: 60 }}
-            />
+            <BottomNavigationAction key={item.path} label={item.label} icon={item.icon} />
           ))}
         </BottomNavigation>
       </Paper>

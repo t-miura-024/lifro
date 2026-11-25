@@ -2,11 +2,9 @@ import { routineService } from '@/server/application/services'
 import { z } from 'zod'
 import { authed } from '../base'
 
-const routineItemInputSchema = z.object({
-  id: z.number().optional(),
+const routineSetInputSchema = z.object({
   exerciseId: z.number(),
   sortIndex: z.number(),
-  setCount: z.number(),
   targetReps: z.number().nullable(),
 })
 
@@ -14,7 +12,7 @@ const routineInputSchema = z.object({
   id: z.number().optional(),
   name: z.string().min(1),
   sortIndex: z.number(),
-  routineItems: z.array(routineItemInputSchema),
+  routineSets: z.array(routineSetInputSchema),
 })
 
 export const updateSortOrder = authed

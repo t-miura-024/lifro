@@ -1,6 +1,8 @@
+import { RoutineFormModal } from '@/components/routine/routine-form-modal'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshRoutinesCache } from '@/lib/query-keys'
 import type { Routine } from '@/server/domain/entities'
+import { groupRoutineSets } from '@/server/domain/routine-sets'
 import {
   DndContext,
   type DragEndEvent,
@@ -39,7 +41,7 @@ import {
   Typography,
 } from '@mui/material'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { memo, useCallback, useMemo, useState, useTransition } from 'react'
 
 type SortableRoutineItemProps = {
@@ -65,7 +67,8 @@ const SortableRoutineItem = memo(function SortableRoutineItemInner({
     opacity: isDragging ? 0.5 : 1,
   }
 
-  const totalSets = routine.routineItems.reduce((sum, item) => sum + item.setCount, 0)
+  const totalSets = routine.routineSets.length
+  const exerciseGroupCount = groupRoutineSets(routine.routineSets).length
 
   return (
     <Paper
@@ -96,7 +99,7 @@ const SortableRoutineItem = memo(function SortableRoutineItemInner({
             {routine.name}
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            {routine.routineItems.length}種目 / 合計{totalSets}セット
+            {exerciseGroupCount}種目 / 合計{totalSets}セット
           </Typography>
           {exerciseNames && (
             <Typography
@@ -131,7 +134,6 @@ const SortableRoutineItem = memo(function SortableRoutineItemInner({
 
 function RoutineList() {
   const queryClient = useQueryClient()
-  const navigate = useNavigate()
   const { data: routines = [], isPending: isInitialLoading } = useQuery({
     queryKey: queryKeys.routines.list,
     queryFn: () => orpc.routines.list(),
@@ -144,6 +146,8 @@ function RoutineList() {
   const [isSorting, setIsSorting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Routine | null>(null)
   const [errorSnackbar, setErrorSnackbar] = useState<string | null>(null)
+  const [formModalOpen, setFormModalOpen] = useState(false)
+  const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null)
 
   const exerciseNameById = useMemo(
     () => new Map<number, string>(exercises.map((exercise) => [exercise.id, exercise.name])),
@@ -189,12 +193,20 @@ function RoutineList() {
     })
   }
 
-  const handleEdit = useCallback(
-    (routine: Routine) => {
-      void navigate({ to: '/routines/$routineId', params: { routineId: String(routine.id) } })
-    },
-    [navigate],
-  )
+  const handleEdit = useCallback((routine: Routine) => {
+    setEditingRoutine(routine)
+    setFormModalOpen(true)
+  }, [])
+
+  const handleAdd = useCallback(() => {
+    setEditingRoutine(null)
+    setFormModalOpen(true)
+  }, [])
+
+  const handleFormSaved = useCallback(() => {
+    setFormModalOpen(false)
+    setEditingRoutine(null)
+  }, [])
 
   const handleDelete = useCallback((routine: Routine) => {
     setDeleteTarget(routine)
@@ -257,7 +269,7 @@ function RoutineList() {
         <Button
           variant="contained"
           color="primary"
-          onClick={() => navigate({ to: '/routines/new' })}
+          onClick={handleAdd}
           disabled={isPending || isInitialLoading}
           aria-label="ルーティンを追加"
           sx={{ minWidth: 44, minHeight: 44 }}
@@ -287,8 +299,8 @@ function RoutineList() {
                 <SortableRoutineItem
                   key={routine.id}
                   routine={routine}
-                  exerciseNames={routine.routineItems
-                    .map((item) => exerciseNameById.get(item.exerciseId))
+                  exerciseNames={groupRoutineSets(routine.routineSets)
+                    .map((group) => exerciseNameById.get(group.exerciseId))
                     .filter((exerciseName): exerciseName is string => Boolean(exerciseName))
                     .join(' / ')}
                   onEdit={handleEdit}
@@ -299,6 +311,16 @@ function RoutineList() {
           </SortableContext>
         </DndContext>
       )}
+
+      <RoutineFormModal
+        open={formModalOpen}
+        routine={editingRoutine}
+        onClose={() => {
+          setFormModalOpen(false)
+          setEditingRoutine(null)
+        }}
+        onSaved={handleFormSaved}
+      />
 
       <Dialog
         open={deleteTarget !== null}

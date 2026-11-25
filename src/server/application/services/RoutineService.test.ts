@@ -11,13 +11,12 @@ function makeRoutine(userId: number, input: RoutineInput): Routine {
     sortIndex: input.sortIndex,
     createdAt: '2026-11-25T00:00:00.000Z',
     updatedAt: '2026-11-25T00:00:00.000Z',
-    routineItems: input.routineItems.map((item, index) => ({
+    routineSets: input.routineSets.map((set, index) => ({
       id: index + 1,
       routineId: 1,
-      exerciseId: item.exerciseId,
-      sortIndex: item.sortIndex,
-      setCount: item.setCount,
-      targetReps: item.targetReps,
+      exerciseId: set.exerciseId,
+      sortIndex: set.sortIndex,
+      targetReps: set.targetReps,
       createdAt: '2026-11-25T00:00:00.000Z',
       updatedAt: '2026-11-25T00:00:00.000Z',
     })),
@@ -60,14 +59,16 @@ class FakeRoutineRepository implements IRoutineRepository {
 const validInput: RoutineInput = {
   name: 'A',
   sortIndex: 0,
-  routineItems: [
-    { exerciseId: 1, sortIndex: 3, setCount: 3, targetReps: 10 },
-    { exerciseId: 2, sortIndex: 5, setCount: 4, targetReps: null },
+  routineSets: [
+    { exerciseId: 1, sortIndex: 3, targetReps: 10 },
+    { exerciseId: 1, sortIndex: 4, targetReps: 10 },
+    { exerciseId: 1, sortIndex: 5, targetReps: null },
+    { exerciseId: 2, sortIndex: 9, targetReps: 12 },
   ],
 }
 
 describe('RoutineService', () => {
-  it('名前をトリムし、種目の順序を入力配列順に正規化して保存する', async () => {
+  it('名前をトリムし、セット行の順序を入力配列順に正規化して保存する', async () => {
     const repository = new FakeRoutineRepository()
     const service = new RoutineService(repository)
 
@@ -79,11 +80,15 @@ describe('RoutineService', () => {
     expect(result.name).toBe('胸の日')
     expect(repository.created?.userId).toBe(7)
     expect(repository.created?.input.name).toBe('胸の日')
-    expect(repository.created?.input.routineItems.map((item) => item.sortIndex)).toEqual([0, 1])
-    expect(repository.created?.input.routineItems.map((item) => item.setCount)).toEqual([3, 4])
-    expect(repository.created?.input.routineItems.map((item) => item.targetReps)).toEqual([
+    expect(repository.created?.input.routineSets.map((set) => set.sortIndex)).toEqual([0, 1, 2, 3])
+    expect(repository.created?.input.routineSets.map((set) => set.exerciseId)).toEqual([
+      1, 1, 1, 2,
+    ])
+    expect(repository.created?.input.routineSets.map((set) => set.targetReps)).toEqual([
+      10,
       10,
       null,
+      12,
     ])
   })
 
@@ -95,23 +100,12 @@ describe('RoutineService', () => {
     )
   })
 
-  it('種目が0件のルーティンを拒否する', async () => {
+  it('セット行が0件のルーティンを拒否する', async () => {
     const service = new RoutineService(new FakeRoutineRepository())
 
-    await expect(service.createRoutine(1, { ...validInput, routineItems: [] })).rejects.toThrow(
+    await expect(service.createRoutine(1, { ...validInput, routineSets: [] })).rejects.toThrow(
       '種目は1つ以上必要です',
     )
-  })
-
-  it.each([0, -1, 1.5, Number.NaN])('セット数 %s を拒否する', async (setCount) => {
-    const service = new RoutineService(new FakeRoutineRepository())
-
-    await expect(
-      service.createRoutine(1, {
-        ...validInput,
-        routineItems: [{ exerciseId: 1, sortIndex: 0, setCount, targetReps: null }],
-      }),
-    ).rejects.toThrow('セット数は正の整数で入力してください')
   })
 
   it.each([0, -1, 2.5, Number.NaN])('目標回数 %s を拒否する', async (targetReps) => {
@@ -120,7 +114,7 @@ describe('RoutineService', () => {
     await expect(
       service.createRoutine(1, {
         ...validInput,
-        routineItems: [{ exerciseId: 1, sortIndex: 0, setCount: 3, targetReps }],
+        routineSets: [{ exerciseId: 1, sortIndex: 0, targetReps }],
       }),
     ).rejects.toThrow('目標回数は正の整数で入力してください')
   })
@@ -133,7 +127,7 @@ describe('RoutineService', () => {
 
     expect(repository.updated?.userId).toBe(9)
     expect(repository.updated?.routineId).toBe(42)
-    expect(repository.updated?.input.routineItems).toHaveLength(2)
+    expect(repository.updated?.input.routineSets).toHaveLength(4)
   })
 
   it('並び順更新と削除をリポジトリへ委譲する', async () => {

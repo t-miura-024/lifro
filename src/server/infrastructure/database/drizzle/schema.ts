@@ -239,35 +239,33 @@ export const routines = sqliteTable(
   ],
 )
 
-/// ルーティン項目（順序付きの種目。同一種目の重複を許容する）
-export const routineItems = sqliteTable(
-  'routine_items',
+/// ルーティンセット（平坦なセット行。種目グループは同じ exercise_id の連続として導出する）
+export const routineSets = sqliteTable(
+  'routine_sets',
   {
     id: integer('id', { mode: 'number' }).primaryKey({ autoIncrement: true }),
     routineId: integer('routine_id', { mode: 'number' }).notNull(),
     exerciseId: integer('exercise_id', { mode: 'number' }).notNull(),
-    sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
-    setCount: integer('set_count', { mode: 'number' }).notNull(),
+    sortIndex: integer('sort_index', { mode: 'number' }).notNull(),
     targetReps: integer('target_reps', { mode: 'number' }),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
   (t) => [
-    index('routine_items_routine_id_idx').on(t.routineId),
-    index('routine_items_exercise_id_idx').on(t.exerciseId),
-    check('routine_items_set_count_check', sql`${t.setCount} > 0`),
-    check('routine_items_target_reps_check', sql`${t.targetReps} IS NULL OR ${t.targetReps} > 0`),
+    index('routine_sets_routine_id_idx').on(t.routineId),
+    index('routine_sets_exercise_id_idx').on(t.exerciseId),
+    check('routine_sets_target_reps_check', sql`${t.targetReps} IS NULL OR ${t.targetReps} > 0`),
     foreignKey({
       columns: [t.routineId],
       foreignColumns: [routines.id],
-      name: 'routine_items_routine_id_fkey',
+      name: 'routine_sets_routine_id_fkey',
     })
       .onDelete('cascade')
       .onUpdate('cascade'),
     foreignKey({
       columns: [t.exerciseId],
       foreignColumns: [exercises.id],
-      name: 'routine_items_exercise_id_fkey',
+      name: 'routine_sets_exercise_id_fkey',
     })
       .onDelete('cascade')
       .onUpdate('cascade'),

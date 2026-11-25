@@ -4,6 +4,7 @@ import { calculateLogVolumes } from '@/lib/log-volume'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
 import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
+import { groupRoutineSets } from '@/server/domain/routine-sets'
 import AddIcon from '@mui/icons-material/Add'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
@@ -610,20 +611,24 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         return
       }
 
-      const exerciseIds = [...new Set(routine.routineItems.map((item) => item.exerciseId))]
-      if (exerciseIds.length === 0) {
+      const routineGroups = groupRoutineSets(routine.routineSets)
+      if (routineGroups.length === 0) {
         setRoutineError('このルーティンには種目が登録されていません')
         return
       }
 
-      // 削除済み種目（キャッシュが古い場合）は展開対象から除く
-      const applicableItems = routine.routineItems.filter((item) =>
-        exercises.some((exercise) => exercise.id === item.exerciseId),
+      // 削除済み種目（キャッシュが古い場合）のグループは展開対象から除く。
+      // グループ化してから除外するため、間に削除済み種目があっても同じ種目の
+      // 離れたグループが結合されることはない。
+      const applicableGroups = routineGroups.filter((group) =>
+        exercises.some((exercise) => exercise.id === group.exerciseId),
       )
-      if (applicableItems.length === 0) {
+      if (applicableGroups.length === 0) {
         setRoutineError('このルーティンには有効な種目が登録されていません')
         return
       }
+
+      const exerciseIds = [...new Set(applicableGroups.map((group) => group.exerciseId))]
 
       // 前回セット（当日分は除外）を一括取得し、現行どおり前回表示・差分表示に使う
       const latestSetsMap = await queryClient.fetchQuery({
@@ -631,28 +636,25 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         queryFn: () => orpc.logs.getLatestSetsMultiple(exerciseIds, dateStr),
       })
 
-      const groups: ExerciseGroup[] = [...applicableItems]
-        .sort((a, b) => a.sortIndex - b.sortIndex)
-        .map((item) => {
-          const exercise = exercises.find((e) => e.id === item.exerciseId)
-          const exerciseName = exercise?.name ?? ''
-          const reps = item.targetReps === null ? '' : item.targetReps.toString()
-          return {
-            key: `group-${Date.now()}-${groupKeyCounter++}`,
-            exerciseId: item.exerciseId,
+      const nextGroups: ExerciseGroup[] = applicableGroups.map((group) => {
+        const exercise = exercises.find((e) => e.id === group.exerciseId)
+        const exerciseName = exercise?.name ?? ''
+        return {
+          key: `group-${Date.now()}-${groupKeyCounter++}`,
+          exerciseId: group.exerciseId,
+          exerciseName,
+          latestSets: latestSetsMap[group.exerciseId] ?? null,
+          sets: group.sets.map((set) => ({
+            key: `set-${Date.now()}-${modalSetKeyCounter++}`,
+            exerciseId: group.exerciseId,
             exerciseName,
-            sets: Array.from({ length: item.setCount }, () => ({
-              key: `set-${Date.now()}-${modalSetKeyCounter++}`,
-              exerciseId: item.exerciseId,
-              exerciseName,
-              weight: '',
-              reps,
-            })),
-            latestSets: latestSetsMap[item.exerciseId] ?? null,
-          }
-        })
+            weight: '',
+            reps: set.targetReps === null ? '' : set.targetReps.toString(),
+          })),
+        }
+      })
 
-      setExerciseGroups(groups)
+      setExerciseGroups(nextGroups)
       setRoutineError(null)
     } catch (error) {
       console.error('Failed to apply routine:', error)
@@ -967,22 +969,20 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             ) : (
               <List dense disablePadding>
                 {routines.map((routine) => {
-                  const totalSets = routine.routineItems.reduce(
-                    (sum, item) => sum + item.setCount,
-                    0,
-                  )
+                  const routineGroups = groupRoutineSets(routine.routineSets)
+                  const totalSets = routine.routineSets.length
                   return (
                     <ListItemButton
                       key={routine.id}
                       onClick={() => handleApplyRoutine(routine)}
-                      disabled={routine.routineItems.length === 0}
+                      disabled={routine.routineSets.length === 0}
                     >
                       <ListItemText
                         primary={routine.name}
                         secondary={
-                          routine.routineItems.length === 0
+                          routine.routineSets.length === 0
                             ? '種目が登録されていません'
-                            : `${routine.routineItems.length}種目 / 合計${totalSets}セット`
+                            : `${routineGroups.length}種目 / 合計${totalSets}セット`
                         }
                       />
                     </ListItemButton>

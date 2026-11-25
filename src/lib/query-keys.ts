@@ -32,7 +32,6 @@ export const queryKeys = {
   routines: {
     all: ['routines'] as const,
     list: ['routines', 'list'] as const,
-    detail: (id: number) => ['routines', 'detail', id] as const,
   },
   bodyParts: {
     all: ['bodyParts'] as const,

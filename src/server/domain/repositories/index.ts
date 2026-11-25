@@ -226,12 +226,12 @@ export interface IRoutineRepository {
   findById(userId: number, routineId: number): Promise<Routine | null>
 
   /**
-   * ルーティンを作成（項目も含めて）
+   * ルーティンを作成（セット行も含めて）
    */
   create(userId: number, input: RoutineInput): Promise<Routine>
 
   /**
-   * ルーティンを更新（項目も含めて）
+   * ルーティンを更新（セット行も含めて）
    */
   update(userId: number, routineId: number, input: RoutineInput): Promise<Routine>
 

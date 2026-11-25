@@ -15,14 +15,11 @@ import { Route as OfflineRouteImport } from './routes/offline'
 import { Route as ProtectedIndexRouteImport } from './routes/_protected/index'
 import { Route as ProtectedExercisesRouteImport } from './routes/_protected/exercises'
 import { Route as ProtectedLogsRouteImport } from './routes/_protected/logs'
-import { Route as ProtectedRoutinesRouteImport } from './routes/_protected/routines'
 import { Route as ProtectedSettingsRouteImport } from './routes/_protected/settings'
 import { Route as ProtectedStatisticsRouteImport } from './routes/_protected/statistics'
 import { Route as ProtectedTimersRouteImport } from './routes/_protected/timers'
 import { Route as ApiHealthRouteImport } from './routes/api/health'
 import { Route as ProtectedRoutinesIndexRouteImport } from './routes/_protected/routines/index'
-import { Route as ProtectedRoutinesRoutineIdRouteImport } from './routes/_protected/routines/$routineId'
-import { Route as ProtectedRoutinesNewRouteImport } from './routes/_protected/routines/new'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 import { Route as ApiExercisesIndexRouteImport } from './routes/api/exercises/index'
 import { Route as ApiExercisesIdRouteImport } from './routes/api/exercises/$id'
@@ -93,11 +90,6 @@ const ProtectedLogsRoute = ProtectedLogsRouteImport.update({
   path: '/logs',
   getParentRoute: () => ProtectedRouteRoute,
 } as any)
-const ProtectedRoutinesRoute = ProtectedRoutinesRouteImport.update({
-  id: '/routines',
-  path: '/routines',
-  getParentRoute: () => ProtectedRouteRoute,
-} as any)
 const ProtectedSettingsRoute = ProtectedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -119,20 +111,9 @@ const ApiHealthRoute = ApiHealthRouteImport.update({
   getParentRoute: () => rootRouteImport,
 } as any)
 const ProtectedRoutinesIndexRoute = ProtectedRoutinesIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => ProtectedRoutinesRoute,
-} as any)
-const ProtectedRoutinesRoutineIdRoute =
-  ProtectedRoutinesRoutineIdRouteImport.update({
-    id: '/$routineId',
-    path: '/$routineId',
-    getParentRoute: () => ProtectedRoutinesRoute,
-  } as any)
-const ProtectedRoutinesNewRoute = ProtectedRoutinesNewRouteImport.update({
-  id: '/new',
-  path: '/new',
-  getParentRoute: () => ProtectedRoutinesRoute,
+  id: '/routines/',
+  path: '/routines/',
+  getParentRoute: () => ProtectedRouteRoute,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
@@ -356,13 +337,10 @@ export interface FileRoutesByFullPath {
   '/offline': typeof OfflineRoute
   '/exercises': typeof ProtectedExercisesRoute
   '/logs': typeof ProtectedLogsRoute
-  '/routines': typeof ProtectedRoutinesRouteWithChildren
   '/settings': typeof ProtectedSettingsRoute
   '/statistics': typeof ProtectedStatisticsRoute
   '/timers': typeof ProtectedTimersRoute
   '/api/health': typeof ApiHealthRoute
-  '/routines/$routineId': typeof ProtectedRoutinesRoutineIdRoute
-  '/routines/new': typeof ProtectedRoutinesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/exercises/$id': typeof ApiExercisesIdRouteWithChildren
   '/api/exercises/body-parts': typeof ApiExercisesBodyPartsRoute
@@ -415,8 +393,6 @@ export interface FileRoutesByTo {
   '/timers': typeof ProtectedTimersRoute
   '/api/health': typeof ApiHealthRoute
   '/': typeof ProtectedIndexRoute
-  '/routines/$routineId': typeof ProtectedRoutinesRoutineIdRoute
-  '/routines/new': typeof ProtectedRoutinesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/exercises/$id': typeof ApiExercisesIdRouteWithChildren
   '/api/exercises/body-parts': typeof ApiExercisesBodyPartsRoute
@@ -466,14 +442,11 @@ export interface FileRoutesById {
   '/offline': typeof OfflineRoute
   '/_protected/exercises': typeof ProtectedExercisesRoute
   '/_protected/logs': typeof ProtectedLogsRoute
-  '/_protected/routines': typeof ProtectedRoutinesRouteWithChildren
   '/_protected/settings': typeof ProtectedSettingsRoute
   '/_protected/statistics': typeof ProtectedStatisticsRoute
   '/_protected/timers': typeof ProtectedTimersRoute
   '/api/health': typeof ApiHealthRoute
   '/_protected/': typeof ProtectedIndexRoute
-  '/_protected/routines/$routineId': typeof ProtectedRoutinesRoutineIdRoute
-  '/_protected/routines/new': typeof ProtectedRoutinesNewRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/exercises/$id': typeof ApiExercisesIdRouteWithChildren
   '/api/exercises/body-parts': typeof ApiExercisesBodyPartsRoute
@@ -524,13 +497,10 @@ export interface FileRouteTypes {
     | '/offline'
     | '/exercises'
     | '/logs'
-    | '/routines'
     | '/settings'
     | '/statistics'
     | '/timers'
     | '/api/health'
-    | '/routines/$routineId'
-    | '/routines/new'
     | '/api/auth/$'
     | '/api/exercises/$id'
     | '/api/exercises/body-parts'
@@ -583,8 +553,6 @@ export interface FileRouteTypes {
     | '/timers'
     | '/api/health'
     | '/'
-    | '/routines/$routineId'
-    | '/routines/new'
     | '/api/auth/$'
     | '/api/exercises/$id'
     | '/api/exercises/body-parts'
@@ -633,14 +601,11 @@ export interface FileRouteTypes {
     | '/offline'
     | '/_protected/exercises'
     | '/_protected/logs'
-    | '/_protected/routines'
     | '/_protected/settings'
     | '/_protected/statistics'
     | '/_protected/timers'
     | '/api/health'
     | '/_protected/'
-    | '/_protected/routines/$routineId'
-    | '/_protected/routines/new'
     | '/api/auth/$'
     | '/api/exercises/$id'
     | '/api/exercises/body-parts'
@@ -771,13 +736,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ProtectedLogsRouteImport
       parentRoute: typeof ProtectedRouteRoute
     }
-    '/_protected/routines': {
-      id: '/_protected/routines'
-      path: '/routines'
-      fullPath: '/routines'
-      preLoaderRoute: typeof ProtectedRoutinesRouteImport
-      parentRoute: typeof ProtectedRouteRoute
-    }
     '/_protected/settings': {
       id: '/_protected/settings'
       path: '/settings'
@@ -808,24 +766,10 @@ declare module '@tanstack/react-router' {
     }
     '/_protected/routines/': {
       id: '/_protected/routines/'
-      path: '/'
+      path: '/routines'
       fullPath: '/routines/'
       preLoaderRoute: typeof ProtectedRoutinesIndexRouteImport
-      parentRoute: typeof ProtectedRoutinesRoute
-    }
-    '/_protected/routines/$routineId': {
-      id: '/_protected/routines/$routineId'
-      path: '/$routineId'
-      fullPath: '/routines/$routineId'
-      preLoaderRoute: typeof ProtectedRoutinesRoutineIdRouteImport
-      parentRoute: typeof ProtectedRoutinesRoute
-    }
-    '/_protected/routines/new': {
-      id: '/_protected/routines/new'
-      path: '/new'
-      fullPath: '/routines/new'
-      preLoaderRoute: typeof ProtectedRoutinesNewRouteImport
-      parentRoute: typeof ProtectedRoutinesRoute
+      parentRoute: typeof ProtectedRouteRoute
     }
     '/api/auth/$': {
       id: '/api/auth/$'
@@ -1110,39 +1054,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
-interface ProtectedRoutinesRouteChildren {
-  ProtectedRoutinesRoutineIdRoute: typeof ProtectedRoutinesRoutineIdRoute
-  ProtectedRoutinesNewRoute: typeof ProtectedRoutinesNewRoute
-  ProtectedRoutinesIndexRoute: typeof ProtectedRoutinesIndexRoute
-}
-
-const ProtectedRoutinesRouteChildren: ProtectedRoutinesRouteChildren = {
-  ProtectedRoutinesRoutineIdRoute: ProtectedRoutinesRoutineIdRoute,
-  ProtectedRoutinesNewRoute: ProtectedRoutinesNewRoute,
-  ProtectedRoutinesIndexRoute: ProtectedRoutinesIndexRoute,
-}
-
-const ProtectedRoutinesRouteWithChildren =
-  ProtectedRoutinesRoute._addFileChildren(ProtectedRoutinesRouteChildren)
-
 interface ProtectedRouteRouteChildren {
   ProtectedExercisesRoute: typeof ProtectedExercisesRoute
   ProtectedLogsRoute: typeof ProtectedLogsRoute
-  ProtectedRoutinesRoute: typeof ProtectedRoutinesRouteWithChildren
   ProtectedSettingsRoute: typeof ProtectedSettingsRoute
   ProtectedStatisticsRoute: typeof ProtectedStatisticsRoute
   ProtectedTimersRoute: typeof ProtectedTimersRoute
   ProtectedIndexRoute: typeof ProtectedIndexRoute
+  ProtectedRoutinesIndexRoute: typeof ProtectedRoutinesIndexRoute
 }
 
 const ProtectedRouteRouteChildren: ProtectedRouteRouteChildren = {
   ProtectedExercisesRoute: ProtectedExercisesRoute,
   ProtectedLogsRoute: ProtectedLogsRoute,
-  ProtectedRoutinesRoute: ProtectedRoutinesRouteWithChildren,
   ProtectedSettingsRoute: ProtectedSettingsRoute,
   ProtectedStatisticsRoute: ProtectedStatisticsRoute,
   ProtectedTimersRoute: ProtectedTimersRoute,
   ProtectedIndexRoute: ProtectedIndexRoute,
+  ProtectedRoutinesIndexRoute: ProtectedRoutinesIndexRoute,
 }
 
 const ProtectedRouteRouteWithChildren = ProtectedRouteRoute._addFileChildren(

@@ -54,29 +54,26 @@ export class RoutineService {
   }
 
   /**
-   * 名前・種目・セット数・目標回数を検証し、保存用の入力へ正規化する。
+   * 名前・種目セット行・目標回数を検証し、保存用の入力へ正規化する。
    */
   private validateInput(input: RoutineInput): RoutineInput {
     const name = input.name.trim()
     if (!name) {
       throw new Error('ルーティン名は必須です')
     }
-    if (input.routineItems.length === 0) {
+    if (input.routineSets.length === 0) {
       throw new Error('種目は1つ以上必要です')
     }
 
     return {
       ...input,
       name,
-      routineItems: input.routineItems.map((item, index) => {
-        if (!isPositiveInteger(item.setCount)) {
-          throw new Error('セット数は正の整数で入力してください')
-        }
-        if (item.targetReps !== null && !isPositiveInteger(item.targetReps)) {
+      routineSets: input.routineSets.map((set, index) => {
+        if (set.targetReps !== null && !isPositiveInteger(set.targetReps)) {
           throw new Error('目標回数は正の整数で入力してください')
         }
         return {
-          ...item,
+          ...set,
           sortIndex: index,
         }
       }),

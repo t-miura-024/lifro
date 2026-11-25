@@ -88,12 +88,11 @@ erDiagram
         TIMESTAMP updated_at "更新日時"
     }
 
-    ROUTINE_ITEMS {
-        INTEGER id PK "ルーティン項目ID"
+    ROUTINE_SETS {
+        INTEGER id PK "ルーティンセットID"
         INTEGER routine_id FK "ルーティンID"
         INTEGER exercise_id FK "種目ID"
-        INTEGER sort_index "並び順"
-        INTEGER set_count "セット数"
+        INTEGER sort_index "ルーティン内全体の連番"
         INTEGER target_reps "目標回数"
         TIMESTAMP created_at "作成日時"
         TIMESTAMP updated_at "更新日時"
@@ -106,8 +105,8 @@ erDiagram
     USERS ||--o{ ROUTINES : ""
     EXERCISES ||--o{ SETS : ""
     EXERCISES ||--o{ EXERCISE_BODY_PARTS : ""
-    EXERCISES ||--o{ ROUTINE_ITEMS : ""
+    EXERCISES ||--o{ ROUTINE_SETS : ""
     BODY_PARTS ||--o{ EXERCISE_BODY_PARTS : ""
     TIMERS ||--o{ UNIT_TIMERS : ""
-    ROUTINES ||--o{ ROUTINE_ITEMS : ""
+    ROUTINES ||--o{ ROUTINE_SETS : ""
 ```

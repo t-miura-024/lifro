@@ -1,29 +1,28 @@
-import type { Routine, RoutineInput, RoutineItem } from '@/server/domain/entities'
+import type { Routine, RoutineInput, RoutineSet } from '@/server/domain/entities'
 import type { IRoutineRepository, RoutineSortOrderInput } from '@/server/domain/repositories'
 import { type SQL, and, asc, eq, inArray, max, sql } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
 import { db } from '../../database/drizzle/client'
-import { routineItems, routines } from '../../database/drizzle/schema'
+import { routineSets, routines } from '../../database/drizzle/schema'
 import { toISOString } from './helper'
 import { bulkUpdateSortOrder } from './sort-order-helper'
 
 // Drizzleの行型からドメインエンティティへの変換
 type DrizzleRoutineRow = typeof routines.$inferSelect & {
-  routineItems: (typeof routineItems.$inferSelect)[]
+  routineSets: (typeof routineSets.$inferSelect)[]
 }
 
-type RoutineItemRow = typeof routineItems.$inferSelect
+type RoutineSetRow = typeof routineSets.$inferSelect
 
-function toRoutineItem(item: RoutineItemRow): RoutineItem {
+function toRoutineSet(set: RoutineSetRow): RoutineSet {
   return {
-    id: item.id,
-    routineId: item.routineId,
-    exerciseId: item.exerciseId,
-    sortIndex: item.sortIndex,
-    setCount: item.setCount,
-    targetReps: item.targetReps,
-    createdAt: toISOString(item.createdAt),
-    updatedAt: toISOString(item.updatedAt),
+    id: set.id,
+    routineId: set.routineId,
+    exerciseId: set.exerciseId,
+    sortIndex: set.sortIndex,
+    targetReps: set.targetReps,
+    createdAt: toISOString(set.createdAt),
+    updatedAt: toISOString(set.updatedAt),
   }
 }
 
@@ -35,7 +34,7 @@ function toRoutine(routine: DrizzleRoutineRow): Routine {
     sortIndex: routine.sortIndex,
     createdAt: toISOString(routine.createdAt),
     updatedAt: toISOString(routine.updatedAt),
-    routineItems: routine.routineItems.map(toRoutineItem).sort((a, b) => a.sortIndex - b.sortIndex),
+    routineSets: routine.routineSets.map(toRoutineSet).sort((a, b) => a.sortIndex - b.sortIndex),
   }
 }
 
@@ -58,20 +57,20 @@ function rethrowCreateOrUpdateError(error: unknown): never {
   throw error
 }
 
-async function findItemsByRoutineIds(routineIds: number[]): Promise<Map<number, RoutineItemRow[]>> {
-  const byRoutineId = new Map<number, RoutineItemRow[]>()
+async function findSetsByRoutineIds(routineIds: number[]): Promise<Map<number, RoutineSetRow[]>> {
+  const byRoutineId = new Map<number, RoutineSetRow[]>()
   if (routineIds.length === 0) return byRoutineId
 
   // D1 の1文あたり bound parameter 上限は 100。routineId 1件あたり1変数なので
   // 90件ごとに分割し、結果を結合する。
-  const allRows: RoutineItemRow[] = []
+  const allRows: RoutineSetRow[] = []
   for (let i = 0; i < routineIds.length; i += 90) {
     const chunk = routineIds.slice(i, i + 90)
     const rows = await db
       .select()
-      .from(routineItems)
-      .where(inArray(routineItems.routineId, chunk))
-      .orderBy(asc(routineItems.sortIndex))
+      .from(routineSets)
+      .where(inArray(routineSets.routineId, chunk))
+      .orderBy(asc(routineSets.sortIndex))
     allRows.push(...rows)
   }
 
@@ -83,7 +82,7 @@ async function findItemsByRoutineIds(routineIds: number[]): Promise<Map<number, 
   return byRoutineId
 }
 
-async function findRoutineWithItems(
+async function findRoutineWithSets(
   routineId: number,
   userId?: number,
 ): Promise<DrizzleRoutineRow | null> {
@@ -99,30 +98,29 @@ async function findRoutineWithItems(
   const routine = routineRows[0]
   if (!routine) return null
 
-  const itemsByRoutineId = await findItemsByRoutineIds([routineId])
+  const setsByRoutineId = await findSetsByRoutineIds([routineId])
 
-  return { ...routine, routineItems: itemsByRoutineId.get(routineId) ?? [] }
+  return { ...routine, routineSets: setsByRoutineId.get(routineId) ?? [] }
 }
 
-/** D1 の1文あたり bound parameter 上限を避けるための1文あたりの行数（7カラム/行） */
-const ROUTINE_ITEMS_PER_STATEMENT = 12
+/** D1 の1文あたり bound parameter 上限を避けるための1文あたりの行数（6カラム/行） */
+const ROUTINE_SETS_PER_STATEMENT = 15
 
-function insertRoutineItems(
+function insertRoutineSets(
   routineId: number | SQL<number>,
-  items: RoutineInput['routineItems'],
+  sets: RoutineInput['routineSets'],
   now: Date,
 ): BatchItem<'sqlite'>[] {
   const statements: BatchItem<'sqlite'>[] = []
-  for (let i = 0; i < items.length; i += ROUTINE_ITEMS_PER_STATEMENT) {
-    const chunk = items.slice(i, i + ROUTINE_ITEMS_PER_STATEMENT)
+  for (let i = 0; i < sets.length; i += ROUTINE_SETS_PER_STATEMENT) {
+    const chunk = sets.slice(i, i + ROUTINE_SETS_PER_STATEMENT)
     statements.push(
-      db.insert(routineItems).values(
-        chunk.map((item, index) => ({
+      db.insert(routineSets).values(
+        chunk.map((set, index) => ({
           routineId,
-          exerciseId: item.exerciseId,
+          exerciseId: set.exerciseId,
           sortIndex: i + index,
-          setCount: item.setCount,
-          targetReps: item.targetReps,
+          targetReps: set.targetReps,
           createdAt: now,
           updatedAt: now,
         })),
@@ -142,15 +140,15 @@ export class DrizzleRoutineRepository implements IRoutineRepository {
 
     if (routineRows.length === 0) return []
 
-    const itemsByRoutineId = await findItemsByRoutineIds(routineRows.map((r) => r.id))
+    const setsByRoutineId = await findSetsByRoutineIds(routineRows.map((r) => r.id))
 
     return routineRows.map((routine) =>
-      toRoutine({ ...routine, routineItems: itemsByRoutineId.get(routine.id) ?? [] }),
+      toRoutine({ ...routine, routineSets: setsByRoutineId.get(routine.id) ?? [] }),
     )
   }
 
   async findById(userId: number, routineId: number): Promise<Routine | null> {
-    const routine = await findRoutineWithItems(routineId, userId)
+    const routine = await findRoutineWithSets(routineId, userId)
     return routine ? toRoutine(routine) : null
   }
 
@@ -177,30 +175,30 @@ export class DrizzleRoutineRepository implements IRoutineRepository {
       .returning()
 
     try {
-      if (input.routineItems.length === 0) {
+      if (input.routineSets.length === 0) {
         const [[routine]] = await db.batch([insertRoutine])
         if (!routine) throw new Error('Failed to create routine')
-        return toRoutine({ ...routine, routineItems: [] })
+        return toRoutine({ ...routine, routineSets: [] })
       }
 
-      const [[routine], ...createdItemChunks] = await db.batch([
+      const [[routine]] = await db.batch([
         insertRoutine,
-        ...insertRoutineItems(sql<number>`last_insert_rowid()`, input.routineItems, now),
+        ...insertRoutineSets(sql<number>`last_insert_rowid()`, input.routineSets, now),
       ] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
 
       if (!routine) throw new Error('Failed to create routine')
 
-      return toRoutine({
-        ...routine,
-        routineItems: createdItemChunks.flat(),
-      })
+      const created = await findRoutineWithSets(routine.id, userId)
+      if (!created) throw new Error('Failed to create routine')
+
+      return toRoutine(created)
     } catch (error) {
       rethrowCreateOrUpdateError(error)
     }
   }
 
   async update(userId: number, routineId: number, input: RoutineInput): Promise<Routine> {
-    // 所有権チェックを兼ねた更新を先に行う（不存在・非所有なら項目に触れない）。
+    // 所有権チェックを兼ねた更新を先に行う（不存在・非所有ならセット行に触れない）。
     let updated: typeof routines.$inferSelect | undefined
     try {
       const rows = await db
@@ -217,20 +215,21 @@ export class DrizzleRoutineRepository implements IRoutineRepository {
       throw new Error('Routine not found or not owned by user')
     }
 
-    const deleteItems = db.delete(routineItems).where(eq(routineItems.routineId, routineId))
+    // セット行は全置換（そのルーティンの行を全削除→再INSERT。ログ保存と同じ方式）。
+    const deleteSets = db.delete(routineSets).where(eq(routineSets.routineId, routineId))
     const now = new Date()
-    const insertStatements = insertRoutineItems(routineId, input.routineItems, now)
+    const insertStatements = insertRoutineSets(routineId, input.routineSets, now)
 
     if (insertStatements.length === 0) {
-      await db.batch([deleteItems])
+      await db.batch([deleteSets])
     } else {
-      await db.batch([deleteItems, ...insertStatements] as [
+      await db.batch([deleteSets, ...insertStatements] as [
         BatchItem<'sqlite'>,
         ...BatchItem<'sqlite'>[],
       ])
     }
 
-    const routine = await findRoutineWithItems(routineId, userId)
+    const routine = await findRoutineWithSets(routineId, userId)
     if (!routine) {
       throw new Error('Routine not found')
     }
