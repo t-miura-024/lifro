@@ -211,3 +211,43 @@ export type TimerInput = {
   sortIndex: number
   unitTimers: UnitTimerInput[]
 }
+
+/** ルーティン項目（ルーティンを構成する順序付きの種目） */
+export type RoutineItem = {
+  id: number
+  routineId: number
+  exerciseId: number
+  sortIndex: number
+  setCount: number // ドロップセットを含む総セット数
+  targetReps: number | null // 目標回数（任意）
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
+}
+
+/** ルーティン（1回のトレーニング分の種目テンプレート） */
+export type Routine = {
+  id: number
+  userId: number
+  name: string
+  sortIndex: number
+  createdAt: string // ISO 8601
+  updatedAt: string // ISO 8601
+  routineItems: RoutineItem[]
+}
+
+/** ルーティン項目の入力データ（新規作成・更新用） */
+export type RoutineItemInput = {
+  id?: number
+  exerciseId: number
+  sortIndex: number
+  setCount: number
+  targetReps: number | null
+}
+
+/** ルーティンの入力データ（新規作成・更新用） */
+export type RoutineInput = {
+  id?: number
+  name: string
+  sortIndex: number
+  routineItems: RoutineItemInput[]
+}

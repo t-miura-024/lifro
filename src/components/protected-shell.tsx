@@ -4,6 +4,7 @@ import { authClient } from '@/lib/auth-client'
 import BarChartIcon from '@mui/icons-material/BarChart'
 import FitnessCenterIcon from '@mui/icons-material/FitnessCenter'
 import ListAltIcon from '@mui/icons-material/ListAlt'
+import RepeatIcon from '@mui/icons-material/Repeat'
 import SettingsIcon from '@mui/icons-material/Settings'
 import TimerIcon from '@mui/icons-material/Timer'
 import {
@@ -22,6 +23,7 @@ import { useEffect } from 'react'
 const navItems = [
   { label: '種目', icon: <ListAltIcon />, path: '/exercises' },
   { label: 'ログ', icon: <FitnessCenterIcon />, path: '/logs' },
+  { label: 'ルーティン', icon: <RepeatIcon />, path: '/routines' },
   { label: '統計', icon: <BarChartIcon />, path: '/statistics' },
   { label: 'タイマー', icon: <TimerIcon />, path: '/timers' },
   { label: '設定', icon: <SettingsIcon />, path: '/settings' },

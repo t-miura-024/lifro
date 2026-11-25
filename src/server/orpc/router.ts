@@ -1,10 +1,11 @@
 import { exercisesRouter } from './procedures/exercises'
 import { logsRouter } from './procedures/logs'
+import { routinesRouter } from './procedures/routines'
 import { statisticsRouter } from './procedures/statistics'
 import { timersRouter } from './procedures/timers'
 
 /**
- * oRPC集約router。4系統44 procedureを束ねる唯一の正本。
+ * oRPC集約router。5系統50 procedureを束ねる唯一の正本。
  * file routesは `call(router.<domain>.<proc>)` 経由で実行し、
  * orpc-clientの型は `InferRouterInputs/Outputs<AppRouter>` 由来。
  * `/api/health` は意図的に対象外（秘密欠落時も到達する公開healthのため
@@ -15,6 +16,7 @@ export const router = {
   logs: logsRouter,
   statistics: statisticsRouter,
   timers: timersRouter,
+  routines: routinesRouter,
 }
 
 export type AppRouter = typeof router

@@ -1,7 +1,7 @@
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
 import type { AppDatabase } from '../../database/drizzle/client'
-import { exercises, timers } from '../../database/drizzle/schema'
+import { timers, exercises, routines } from '../../database/drizzle/schema'
 
 /** sort_index 一括更新の入力 */
 export type SortOrderItem = {
@@ -10,16 +10,24 @@ export type SortOrderItem = {
 }
 
 /** CASE 一括更新を許可するテーブル（allowlist。任意文字列は受け付けない） */
-export type SortOrderTableName = 'exercises' | 'timers'
+export type SortOrderTableName = 'exercises' | 'timers' | 'routines'
 
 /** 実行時に tableName を照合する allowlist */
-const SORT_ORDER_TABLES: readonly SortOrderTableName[] = ['exercises', 'timers']
+const SORT_ORDER_TABLES: readonly SortOrderTableName[] = ['exercises', 'timers', 'routines']
 
 /** tableName→エラーラベル対応表（ヘルパー内に一本化。呼び出し側の手作業一致は不要） */
 const SORT_ORDER_ENTITY_LABELS: Record<SortOrderTableName, string> = {
   exercises: 'Exercise',
   timers: 'Timer',
+  routines: 'Routine',
 }
+
+/** tableName→Drizzle テーブル対応表 */
+const SORT_ORDER_TABLE_MAP = {
+  exercises,
+  timers,
+  routines,
+} as const
 
 /** D1/SQLite の束縛上限・書き込み保持長期化を避けるための1文あたりの上限 */
 export const SORT_ORDER_CHUNK_SIZE = 90
@@ -95,7 +103,7 @@ export async function bulkUpdateSortOrder(
   // D1 は SQL の BEGIN/SAVEPOINT 文を拒否する（Cloudflare error 7500）ため
   // db.transaction は使えない。全チャンクを db.batch にまとめ、D1 側の暗黙
   // トランザクションで原子性を保つ。
-  const table = tableName === 'exercises' ? exercises : timers
+  const table = SORT_ORDER_TABLE_MAP[tableName]
   const statements: BatchItem<'sqlite'>[] = []
   const expectedChanges: number[] = []
 

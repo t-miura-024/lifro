@@ -76,6 +76,9 @@ export type BodyPartGranularity = 'category' | 'bodyPart'
 /** `timers.create` 由来。update は `(id, data: TimerInput)` で受ける。 */
 export type TimerInput = Inputs['timers']['create']
 
+/** `routines.create` 由来。update は `(id, data: RoutineInput)` で受ける。 */
+export type RoutineInput = Inputs['routines']['create']
+
 /* ---------- 統計系の period mapping 反復用ヘルパー ---------- */
 
 /* z.coerce.number() の入力型は unknown になるため、id・年月・exerciseId は
@@ -354,6 +357,32 @@ export const orpc = {
     },
     remove(id: number): Promise<Outputs['timers']['remove']> {
       return req<Outputs['timers']['remove']>(apiPath.timersById(id), { method: 'DELETE' })
+    },
+  },
+
+  routines: {
+    updateSortOrder(
+      routines: Inputs['routines']['updateSortOrder']['routines'],
+    ): Promise<Outputs['routines']['updateSortOrder']> {
+      return req<Outputs['routines']['updateSortOrder']>(
+        apiPath.routinesSortOrder,
+        jsonInit('PUT', { routines }),
+      )
+    },
+    list(): Promise<Outputs['routines']['list']> {
+      return req<Outputs['routines']['list']>(apiPath.routines)
+    },
+    create(data: RoutineInput): Promise<Outputs['routines']['create']> {
+      return req<Outputs['routines']['create']>(apiPath.routines, jsonInit('POST', data))
+    },
+    get(id: number): Promise<Outputs['routines']['get']> {
+      return req<Outputs['routines']['get']>(apiPath.routinesById(id))
+    },
+    update(id: number, data: RoutineInput): Promise<Outputs['routines']['update']> {
+      return req<Outputs['routines']['update']>(apiPath.routinesById(id), jsonInit('PUT', data))
+    },
+    remove(id: number): Promise<Outputs['routines']['remove']> {
+      return req<Outputs['routines']['remove']>(apiPath.routinesById(id), { method: 'DELETE' })
     },
   },
 

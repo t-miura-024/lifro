@@ -9,6 +9,7 @@
     "build": "vite build",
     "pretypecheck": "bun run scripts/generate-sound-manifest.ts",
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "preview": "vite preview",
     "start": "vite preview --port 3000",
     "deploy": "bun run build && wrangler d1 migrations apply lifro --remote && wrangler deploy",
