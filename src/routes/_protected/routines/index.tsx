@@ -145,7 +145,11 @@ function RoutineList() {
   const [isPending, startTransition] = useTransition()
   const [isSorting, setIsSorting] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Routine | null>(null)
-  const [errorSnackbar, setErrorSnackbar] = useState<string | null>(null)
+  const [snackbar, setSnackbar] = useState<{
+    open: boolean
+    message: string
+    severity: 'success' | 'error'
+  }>({ open: false, message: '', severity: 'success' })
   const [formModalOpen, setFormModalOpen] = useState(false)
   const [editingRoutine, setEditingRoutine] = useState<Routine | null>(null)
 
@@ -204,9 +208,14 @@ function RoutineList() {
   }, [])
 
   const handleFormSaved = useCallback(() => {
+    setSnackbar({
+      open: true,
+      message: editingRoutine ? 'ルーティンを更新しました' : 'ルーティンを作成しました',
+      severity: 'success',
+    })
     setFormModalOpen(false)
     setEditingRoutine(null)
-  }, [])
+  }, [editingRoutine])
 
   const handleDelete = useCallback((routine: Routine) => {
     setDeleteTarget(routine)
@@ -224,7 +233,11 @@ function RoutineList() {
       } catch (error) {
         console.error('[routines] delete failed', error)
         setDeleteTarget(null)
-        setErrorSnackbar('ルーティンの削除に失敗しました')
+        setSnackbar({
+          open: true,
+          message: 'ルーティンの削除に失敗しました',
+          severity: 'error',
+        })
       }
     })
   }
@@ -355,13 +368,16 @@ function RoutineList() {
       </Dialog>
 
       <Snackbar
-        open={!!errorSnackbar}
+        open={snackbar.open}
         autoHideDuration={5000}
-        onClose={() => setErrorSnackbar(null)}
+        onClose={() => setSnackbar((current) => ({ ...current, open: false }))}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
       >
-        <Alert severity="error" onClose={() => setErrorSnackbar(null)}>
-          {errorSnackbar}
+        <Alert
+          severity={snackbar.severity}
+          onClose={() => setSnackbar((current) => ({ ...current, open: false }))}
+        >
+          {snackbar.message}
         </Alert>
       </Snackbar>
     </Box>

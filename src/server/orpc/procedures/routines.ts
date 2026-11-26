@@ -1,4 +1,6 @@
 import { routineService } from '@/server/application/services'
+import { DuplicateRoutineNameError } from '@/server/domain/routine-errors'
+import { ORPCError } from '@orpc/server'
 import { z } from 'zod'
 import { authed } from '../base'
 
@@ -35,8 +37,23 @@ export const list = authed.handler(async ({ context }) => {
   return routineService.getAllRoutines(context.userId)
 })
 
+/**
+ * ドメインエラーを HTTP クライアントへそのまま提示できる ORPCError へ写像する。
+ * 写像しないエラーは従来どおり 500（汎用文言）に落とす。
+ */
+function rethrowAsOrpcError(error: unknown): never {
+  if (error instanceof DuplicateRoutineNameError) {
+    throw new ORPCError('CONFLICT', { message: error.message })
+  }
+  throw error
+}
+
 export const create = authed.input(routineInputSchema).handler(async ({ context, input }) => {
-  return routineService.createRoutine(context.userId, input)
+  try {
+    return await routineService.createRoutine(context.userId, input)
+  } catch (error) {
+    rethrowAsOrpcError(error)
+  }
 })
 
 export const get = authed
@@ -49,7 +66,11 @@ export const update = authed
   .input(routineInputSchema.extend({ id: z.coerce.number() }))
   .handler(async ({ context, input }) => {
     const { id, ...data } = input
-    return routineService.updateRoutine(context.userId, id, data)
+    try {
+      return await routineService.updateRoutine(context.userId, id, data)
+    } catch (error) {
+      rethrowAsOrpcError(error)
+    }
   })
 
 export const remove = authed

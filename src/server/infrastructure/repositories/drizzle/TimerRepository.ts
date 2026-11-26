@@ -121,8 +121,11 @@ export class DrizzleTimerRepository implements ITimerRepository {
     // D1 は SQL の BEGIN/SAVEPOINT 文を拒否する（Cloudflare error 7500）ため
     // db.transaction は使えない。timers+unitTimers の作成は db.batch（D1 側の
     // 暗黙トランザクション）で一体化する。2文目の timer_id は1文目の結果を
-    // 待てないため last_insert_rowid()（直前の INSERT の rowid）で参照する。
+    // 待てないため、同一ユーザーの最新行を参照するサブクエリで補う。
+    // last_insert_rowid() は複数行 VALUES で行ごとに評価され、子行挿入後は
+    // その rowid を返すため未定義挙動になる（RoutineRepository と同じ理由）。
     const now = new Date()
+    const timerIdRef = sql<number>`(SELECT id FROM timers WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1)`
     const insertTimer = db
       .insert(timers)
       .values({
@@ -146,7 +149,7 @@ export class DrizzleTimerRepository implements ITimerRepository {
         .insert(unitTimers)
         .values(
           input.unitTimers.map((u, index) => ({
-            timerId: sql<number>`last_insert_rowid()`,
+            timerId: timerIdRef,
             name: u.name,
             sortIndex: index,
             duration: u.duration,
