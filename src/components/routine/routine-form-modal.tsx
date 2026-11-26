@@ -28,16 +28,7 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import {
-  Alert,
-  Box,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material'
+import { Alert, Dialog, DialogContent, DialogTitle, Stack, TextField } from '@mui/material'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState, useTransition } from 'react'
 
@@ -340,7 +331,7 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
     >
       <DialogTitle>{routine ? 'ルーティンを編集' : 'ルーティンを作成'}</DialogTitle>
       <DialogContent dividers>
-        <Stack spacing={2.5}>
+        <Stack spacing={3}>
           {error && (
             <Alert severity="error" onClose={() => setError(null)}>
               {error}
@@ -355,42 +346,33 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
             required
           />
 
-          <Box>
-            <Typography variant="subtitle2" gutterBottom>
-              種目（上から適用順）
-            </Typography>
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragEnd={handleDragEnd}
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleDragEnd}
+          >
+            <SortableContext
+              items={groups.map((group) => group.key)}
+              strategy={verticalListSortingStrategy}
             >
-              <SortableContext
-                items={groups.map((group) => group.key)}
-                strategy={verticalListSortingStrategy}
-              >
-                <Stack spacing={1.5}>
-                  {groups.map((group, index) => (
-                    <SortableRoutineGroup
-                      key={group.key}
-                      group={group}
-                      index={index}
-                      exerciseGroups={exerciseSelectGroups}
-                      canDeleteGroup={groups.length > 1}
-                      onChangeExercise={handleChangeExercise}
-                      onChangeTargetReps={handleChangeTargetReps}
-                      onAddSet={handleAddSet}
-                      onRemoveSet={handleRemoveSet}
-                      onRemoveGroup={handleRemoveGroup}
-                    />
-                  ))}
-                </Stack>
-              </SortableContext>
-            </DndContext>
+              {groups.map((group, index) => (
+                <SortableRoutineGroup
+                  key={group.key}
+                  group={group}
+                  index={index}
+                  exerciseGroups={exerciseSelectGroups}
+                  canDeleteGroup={groups.length > 1}
+                  onChangeExercise={handleChangeExercise}
+                  onChangeTargetReps={handleChangeTargetReps}
+                  onAddSet={handleAddSet}
+                  onRemoveSet={handleRemoveSet}
+                  onRemoveGroup={handleRemoveGroup}
+                />
+              ))}
+            </SortableContext>
+          </DndContext>
 
-            <Box sx={{ mt: 2 }}>
-              <AddRowButton label="種目を追加" onClick={handleAddGroup} />
-            </Box>
-          </Box>
+          <AddRowButton label="種目を追加" onClick={handleAddGroup} />
         </Stack>
       </DialogContent>
       <FormDialogActions
