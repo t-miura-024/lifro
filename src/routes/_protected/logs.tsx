@@ -1,28 +1,35 @@
 import { LogVolumeSummary } from '@/components/log-volume-summary'
+import type { ExerciseGroup, SetFormData } from '@/components/log/log-form-types'
+import { SortableLogExerciseGroup } from '@/components/log/sortable-log-exercise-group'
 import { useTimer } from '@/components/timer/TimerContext'
 import { AddRowButton } from '@/components/ui/add-row-button'
-import { ExerciseCard, ExerciseCardHeader } from '@/components/ui/exercise-card'
-import { ExerciseSelect, type ExerciseSelectGroup } from '@/components/ui/exercise-select'
+import { ExerciseCard } from '@/components/ui/exercise-card'
+import type { ExerciseSelectGroup } from '@/components/ui/exercise-select'
 import { FormDialogActions } from '@/components/ui/form-dialog-actions'
-import {
-  SetCellNote,
-  SetNumberInputCell,
-  SetRemoveCell,
-  SetTable,
-  type SetTableColumn,
-  SetTotalRow,
-  SetValueCell,
-} from '@/components/ui/set-table'
+import { SetTable, type SetTableColumn, SetTotalRow } from '@/components/ui/set-table'
 import { calculateLogVolumes } from '@/lib/log-volume'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
 import type { ExerciseVolume, TrainingMemo, YearMonth } from '@/server/domain/entities'
 import { groupRoutineSets } from '@/server/domain/routine-sets'
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
 import AddIcon from '@mui/icons-material/Add'
-import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
+import ChecklistIcon from '@mui/icons-material/Checklist'
 import DeleteIcon from '@mui/icons-material/Delete'
-import RepeatIcon from '@mui/icons-material/Repeat'
 import TimerIcon from '@mui/icons-material/Timer'
 import {
   Alert,
@@ -147,7 +154,7 @@ function LogList({ rows, onRowClick }: LogListProps) {
 
 /** 部位情報付き種目 */
 type ExerciseWithBodyParts = Awaited<ReturnType<typeof orpc.exercises.listWithBodyParts>>[number]
-type LatestExerciseSets = NonNullable<Awaited<ReturnType<typeof orpc.logs.getLatestSets>>>
+type LatestExerciseSetsMap = Awaited<ReturnType<typeof orpc.logs.getLatestSetsMultiple>>
 type Timer = Awaited<ReturnType<typeof orpc.timers.list>>[number]
 type Routine = Awaited<ReturnType<typeof orpc.routines.list>>[number]
 
@@ -190,23 +197,6 @@ function toExerciseSelectGroups(exercises: ExerciseWithBodyParts[]): ExerciseSel
       options: grouped.get(category) ?? [],
     }))
     .filter((group) => group.options.length > 0)
-}
-
-type SetFormData = {
-  key: string // unique key for React rendering
-  id?: number
-  exerciseId: number | null
-  exerciseName: string
-  weight: string
-  reps: string
-}
-
-type ExerciseGroup = {
-  key: string // unique key for React rendering
-  exerciseId: number | null
-  exerciseName: string
-  sets: SetFormData[]
-  latestSets: LatestExerciseSets | null
 }
 
 type LogInputModalProps = {
@@ -254,15 +244,6 @@ const emptyExerciseGroup = (): ExerciseGroup => ({
   latestSets: null,
 })
 
-// 差分をフォーマットする関数
-const formatDelta = (current: number, previous: number | null) => {
-  if (previous === null) return { text: 'NEW', color: 'text.secondary' }
-  const delta = current - previous
-  if (delta > 0) return { text: `+${delta.toLocaleString()}`, color: 'success.main' }
-  if (delta < 0) return { text: delta.toLocaleString(), color: 'error.main' }
-  return { text: '±0', color: 'text.disabled' }
-}
-
 function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: LogInputModalProps) {
   const queryClient = useQueryClient()
   const [exerciseGroups, setExerciseGroups] = useState<ExerciseGroup[]>([emptyExerciseGroup()])
@@ -275,6 +256,11 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const [dateError, setDateError] = useState<string | null>(null)
   const today = dayjs()
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
   // タイマー関連の状態
   const [timerAnchorEl, setTimerAnchorEl] = useState<HTMLButtonElement | null>(null)
   const [timers, setTimers] = useState<Timer[]>([])
@@ -286,6 +272,10 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const [routines, setRoutines] = useState<Routine[]>([])
   const [isLoadingRoutines, setIsLoadingRoutines] = useState(false)
   const [routineError, setRoutineError] = useState<string | null>(null)
+  const [pendingRoutineApply, setPendingRoutineApply] = useState<{
+    routine: Routine
+    latestSetsMap: LatestExerciseSetsMap
+  } | null>(null)
 
   // 変更検知用のベースライン状態
   const [baseline, setBaseline] = useState<BaselineState | null>(null)
@@ -535,13 +525,14 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     }
   }
 
-  const handleMoveExerciseGroup = (from: number, to: number) => {
-    if (to < 0 || to >= exerciseGroups.length || from === to) return
-    const next = [...exerciseGroups]
-    const [moved] = next.splice(from, 1)
-    if (!moved) return
-    next.splice(to, 0, moved)
-    setExerciseGroups(next)
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = exerciseGroups.findIndex((group) => group.key === active.id)
+    const newIndex = exerciseGroups.findIndex((group) => group.key === over.id)
+    if (oldIndex !== -1 && newIndex !== -1) {
+      setExerciseGroups(arrayMove(exerciseGroups, oldIndex, newIndex))
+    }
   }
 
   // メモ操作
@@ -623,7 +614,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     setRoutineAnchorEl(null)
   }
 
-  const handleApplyRoutine = async (routine: Routine) => {
+  const handleSelectRoutine = async (routine: Routine) => {
     handleCloseRoutinePopover()
 
     if (hasExistingData) {
@@ -667,36 +658,59 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
       const exerciseIds = [...new Set(applicableGroups.map((group) => group.exerciseId))]
 
-      // 前回セット（当日分は除外）を一括取得し、現行どおり前回表示・差分表示に使う
+      // 前回セット（当日分は除外）を一括取得し、前回表示・差分表示と重量の初期値に使う
       const latestSetsMap = await queryClient.fetchQuery({
         queryKey: queryKeys.logs.latestSetsMultiple(exerciseIds, dateStr),
         queryFn: () => orpc.logs.getLatestSetsMultiple(exerciseIds, dateStr),
       })
 
-      const nextGroups: ExerciseGroup[] = applicableGroups.map((group) => {
-        const exercise = exercises.find((e) => e.id === group.exerciseId)
-        const exerciseName = exercise?.name ?? ''
-        return {
-          key: `group-${Date.now()}-${groupKeyCounter++}`,
-          exerciseId: group.exerciseId,
-          exerciseName,
-          latestSets: latestSetsMap[group.exerciseId] ?? null,
-          sets: group.sets.map((set) => ({
-            key: `set-${Date.now()}-${modalSetKeyCounter++}`,
-            exerciseId: group.exerciseId,
-            exerciseName,
-            weight: '',
-            reps: set.targetReps === null ? '' : set.targetReps.toString(),
-          })),
-        }
-      })
-
-      setExerciseGroups(nextGroups)
+      setPendingRoutineApply({ routine, latestSetsMap })
       setRoutineError(null)
     } catch (error) {
       console.error('Failed to apply routine:', error)
       setRoutineError('ルーティンの適用に失敗しました')
     }
+  }
+
+  const handleConfirmRoutineApply = (fillPreviousWeight: boolean) => {
+    if (!pendingRoutineApply) return
+    const { routine, latestSetsMap } = pendingRoutineApply
+    setPendingRoutineApply(null)
+
+    const applicableGroups = groupRoutineSets(routine.routineSets).filter((group) =>
+      exercises.some((exercise) => exercise.id === group.exerciseId),
+    )
+
+    const nextGroups: ExerciseGroup[] = applicableGroups.map((group) => {
+      const exercise = exercises.find((e) => e.id === group.exerciseId)
+      const exerciseName = exercise?.name ?? ''
+      const latestSets = latestSetsMap[group.exerciseId] ?? null
+      return {
+        key: `group-${Date.now()}-${groupKeyCounter++}`,
+        exerciseId: group.exerciseId,
+        exerciseName,
+        latestSets,
+        sets: group.sets.map((set, setIndex) => {
+          const previousWeight = latestSets?.sets[setIndex]?.weight
+          return {
+            key: `set-${Date.now()}-${modalSetKeyCounter++}`,
+            exerciseId: group.exerciseId,
+            exerciseName,
+            weight:
+              fillPreviousWeight && previousWeight !== undefined ? previousWeight.toString() : '',
+            reps: set.targetReps === null ? '' : set.targetReps.toString(),
+          }
+        }),
+      }
+    })
+
+    setExerciseGroups(nextGroups)
+    setRoutineError(null)
+  }
+
+  const handleCancelRoutineApply = () => {
+    setPendingRoutineApply(null)
+    setRoutineError(null)
   }
 
   const handleSave = () => {
@@ -883,7 +897,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                     aria-label="ルーティンを適用"
                     color="primary"
                   >
-                    <RepeatIcon />
+                    <ChecklistIcon />
                   </IconButton>
                 </span>
               </Tooltip>
@@ -985,7 +999,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                   return (
                     <ListItemButton
                       key={routine.id}
-                      onClick={() => handleApplyRoutine(routine)}
+                      onClick={() => handleSelectRoutine(routine)}
                       disabled={routine.routineSets.length === 0}
                     >
                       <ListItemText
@@ -1025,151 +1039,32 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
               </>
             ) : (
               <>
-                {exerciseGroups.map((group, groupIndex) => {
-                  const totalVolume = group.sets.reduce((sum, set) => {
-                    const weight = Number.parseFloat(set.weight) || 0
-                    const reps = Number.parseInt(set.reps, 10) || 0
-                    return sum + weight * reps
-                  }, 0)
-                  const previousTotalVolume = group.latestSets
-                    ? group.latestSets.sets.reduce((sum, set) => sum + set.weight * set.reps, 0)
-                    : null
-                  const totalVolumeDelta = formatDelta(totalVolume, previousTotalVolume)
-
-                  return (
-                    <ExerciseCard key={group.key}>
-                      <ExerciseCardHeader>
-                        <ExerciseSelect
-                          labelId={`exercise-label-${groupIndex}`}
-                          label="種目"
-                          emptyLabel="種目を登録してください"
-                          value={group.exerciseId}
-                          groups={exerciseSelectGroups}
-                          onChange={(exerciseId) => handleExerciseChange(groupIndex, exerciseId)}
-                        />
-                        {exerciseGroups.length > 1 && (
-                          <>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex - 1)}
-                              disabled={groupIndex === 0}
-                              aria-label="種目を上へ移動"
-                              sx={{ flexShrink: 0 }}
-                            >
-                              <ArrowUpwardIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex + 1)}
-                              disabled={groupIndex === exerciseGroups.length - 1}
-                              aria-label="種目を下へ移動"
-                              sx={{ flexShrink: 0 }}
-                            >
-                              <ArrowDownwardIcon fontSize="small" />
-                            </IconButton>
-                            <IconButton
-                              size="small"
-                              onClick={() => handleRemoveExerciseGroup(groupIndex)}
-                              aria-label="種目を削除"
-                              sx={{ flexShrink: 0 }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </>
-                        )}
-                      </ExerciseCardHeader>
-                      {group.latestSets && (
-                        <Typography
-                          variant="caption"
-                          sx={{ color: 'text.secondary', fontSize: '0.875rem' }}
-                        >
-                          前回：{dayjs(group.latestSets.date).format('YYYY年M月D日')}
-                        </Typography>
-                      )}
-
-                      <SetTable columns={logSetTableColumns}>
-                        <TableBody>
-                          {group.sets.map((set, setIndex) => {
-                            const weight = Number.parseFloat(set.weight) || 0
-                            const reps = Number.parseInt(set.reps, 10) || 0
-                            const volume = weight * reps
-                            const previousSet = group.latestSets?.sets[setIndex] || null
-                            const previousWeight = previousSet?.weight ?? null
-                            const previousReps = previousSet?.reps ?? null
-                            const previousVolume = previousSet
-                              ? previousSet.weight * previousSet.reps
-                              : null
-                            const weightDelta = formatDelta(weight, previousWeight)
-                            const repsDelta = formatDelta(reps, previousReps)
-                            const volumeDelta = formatDelta(volume, previousVolume)
-                            return (
-                              <TableRow key={set.key}>
-                                <SetNumberInputCell
-                                  value={set.weight}
-                                  onChange={(value) =>
-                                    handleSetChange(groupIndex, setIndex, 'weight', value)
-                                  }
-                                  min={0}
-                                  step={0.5}
-                                  placeholder="0"
-                                  note={
-                                    group.latestSets ? (
-                                      <SetCellNote color={weightDelta.color}>
-                                        {weightDelta.text}
-                                      </SetCellNote>
-                                    ) : undefined
-                                  }
-                                />
-                                <SetNumberInputCell
-                                  value={set.reps}
-                                  onChange={(value) =>
-                                    handleSetChange(groupIndex, setIndex, 'reps', value)
-                                  }
-                                  min={0}
-                                  step={1}
-                                  placeholder="0"
-                                  note={
-                                    group.latestSets ? (
-                                      <SetCellNote color={repsDelta.color}>
-                                        {repsDelta.text}
-                                      </SetCellNote>
-                                    ) : undefined
-                                  }
-                                />
-                                <SetValueCell
-                                  value={volume > 0 ? volume.toLocaleString() : '-'}
-                                  note={
-                                    group.latestSets ? (
-                                      <SetCellNote color={volumeDelta.color}>
-                                        {volumeDelta.text}
-                                      </SetCellNote>
-                                    ) : undefined
-                                  }
-                                />
-                                <SetRemoveCell
-                                  canRemove={group.sets.length > 1}
-                                  onRemove={() => handleRemoveSet(groupIndex, setIndex)}
-                                />
-                              </TableRow>
-                            )
-                          })}
-                          <SetTotalRow
-                            value={totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
-                            note={
-                              group.latestSets ? (
-                                <SetCellNote color={totalVolumeDelta.color}>
-                                  {totalVolumeDelta.text}
-                                </SetCellNote>
-                              ) : undefined
-                            }
-                          />
-                        </TableBody>
-                      </SetTable>
-
-                      <AddRowButton label="セットを追加" onClick={() => handleAddSet(groupIndex)} />
-                    </ExerciseCard>
-                  )
-                })}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={exerciseGroups.map((group) => group.key)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {exerciseGroups.map((group, groupIndex) => (
+                      <SortableLogExerciseGroup
+                        key={group.key}
+                        group={group}
+                        index={groupIndex}
+                        exerciseGroups={exerciseSelectGroups}
+                        canDeleteGroup={exerciseGroups.length > 1}
+                        columns={logSetTableColumns}
+                        onChangeExercise={handleExerciseChange}
+                        onChangeSet={handleSetChange}
+                        onAddSet={handleAddSet}
+                        onRemoveSet={handleRemoveSet}
+                        onRemoveGroup={handleRemoveExerciseGroup}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
 
                 <AddRowButton label="種目を追加" onClick={handleAddExerciseGroup} />
 
@@ -1258,6 +1153,35 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             disabled={isPending}
           >
             {isPending ? '削除中...' : '削除'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ルーティン適用の確認ダイアログ */}
+      <Dialog
+        open={pendingRoutineApply !== null}
+        onClose={handleCancelRoutineApply}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>ルーティンの適用</DialogTitle>
+        <DialogContent>
+          {pendingRoutineApply && (
+            <>
+              <Typography>
+                「{pendingRoutineApply.routine.name}」を適用します。重量の初期値を選んでください。
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                「前回の実施重量で埋める」を選ぶと、各セットの重量に前回の記録を入力します。回数にはルーティンの目標回数が入ります。
+              </Typography>
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap' }}>
+          <Button onClick={handleCancelRoutineApply}>キャンセル</Button>
+          <Button onClick={() => handleConfirmRoutineApply(false)}>重量は空欄のままにする</Button>
+          <Button variant="contained" onClick={() => handleConfirmRoutineApply(true)}>
+            前回の実施重量で埋める
           </Button>
         </DialogActions>
       </Dialog>
