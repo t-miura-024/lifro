@@ -6,7 +6,7 @@ import {
   createEmptyRoutineSet,
 } from '@/components/routine/routine-form-types'
 import { SortableRoutineGroup } from '@/components/routine/sortable-routine-group'
-import { orpc } from '@/lib/orpc-client'
+import { ApiError, orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshRoutinesCache } from '@/lib/query-keys'
 import type { Routine } from '@/server/domain/entities'
 import { groupRoutineSets } from '@/server/domain/routine-sets'
@@ -44,6 +44,19 @@ import { useEffect, useState, useTransition } from 'react'
 function isPositiveIntegerString(value: string): boolean {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0
+}
+
+/**
+ * 保存失敗時にサーバが返したユーザー向けメッセージを取り出す。
+ * 4xx はサーバが理由を返す契約（同名ルーティン等）。5xx の汎用文言は
+ * ユーザーに意味がないため表示しない。
+ */
+function toServerErrorMessage(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null
+  if (error.status < 400 || error.status >= 500) return null
+  if (typeof error.body !== 'object' || error.body === null) return null
+  const message = (error.body as { error?: unknown }).error
+  return typeof message === 'string' && message !== '' ? message : null
 }
 
 function groupsFromRoutine(routine: Routine): RoutineGroupFormData[] {
@@ -277,7 +290,7 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
         onSaved()
       } catch (saveError) {
         console.error('[routines] save failed', saveError)
-        setError('保存に失敗しました。同じ名前のルーティンがないか確認してください。')
+        setError(toServerErrorMessage(saveError) ?? '保存に失敗しました')
       }
     })
   }

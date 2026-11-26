@@ -1,5 +1,6 @@
 import type { Routine, RoutineInput, RoutineSet } from '@/server/domain/entities'
 import type { IRoutineRepository, RoutineSortOrderInput } from '@/server/domain/repositories'
+import { DuplicateRoutineNameError } from '@/server/domain/routine-errors'
 import { type SQL, and, asc, eq, inArray, max, sql } from 'drizzle-orm'
 import type { BatchItem } from 'drizzle-orm/batch'
 import { db } from '../../database/drizzle/client'
@@ -52,7 +53,7 @@ function isDuplicateNameError(error: unknown): boolean {
 
 function rethrowCreateOrUpdateError(error: unknown): never {
   if (isDuplicateNameError(error)) {
-    throw new Error('同名のルーティンが既に存在します')
+    throw new DuplicateRoutineNameError()
   }
   throw error
 }
@@ -161,8 +162,11 @@ export class DrizzleRoutineRepository implements IRoutineRepository {
     const nextSortIndex = (maxRows[0]?.value ?? -1) + 1
 
     // D1 は BEGIN/SAVEPOINT を拒否するため db.batch で一体化する。
-    // 2文目の routine_id は1文目の結果を待てないため last_insert_rowid() で参照する。
+    // 2文目以降の routine_id は1文目の結果を待てないため、同一ユーザーの最新行を
+    // 参照するサブクエリで補う。last_insert_rowid() は複数行 VALUES で行ごとに
+    // 評価され、子行を挿入した時点で自身の rowid を返してしまうため使わない。
     const now = new Date()
+    const routineIdRef = sql<number>`(SELECT id FROM routines WHERE user_id = ${userId} ORDER BY id DESC LIMIT 1)`
     const insertRoutine = db
       .insert(routines)
       .values({
@@ -183,7 +187,7 @@ export class DrizzleRoutineRepository implements IRoutineRepository {
 
       const [[routine]] = await db.batch([
         insertRoutine,
-        ...insertRoutineSets(sql<number>`last_insert_rowid()`, input.routineSets, now),
+        ...insertRoutineSets(routineIdRef, input.routineSets, now),
       ] as [BatchItem<'sqlite'>, ...BatchItem<'sqlite'>[]])
 
       if (!routine) throw new Error('Failed to create routine')

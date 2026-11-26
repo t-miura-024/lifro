@@ -8,7 +8,9 @@ export function toOrpcResponse(error: unknown, logPrefix?: string): Response {
           ? 400
           : error.code === 'NOT_FOUND'
             ? 404
-            : 500
+            : error.code === 'CONFLICT'
+              ? 409
+              : 500
     if (status === 500) console.error(logPrefix ?? '[api]', error)
     return Response.json({ error: error.message || 'Internal Server Error' }, { status })
   }
