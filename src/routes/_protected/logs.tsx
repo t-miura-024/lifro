@@ -1,5 +1,18 @@
 import { LogVolumeSummary } from '@/components/log-volume-summary'
 import { useTimer } from '@/components/timer/TimerContext'
+import { AddRowButton } from '@/components/ui/add-row-button'
+import { ExerciseCard, ExerciseCardHeader } from '@/components/ui/exercise-card'
+import { ExerciseSelect, type ExerciseSelectGroup } from '@/components/ui/exercise-select'
+import { FormDialogActions } from '@/components/ui/form-dialog-actions'
+import {
+  SetCellNote,
+  SetNumberInputCell,
+  SetRemoveCell,
+  SetTable,
+  type SetTableColumn,
+  SetTotalRow,
+  SetValueCell,
+} from '@/components/ui/set-table'
 import { calculateLogVolumes } from '@/lib/log-volume'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
@@ -24,11 +37,9 @@ import {
   Divider,
   FormControl,
   IconButton,
-  InputLabel,
   List,
   ListItemButton,
   ListItemText,
-  ListSubheader,
   MenuItem,
   Paper,
   Popover,
@@ -37,11 +48,8 @@ import {
   Skeleton,
   Snackbar,
   Stack,
-  Table,
   TableBody,
   TableCell,
-  TableContainer,
-  TableHead,
   TableRow,
   TextField,
   Tooltip,
@@ -155,6 +163,35 @@ const categoryLabels: Record<string, string> = {
 
 /** カテゴリの表示順 */
 const categoryOrder = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG']
+
+/** セット表の列定義。単位は共通部品側で「ラベル (単位)」に整形される。 */
+const logSetTableColumns: SetTableColumn[] = [
+  { key: 'weight', label: '重量', unit: 'kg', width: 120 },
+  { key: 'reps', label: '回数', width: 100 },
+  { key: 'volume', label: 'ボリューム', width: 120 },
+]
+
+/** 種目一覧を部位カテゴリ別の選択肢グループへ整形する。 */
+function toExerciseSelectGroups(exercises: ExerciseWithBodyParts[]): ExerciseSelectGroup[] {
+  const grouped = new Map<string, { id: number; name: string }[]>()
+  for (const category of categoryOrder) {
+    grouped.set(category, [])
+  }
+  for (const exercise of exercises) {
+    const category = exercise.primaryCategory || 'UNCATEGORIZED'
+    const options = grouped.get(category) ?? []
+    options.push({ id: exercise.id, name: exercise.name })
+    grouped.set(category, options)
+  }
+
+  return [...categoryOrder, 'UNCATEGORIZED']
+    .map((category) => ({
+      label: category === 'UNCATEGORIZED' ? '未分類' : categoryLabels[category] || category,
+      options: grouped.get(category) ?? [],
+    }))
+    .filter((group) => group.options.length > 0)
+}
+
 type SetFormData = {
   key: string // unique key for React rendering
   id?: number
@@ -746,75 +783,49 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
   // スケルトンローディング表示
   const renderExerciseGroupSkeleton = () => (
-    <Paper variant="outlined" sx={{ p: 2 }} style={{ marginTop: '12px' }}>
-      <Stack spacing={2}>
-        {/* 種目選択スケルトン */}
-        <Skeleton variant="rounded" height={40} />
-        {/* 前回日付スケルトン */}
-        <Skeleton variant="text" width={120} height={20} sx={{ mt: 1 }} />
-        {/* テーブルスケルトン */}
-        <TableContainer style={{ marginTop: '2px' }}>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell align="right" width={120}>
-                  重量 (kg)
-                </TableCell>
-                <TableCell align="right" width={100}>
-                  回数
-                </TableCell>
-                <TableCell align="right" width={120}>
-                  ボリューム
-                </TableCell>
-                <TableCell width={60} />
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {[1, 2, 3].map((i) => (
-                <TableRow key={i}>
-                  <TableCell sx={{ p: 1 }}>
-                    <Stack spacing={0.5}>
-                      <Skeleton variant="text" width="100%" height={24} />
-                      <Skeleton variant="text" width={40} height={16} sx={{ ml: 'auto' }} />
-                    </Stack>
-                  </TableCell>
-                  <TableCell sx={{ p: 1 }}>
-                    <Stack spacing={0.5}>
-                      <Skeleton variant="text" width="100%" height={24} />
-                      <Skeleton variant="text" width={30} height={16} sx={{ ml: 'auto' }} />
-                    </Stack>
-                  </TableCell>
-                  <TableCell align="right" sx={{ p: 1 }}>
-                    <Stack spacing={0.5} alignItems="flex-end">
-                      <Skeleton variant="text" width={60} height={24} />
-                      <Skeleton variant="text" width={40} height={16} />
-                    </Stack>
-                  </TableCell>
-                  <TableCell sx={{ p: 1 }}>
-                    <Skeleton variant="circular" width={28} height={28} />
-                  </TableCell>
-                </TableRow>
-              ))}
-              <TableRow>
-                <TableCell colSpan={2} align="right">
-                  <Typography variant="subtitle2">合計</Typography>
-                </TableCell>
-                <TableCell align="right">
-                  <Skeleton variant="text" width={60} height={24} sx={{ ml: 'auto' }} />
-                </TableCell>
-                <TableCell />
-              </TableRow>
-            </TableBody>
-          </Table>
-        </TableContainer>
-        {/* セット追加ボタンスケルトン */}
-        <Skeleton variant="text" width={100} height={24} sx={{ mx: 'auto' }} />
-      </Stack>
-    </Paper>
+    <ExerciseCard>
+      {/* 種目選択スケルトン */}
+      <Skeleton variant="rounded" height={40} />
+      {/* 前回日付スケルトン */}
+      <Skeleton variant="text" width={120} height={20} sx={{ mt: 1 }} />
+      {/* テーブルスケルトン */}
+      <SetTable columns={logSetTableColumns}>
+        <TableBody>
+          {[1, 2, 3].map((i) => (
+            <TableRow key={i}>
+              <TableCell sx={{ p: 1 }}>
+                <Stack spacing={0.5}>
+                  <Skeleton variant="text" width="100%" height={24} />
+                  <Skeleton variant="text" width={40} height={16} sx={{ ml: 'auto' }} />
+                </Stack>
+              </TableCell>
+              <TableCell sx={{ p: 1 }}>
+                <Stack spacing={0.5}>
+                  <Skeleton variant="text" width="100%" height={24} />
+                  <Skeleton variant="text" width={30} height={16} sx={{ ml: 'auto' }} />
+                </Stack>
+              </TableCell>
+              <TableCell align="right" sx={{ p: 1 }}>
+                <Stack spacing={0.5} alignItems="flex-end">
+                  <Skeleton variant="text" width={60} height={24} />
+                  <Skeleton variant="text" width={40} height={16} />
+                </Stack>
+              </TableCell>
+              <TableCell sx={{ p: 1 }}>
+                <Skeleton variant="circular" width={28} height={28} />
+              </TableCell>
+            </TableRow>
+          ))}
+          <SetTotalRow value={<Skeleton variant="text" width={60} height={24} />} />
+        </TableBody>
+      </SetTable>
+      {/* セット追加ボタンスケルトン */}
+      <Skeleton variant="text" width={100} height={24} sx={{ mx: 'auto' }} />
+    </ExerciseCard>
   )
 
-  // 種目が0件の場合の判定
-  const hasNoExercises = exercises.length === 0
+  // 種目選択のグループ化（種目一覧が変わったときだけ再計算）
+  const exerciseSelectGroups = useMemo(() => toExerciseSelectGroups(exercises), [exercises])
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ja">
@@ -1026,375 +1037,141 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                   const totalVolumeDelta = formatDelta(totalVolume, previousTotalVolume)
 
                   return (
-                    <Paper
-                      key={group.key}
-                      variant="outlined"
-                      sx={{
-                        p: 2,
-                      }}
-                      style={{ marginTop: '12px' }}
-                    >
-                      <Stack spacing={2}>
-                        <Stack direction="row" alignItems="center" spacing={1}>
-                          <FormControl fullWidth size="small" disabled={hasNoExercises}>
-                            <InputLabel id={`exercise-label-${groupIndex}`}>
-                              {hasNoExercises ? '種目を登録してください' : '種目'}
-                            </InputLabel>
-                            <Select
-                              labelId={`exercise-label-${groupIndex}`}
-                              value={group.exerciseId?.toString() || ''}
-                              label={hasNoExercises ? '種目を登録してください' : '種目'}
-                              onChange={(e: SelectChangeEvent) => {
-                                const value = e.target.value
-                                handleExerciseChange(
-                                  groupIndex,
-                                  value ? Number.parseInt(value, 10) : null,
-                                )
-                              }}
-                              sx={{
-                                '& .MuiOutlinedInput-notchedOutline': {
-                                  borderRadius: 0,
-                                },
-                              }}
+                    <ExerciseCard key={group.key}>
+                      <ExerciseCardHeader>
+                        <ExerciseSelect
+                          labelId={`exercise-label-${groupIndex}`}
+                          label="種目"
+                          emptyLabel="種目を登録してください"
+                          value={group.exerciseId}
+                          groups={exerciseSelectGroups}
+                          onChange={(exerciseId) => handleExerciseChange(groupIndex, exerciseId)}
+                        />
+                        {exerciseGroups.length > 1 && (
+                          <>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex - 1)}
+                              disabled={groupIndex === 0}
+                              aria-label="種目を上へ移動"
+                              sx={{ flexShrink: 0 }}
                             >
-                              {/* カテゴリ順に種目をグループ化して表示 */}
-                              {(() => {
-                                const grouped: Record<string, ExerciseWithBodyParts[]> = {}
-                                for (const category of categoryOrder) {
-                                  grouped[category] = []
-                                }
-                                grouped.UNCATEGORIZED = []
-
-                                for (const exercise of exercises) {
-                                  const category = exercise.primaryCategory || 'UNCATEGORIZED'
-                                  if (!grouped[category]) {
-                                    grouped[category] = []
-                                  }
-                                  grouped[category].push(exercise)
-                                }
-
-                                const items: React.ReactNode[] = []
-                                for (const category of [...categoryOrder, 'UNCATEGORIZED']) {
-                                  const categoryExercises = grouped[category]
-                                  if (categoryExercises.length > 0) {
-                                    const label =
-                                      category === 'UNCATEGORIZED'
-                                        ? '未分類'
-                                        : categoryLabels[category] || category
-                                    items.push(
-                                      <ListSubheader
-                                        key={`header-${category}`}
-                                        sx={{ lineHeight: '32px' }}
-                                      >
-                                        {label}
-                                      </ListSubheader>,
-                                    )
-                                    for (const exercise of categoryExercises) {
-                                      items.push(
-                                        <MenuItem
-                                          key={exercise.id}
-                                          value={exercise.id.toString()}
-                                          sx={{ pl: 3 }}
-                                        >
-                                          {exercise.name}
-                                        </MenuItem>,
-                                      )
-                                    }
-                                  }
-                                }
-                                return items
-                              })()}
-                            </Select>
-                          </FormControl>
-                          {exerciseGroups.length > 1 && (
-                            <>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex - 1)}
-                                disabled={groupIndex === 0}
-                                aria-label="種目を上へ移動"
-                                sx={{ flexShrink: 0 }}
-                              >
-                                <ArrowUpwardIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex + 1)}
-                                disabled={groupIndex === exerciseGroups.length - 1}
-                                aria-label="種目を下へ移動"
-                                sx={{ flexShrink: 0 }}
-                              >
-                                <ArrowDownwardIcon fontSize="small" />
-                              </IconButton>
-                              <IconButton
-                                size="small"
-                                onClick={() => handleRemoveExerciseGroup(groupIndex)}
-                                aria-label="種目を削除"
-                                sx={{ flexShrink: 0 }}
-                              >
-                                <DeleteIcon fontSize="small" />
-                              </IconButton>
-                            </>
-                          )}
-                        </Stack>
-                        {group.latestSets && (
-                          <Box style={{ marginTop: '6px' }}>
-                            <Typography
-                              variant="caption"
-                              sx={{ color: 'text.secondary' }}
-                              style={{ fontSize: '0.875rem' }}
+                              <ArrowUpwardIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleMoveExerciseGroup(groupIndex, groupIndex + 1)}
+                              disabled={groupIndex === exerciseGroups.length - 1}
+                              aria-label="種目を下へ移動"
+                              sx={{ flexShrink: 0 }}
                             >
-                              前回：{dayjs(group.latestSets.date).format('YYYY年M月D日')}
-                            </Typography>
-                          </Box>
+                              <ArrowDownwardIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              onClick={() => handleRemoveExerciseGroup(groupIndex)}
+                              aria-label="種目を削除"
+                              sx={{ flexShrink: 0 }}
+                            >
+                              <DeleteIcon fontSize="small" />
+                            </IconButton>
+                          </>
                         )}
-
-                        <TableContainer style={{ marginTop: '2px' }}>
-                          <Table size="small">
-                            <TableHead>
-                              <TableRow>
-                                <TableCell align="right" width={120}>
-                                  重量 (kg)
-                                </TableCell>
-                                <TableCell align="right" width={100}>
-                                  回数
-                                </TableCell>
-                                <TableCell align="right" width={120}>
-                                  ボリューム
-                                </TableCell>
-                                <TableCell width={60} />
-                              </TableRow>
-                            </TableHead>
-                            <TableBody>
-                              {group.sets.map((set, setIndex) => {
-                                const weight = Number.parseFloat(set.weight) || 0
-                                const reps = Number.parseInt(set.reps, 10) || 0
-                                const volume = weight * reps
-                                const previousSet = group.latestSets?.sets[setIndex] || null
-                                const previousWeight = previousSet?.weight ?? null
-                                const previousReps = previousSet?.reps ?? null
-                                const previousVolume = previousSet
-                                  ? previousSet.weight * previousSet.reps
-                                  : null
-                                const weightDelta = formatDelta(weight, previousWeight)
-                                const repsDelta = formatDelta(reps, previousReps)
-                                const volumeDelta = formatDelta(volume, previousVolume)
-                                return (
-                                  <TableRow key={set.key}>
-                                    <TableCell sx={{ p: 0 }}>
-                                      <Stack spacing={0.5}>
-                                        <TextField
-                                          type="number"
-                                          size="small"
-                                          value={set.weight}
-                                          onChange={(e) =>
-                                            handleSetChange(
-                                              groupIndex,
-                                              setIndex,
-                                              'weight',
-                                              e.target.value,
-                                            )
-                                          }
-                                          inputProps={{ min: 0, step: 0.5, placeholder: '0' }}
-                                          sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                              borderRadius: 0,
-                                            },
-                                            '& .MuiOutlinedInput-notchedOutline': {
-                                              border: 'none',
-                                            },
-                                            '& .MuiInputBase-input': {
-                                              textAlign: 'right',
-                                              padding: 0,
-                                              '&::-webkit-outer-spin-button': {
-                                                WebkitAppearance: 'none',
-                                                margin: 0,
-                                              },
-                                              '&::-webkit-inner-spin-button': {
-                                                WebkitAppearance: 'none',
-                                                margin: 0,
-                                              },
-                                              '&[type=number]': {
-                                                MozAppearance: 'textfield',
-                                              },
-                                            },
-                                          }}
-                                          fullWidth
-                                        />
-                                        {group.latestSets && (
-                                          <Typography
-                                            variant="caption"
-                                            sx={{
-                                              textAlign: 'right',
-                                              color: weightDelta.color,
-                                              fontSize: '0.7rem',
-                                            }}
-                                            style={{ marginTop: 0 }}
-                                          >
-                                            {weightDelta.text}
-                                          </Typography>
-                                        )}
-                                      </Stack>
-                                    </TableCell>
-                                    <TableCell sx={{ p: 0 }}>
-                                      <Stack spacing={0.5}>
-                                        <TextField
-                                          type="number"
-                                          size="small"
-                                          value={set.reps}
-                                          onChange={(e) =>
-                                            handleSetChange(
-                                              groupIndex,
-                                              setIndex,
-                                              'reps',
-                                              e.target.value,
-                                            )
-                                          }
-                                          inputProps={{ min: 0, step: 1, placeholder: '0' }}
-                                          sx={{
-                                            '& .MuiOutlinedInput-root': {
-                                              borderRadius: 0,
-                                            },
-                                            '& .MuiOutlinedInput-notchedOutline': {
-                                              border: 'none',
-                                            },
-                                            '& .MuiInputBase-input': {
-                                              textAlign: 'right',
-                                              padding: 0,
-                                              '&::-webkit-outer-spin-button': {
-                                                WebkitAppearance: 'none',
-                                                margin: 0,
-                                              },
-                                              '&::-webkit-inner-spin-button': {
-                                                WebkitAppearance: 'none',
-                                                margin: 0,
-                                              },
-                                              '&[type=number]': {
-                                                MozAppearance: 'textfield',
-                                              },
-                                            },
-                                          }}
-                                          fullWidth
-                                        />
-                                        {group.latestSets && (
-                                          <Typography
-                                            variant="caption"
-                                            sx={{
-                                              textAlign: 'right',
-                                              color: repsDelta.color,
-                                              fontSize: '0.7rem',
-                                            }}
-                                            style={{ marginTop: 0 }}
-                                          >
-                                            {repsDelta.text}
-                                          </Typography>
-                                        )}
-                                      </Stack>
-                                    </TableCell>
-                                    <TableCell align="right">
-                                      <Stack spacing={0.5} alignItems="flex-end">
-                                        <Typography>
-                                          {volume > 0 ? volume.toLocaleString() : '-'}
-                                        </Typography>
-                                        {group.latestSets && (
-                                          <Typography
-                                            variant="caption"
-                                            sx={{
-                                              color: volumeDelta.color,
-                                              fontSize: '0.7rem',
-                                            }}
-                                            style={{ marginTop: 0 }}
-                                          >
-                                            {volumeDelta.text}
-                                          </Typography>
-                                        )}
-                                      </Stack>
-                                    </TableCell>
-                                    <TableCell>
-                                      {group.sets.length > 1 && (
-                                        <IconButton
-                                          size="small"
-                                          onClick={() => handleRemoveSet(groupIndex, setIndex)}
-                                          aria-label="セットを削除"
-                                        >
-                                          <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                      )}
-                                    </TableCell>
-                                  </TableRow>
-                                )
-                              })}
-                              <TableRow>
-                                <TableCell colSpan={2} align="right">
-                                  <Typography variant="subtitle2">合計</Typography>
-                                </TableCell>
-                                <TableCell align="right">
-                                  <Stack spacing={0.5} alignItems="flex-end">
-                                    <Typography variant="subtitle2">
-                                      {totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
-                                    </Typography>
-                                    {group.latestSets && (
-                                      <Typography
-                                        variant="caption"
-                                        sx={{
-                                          color: totalVolumeDelta.color,
-                                          fontSize: '0.7rem',
-                                        }}
-                                        style={{ marginTop: 0 }}
-                                      >
-                                        {totalVolumeDelta.text}
-                                      </Typography>
-                                    )}
-                                  </Stack>
-                                </TableCell>
-                                <TableCell />
-                              </TableRow>
-                            </TableBody>
-                          </Table>
-                        </TableContainer>
-
-                        <Button
-                          startIcon={<AddIcon />}
-                          onClick={() => handleAddSet(groupIndex)}
-                          variant="text"
-                          size="small"
-                          fullWidth
-                          sx={{
-                            borderRadius: 0,
-                            my: 0,
-                            py: 0,
-                            minHeight: 'auto',
-                            '& .MuiButton-startIcon': {
-                              marginRight: 1,
-                            },
-                          }}
-                          style={{ marginTop: '4px' }}
+                      </ExerciseCardHeader>
+                      {group.latestSets && (
+                        <Typography
+                          variant="caption"
+                          sx={{ color: 'text.secondary', fontSize: '0.875rem' }}
                         >
-                          セットを追加
-                        </Button>
-                      </Stack>
-                    </Paper>
+                          前回：{dayjs(group.latestSets.date).format('YYYY年M月D日')}
+                        </Typography>
+                      )}
+
+                      <SetTable columns={logSetTableColumns}>
+                        <TableBody>
+                          {group.sets.map((set, setIndex) => {
+                            const weight = Number.parseFloat(set.weight) || 0
+                            const reps = Number.parseInt(set.reps, 10) || 0
+                            const volume = weight * reps
+                            const previousSet = group.latestSets?.sets[setIndex] || null
+                            const previousWeight = previousSet?.weight ?? null
+                            const previousReps = previousSet?.reps ?? null
+                            const previousVolume = previousSet
+                              ? previousSet.weight * previousSet.reps
+                              : null
+                            const weightDelta = formatDelta(weight, previousWeight)
+                            const repsDelta = formatDelta(reps, previousReps)
+                            const volumeDelta = formatDelta(volume, previousVolume)
+                            return (
+                              <TableRow key={set.key}>
+                                <SetNumberInputCell
+                                  value={set.weight}
+                                  onChange={(value) =>
+                                    handleSetChange(groupIndex, setIndex, 'weight', value)
+                                  }
+                                  min={0}
+                                  step={0.5}
+                                  placeholder="0"
+                                  note={
+                                    group.latestSets ? (
+                                      <SetCellNote color={weightDelta.color}>
+                                        {weightDelta.text}
+                                      </SetCellNote>
+                                    ) : undefined
+                                  }
+                                />
+                                <SetNumberInputCell
+                                  value={set.reps}
+                                  onChange={(value) =>
+                                    handleSetChange(groupIndex, setIndex, 'reps', value)
+                                  }
+                                  min={0}
+                                  step={1}
+                                  placeholder="0"
+                                  note={
+                                    group.latestSets ? (
+                                      <SetCellNote color={repsDelta.color}>
+                                        {repsDelta.text}
+                                      </SetCellNote>
+                                    ) : undefined
+                                  }
+                                />
+                                <SetValueCell
+                                  value={volume > 0 ? volume.toLocaleString() : '-'}
+                                  note={
+                                    group.latestSets ? (
+                                      <SetCellNote color={volumeDelta.color}>
+                                        {volumeDelta.text}
+                                      </SetCellNote>
+                                    ) : undefined
+                                  }
+                                />
+                                <SetRemoveCell
+                                  canRemove={group.sets.length > 1}
+                                  onRemove={() => handleRemoveSet(groupIndex, setIndex)}
+                                />
+                              </TableRow>
+                            )
+                          })}
+                          <SetTotalRow
+                            value={totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
+                            note={
+                              group.latestSets ? (
+                                <SetCellNote color={totalVolumeDelta.color}>
+                                  {totalVolumeDelta.text}
+                                </SetCellNote>
+                              ) : undefined
+                            }
+                          />
+                        </TableBody>
+                      </SetTable>
+
+                      <AddRowButton label="セットを追加" onClick={() => handleAddSet(groupIndex)} />
+                    </ExerciseCard>
                   )
                 })}
 
-                <Button
-                  startIcon={<AddIcon />}
-                  onClick={handleAddExerciseGroup}
-                  variant="text"
-                  fullWidth
-                  sx={{
-                    borderRadius: 0,
-                    my: 0,
-                    py: 0,
-                    minHeight: 'auto',
-                    '& .MuiButton-startIcon': {
-                      marginRight: 1,
-                    },
-                  }}
-                  style={{ marginTop: '4px' }}
-                >
-                  種目を追加
-                </Button>
+                <AddRowButton label="種目を追加" onClick={handleAddExerciseGroup} />
 
                 {/* メモセクション */}
                 <Divider sx={{ my: 2 }} />
@@ -1443,24 +1220,13 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         <Box sx={{ px: 3, pt: 1.5, pb: 0.5, flexShrink: 0 }}>
           <LogVolumeSummary totals={logVolumeTotals} isLoading={isInitialLoading} />
         </Box>
-        <DialogActions
-          sx={{
-            px: 3,
-            pt: 0.5,
-            pb: 'calc(16px + env(safe-area-inset-bottom))',
-          }}
-        >
-          <Button onClick={onClose} disabled={isPending || isInitialLoading}>
-            閉じる
-          </Button>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={isPending || isInitialLoading || !hasChanges || !isRequiredFieldsFilled}
-          >
-            {isPending ? '保存中...' : '保存'}
-          </Button>
-        </DialogActions>
+        <FormDialogActions
+          onClose={onClose}
+          onSave={handleSave}
+          closeDisabled={isPending || isInitialLoading}
+          saveDisabled={isPending || isInitialLoading || !hasChanges || !isRequiredFieldsFilled}
+          isSaving={isPending}
+        />
       </Dialog>
 
       {/* 削除確認ダイアログ */}

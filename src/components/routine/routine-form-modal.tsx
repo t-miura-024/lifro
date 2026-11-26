@@ -6,6 +6,9 @@ import {
   createEmptyRoutineSet,
 } from '@/components/routine/routine-form-types'
 import { SortableRoutineGroup } from '@/components/routine/sortable-routine-group'
+import { AddRowButton } from '@/components/ui/add-row-button'
+import type { ExerciseSelectGroup } from '@/components/ui/exercise-select'
+import { FormDialogActions } from '@/components/ui/form-dialog-actions'
 import { ApiError, orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshRoutinesCache } from '@/lib/query-keys'
 import type { Routine } from '@/server/domain/entities'
@@ -25,13 +28,10 @@ import {
   sortableKeyboardCoordinates,
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
-import AddIcon from '@mui/icons-material/Add'
 import {
   Alert,
   Box,
-  Button,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   Stack,
@@ -57,6 +57,40 @@ function toServerErrorMessage(error: unknown): string | null {
   if (typeof error.body !== 'object' || error.body === null) return null
   const message = (error.body as { error?: unknown }).error
   return typeof message === 'string' && message !== '' ? message : null
+}
+
+/** 部位カテゴリの表示名 */
+const categoryLabels: Record<string, string> = {
+  CHEST: '胸',
+  BACK: '背中',
+  SHOULDER: '肩',
+  ARM: '腕',
+  ABS: '腹筋',
+  LEG: '脚',
+}
+
+/** カテゴリの表示順 */
+const categoryOrder = ['CHEST', 'BACK', 'SHOULDER', 'ARM', 'ABS', 'LEG']
+
+/** 種目一覧を部位カテゴリ別の選択肢グループへ整形する。 */
+function toExerciseSelectGroups(exercises: RoutineExerciseOption[]): ExerciseSelectGroup[] {
+  const grouped = new Map<string, { id: number; name: string }[]>()
+  for (const category of categoryOrder) {
+    grouped.set(category, [])
+  }
+  for (const exercise of exercises) {
+    const category = exercise.primaryCategory || 'UNCATEGORIZED'
+    const options = grouped.get(category) ?? []
+    options.push({ id: exercise.id, name: exercise.name })
+    grouped.set(category, options)
+  }
+
+  return [...categoryOrder, 'UNCATEGORIZED']
+    .map((category) => ({
+      label: category === 'UNCATEGORIZED' ? '未分類' : categoryLabels[category] || category,
+      options: grouped.get(category) ?? [],
+    }))
+    .filter((group) => group.options.length > 0)
 }
 
 function groupsFromRoutine(routine: Routine): RoutineGroupFormData[] {
@@ -225,6 +259,7 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
   }
 
   const activeGroups = groups.filter((group) => group.exerciseId !== null)
+  const exerciseSelectGroups = toExerciseSelectGroups(exercises)
   const isFormValid =
     name.trim() !== '' &&
     activeGroups.length > 0 &&
@@ -247,11 +282,7 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
           queryKey: queryKeys.routines.list,
           queryFn: () => orpc.routines.list(),
         })
-        if (
-          routinesList.some(
-            (item) => item.id !== routine?.id && item.name === trimmedName,
-          )
-        ) {
+        if (routinesList.some((item) => item.id !== routine?.id && item.name === trimmedName)) {
           setError('同名のルーティンが既に存在します')
           return
         }
@@ -268,8 +299,7 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
             routineSets.push({
               exerciseId: group.exerciseId,
               sortIndex: sortIndex++,
-              targetReps:
-                set.targetReps.trim() === '' ? null : Number.parseInt(set.targetReps, 10),
+              targetReps: set.targetReps.trim() === '' ? null : Number.parseInt(set.targetReps, 10),
             })
           }
         }
@@ -344,7 +374,7 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
                       key={group.key}
                       group={group}
                       index={index}
-                      exercises={exercises}
+                      exerciseGroups={exerciseSelectGroups}
                       canDeleteGroup={groups.length > 1}
                       onChangeExercise={handleChangeExercise}
                       onChangeTargetReps={handleChangeTargetReps}
@@ -357,26 +387,19 @@ export function RoutineFormModal({ open, routine, onClose, onSaved }: RoutineFor
               </SortableContext>
             </DndContext>
 
-            <Button
-              startIcon={<AddIcon />}
-              onClick={handleAddGroup}
-              variant="text"
-              fullWidth
-              sx={{ mt: 2 }}
-            >
-              種目を追加
-            </Button>
+            <Box sx={{ mt: 2 }}>
+              <AddRowButton label="種目を追加" onClick={handleAddGroup} />
+            </Box>
           </Box>
         </Stack>
       </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2 }}>
-        <Button onClick={onClose} disabled={isSaving}>
-          キャンセル
-        </Button>
-        <Button variant="contained" onClick={handleSave} disabled={isSaving || !isFormValid}>
-          {isSaving ? '保存中...' : '保存'}
-        </Button>
-      </DialogActions>
+      <FormDialogActions
+        onClose={onClose}
+        onSave={handleSave}
+        closeDisabled={isSaving}
+        saveDisabled={isSaving || !isFormValid}
+        isSaving={isSaving}
+      />
     </Dialog>
   )
 }
