@@ -1,4 +1,5 @@
 import type { ExerciseGroup } from '@/components/log/log-form-types'
+import { PreviousRecordChip } from '@/components/log/previous-record-chip'
 import { AddRowButton } from '@/components/ui/add-row-button'
 import { ExerciseCard, ExerciseCardHeader } from '@/components/ui/exercise-card'
 import { ExerciseSelect, type ExerciseSelectGroup } from '@/components/ui/exercise-select'
@@ -11,7 +12,12 @@ import {
   SetTotalRow,
   SetValueCell,
 } from '@/components/ui/set-table'
-import { type LoadMode, parseNumericInput, validateAssistedLoad } from '@/lib/assisted-load'
+import {
+  type LoadMode,
+  formatLoadFormula,
+  parseNumericInput,
+  validateAssistedLoad,
+} from '@/lib/assisted-load'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -20,15 +26,12 @@ import {
   Alert,
   Box,
   IconButton,
-  Stack,
   TableBody,
   TableRow,
   TextField,
   ToggleButton,
   ToggleButtonGroup,
-  Typography,
 } from '@mui/material'
-import dayjs from 'dayjs'
 
 // 差分をフォーマットする関数
 const formatDelta = (current: number, previous: number | null) => {
@@ -39,11 +42,11 @@ const formatDelta = (current: number, previous: number | null) => {
   return { text: '±0', color: 'text.disabled' }
 }
 
-/** アシスト対応種目の列定義。モードに応じて入力列の見出しを変える。 */
-const toAssistedColumns = (label: string): SetTableColumn[] => [
-  { key: 'assist', label, unit: 'kg', width: '30%' },
-  { key: 'weight', label: '負荷', unit: 'kg', width: '21%' },
-  { key: 'reps', label: '回数', width: '14%' },
+/** アシスト対応種目の列定義。モードに応じて入力列の見出しと負荷の計算式を変える。 */
+const toAssistedColumns = (label: string, formulaHint: string): SetTableColumn[] => [
+  { key: 'assist', label, unit: 'kg', width: '29%' },
+  { key: 'weight', label: '負荷', unit: 'kg', width: '25%', hint: formulaHint },
+  { key: 'reps', label: '回数', width: '11%' },
   { key: 'volume', label: 'ボリューム', width: '24%' },
 ]
 
@@ -53,6 +56,7 @@ type SortableLogExerciseGroupProps = {
   exerciseGroups: ExerciseSelectGroup[]
   canDeleteGroup: boolean
   columns: SetTableColumn[]
+  targetDate: string
   bodyWeight: string
   onChangeBodyWeight: (value: string) => void
   onChangeLoadMode: (index: number, mode: LoadMode) => void
@@ -75,6 +79,7 @@ export function SortableLogExerciseGroup({
   exerciseGroups,
   canDeleteGroup,
   columns: baseColumns,
+  targetDate,
   bodyWeight,
   onChangeBodyWeight,
   onChangeLoadMode,
@@ -104,16 +109,11 @@ export function SortableLogExerciseGroup({
     : null
   const totalVolumeDelta = formatDelta(totalVolume, previousTotalVolume)
   const loadModeLabel = group.loadMode === 'assist' ? 'アシスト' : '加重'
-  const columns = group.supportsAssist ? toAssistedColumns(loadModeLabel) : baseColumns
   const assistValidation = group.supportsAssist
     ? validateAssistedLoad([group], bodyWeight)
     : { valid: true, message: null }
-  const parsedBodyWeight = parseNumericInput(bodyWeight)
-  const bodyWeightTerm = parsedBodyWeight === null ? '体重' : `体重 ${parsedBodyWeight}`
-  const formulaHint =
-    group.loadMode === 'assist'
-      ? `負荷 = ${bodyWeightTerm} − アシスト`
-      : `負荷 = ${bodyWeightTerm} ＋ 加重`
+  const formulaHint = formatLoadFormula(group.loadMode, bodyWeight)
+  const columns = group.supportsAssist ? toAssistedColumns(loadModeLabel, formulaHint) : baseColumns
 
   return (
     <Box ref={setNodeRef} style={style}>
@@ -150,14 +150,23 @@ export function SortableLogExerciseGroup({
           )}
         </ExerciseCardHeader>
 
-        {group.latestSets && (
-          <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.875rem' }}>
-            前回：{dayjs(group.latestSets.date).format('YYYY年M月D日')}
-          </Typography>
+        {!group.supportsAssist && group.latestSets && (
+          <PreviousRecordChip date={group.latestSets.date} targetDate={targetDate} />
         )}
 
         {group.supportsAssist && (
-          <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              columnGap: 0.375,
+              rowGap: 1,
+              flexWrap: 'wrap',
+            }}
+          >
+            {group.latestSets && (
+              <PreviousRecordChip date={group.latestSets.date} targetDate={targetDate} />
+            )}
             <TextField
               size="small"
               type="number"
@@ -165,8 +174,16 @@ export function SortableLogExerciseGroup({
               value={bodyWeight}
               onChange={(e) => onChangeBodyWeight(e.target.value)}
               inputProps={{ min: 0, step: 0.1 }}
-              sx={{ width: 140 }}
-              helperText={bodyWeight === '' ? '体重を入力すると負荷を計算します' : undefined}
+              sx={{
+                width: { xs: 62, sm: 96 },
+                flexShrink: 0,
+                '& .MuiInputBase-input': {
+                  px: { xs: 0.75, sm: 1 },
+                  py: 0.5,
+                  fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                },
+                '& .MuiInputLabel-root': { fontSize: { xs: '0.7rem', sm: '0.875rem' } },
+              }}
             />
             <ToggleButtonGroup
               size="small"
@@ -177,10 +194,15 @@ export function SortableLogExerciseGroup({
               }}
               aria-label="負荷のモード"
               sx={{
+                ml: 'auto',
+                flexShrink: 0,
                 '& .MuiToggleButtonGroup-grouped': {
-                  width: 80,
-                  px: 1,
-                  py: 0.75,
+                  width: { xs: 48, sm: 64 },
+                  px: { xs: 0.25, sm: 1 },
+                  py: { xs: 0.5, sm: 0.75 },
+                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  lineHeight: 1.2,
+                  whiteSpace: 'nowrap',
                   textTransform: 'none',
                   color: 'text.secondary',
                   borderColor: 'divider',
@@ -195,13 +217,7 @@ export function SortableLogExerciseGroup({
               <ToggleButton value="assist">アシスト</ToggleButton>
               <ToggleButton value="weighted">加重</ToggleButton>
             </ToggleButtonGroup>
-          </Stack>
-        )}
-
-        {group.supportsAssist && (
-          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            {formulaHint}
-          </Typography>
+          </Box>
         )}
 
         {assistValidation.message && (

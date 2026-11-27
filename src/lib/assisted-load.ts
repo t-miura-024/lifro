@@ -38,6 +38,15 @@ export function recalculateSetWeight(
   return String(calculateAssistLoad(bodyWeight, mode, input))
 }
 
+/** 現在のモードと体重から、負荷の計算式を表示用に整形する。体重未入力なら「体重」とだけ表す。 */
+export function formatLoadFormula(mode: LoadMode, bodyWeightValue: string): string {
+  const bodyWeight = parseNumericInput(bodyWeightValue)
+  const bodyWeightTerm = bodyWeight === null ? '体重' : `体重 ${bodyWeight}`
+  return mode === 'assist'
+    ? `負荷 = ${bodyWeightTerm} − アシスト`
+    : `負荷 = ${bodyWeightTerm} ＋ 加重`
+}
+
 export type AssistedLoadValidation = {
   valid: boolean
   message: string | null

@@ -1,6 +1,9 @@
 import DeleteIcon from '@mui/icons-material/Delete'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import {
+  Box,
   IconButton,
+  Popover,
   Stack,
   Table,
   TableCell,
@@ -10,7 +13,7 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import type { ReactNode } from 'react'
+import { type ReactNode, useId, useState } from 'react'
 
 /** セット表のデータ列。単位は「ラベル (単位)」の書式で共通側が整形する。 */
 export type SetTableColumn = {
@@ -18,6 +21,8 @@ export type SetTableColumn = {
   label: string
   unit?: string
   width?: number | string
+  /** 見出し横のインフォアイコンから開く補足。文言は呼び出し側が決める。 */
+  hint?: ReactNode
 }
 
 type SetTableProps = {
@@ -43,6 +48,44 @@ const compactTableSx = {
   },
 } as const
 
+/** 見出し横のインフォアイコン。タップ／クリックで補足をポップオーバー表示する。 */
+function ColumnHint({ label, content }: { label: string; content: ReactNode }) {
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null)
+  const popoverId = useId()
+
+  return (
+    <>
+      <IconButton
+        size="small"
+        aria-label={`${label}の説明`}
+        aria-describedby={anchorEl ? popoverId : undefined}
+        onClick={(event) => setAnchorEl(event.currentTarget)}
+        sx={{
+          p: 0,
+          ml: 0.25,
+          verticalAlign: 'middle',
+          color: 'text.disabled',
+          '&:hover': { color: 'text.secondary' },
+        }}
+      >
+        <InfoOutlinedIcon sx={{ fontSize: 13 }} />
+      </IconButton>
+      <Popover
+        id={popoverId}
+        open={anchorEl !== null}
+        anchorEl={anchorEl}
+        onClose={() => setAnchorEl(null)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Box sx={{ px: 1.5, py: 1 }}>
+          <Typography variant="body2">{content}</Typography>
+        </Box>
+      </Popover>
+    </>
+  )
+}
+
 /** セット表の枠組み。列見出しと操作列を描画し、本体は children に委ねる。 */
 export function SetTable({ columns, children, compact = false }: SetTableProps) {
   return (
@@ -58,6 +101,9 @@ export function SetTable({ columns, children, compact = false }: SetTableProps) 
                 sx={{ whiteSpace: 'nowrap' }}
               >
                 {column.unit ? `${column.label} (${column.unit})` : column.label}
+                {column.hint !== undefined && (
+                  <ColumnHint label={column.label} content={column.hint} />
+                )}
               </TableCell>
             ))}
             <TableCell width={compact ? 28 : 60} />
