@@ -159,9 +159,9 @@ export function SortableLogExerciseGroup({
             sx={{
               display: 'flex',
               alignItems: 'center',
-              columnGap: 0.25,
               rowGap: 1,
               flexWrap: 'wrap',
+              '& > .MuiChip-root': { mr: 1 },
             }}
           >
             {group.latestSets && (
@@ -175,7 +175,7 @@ export function SortableLogExerciseGroup({
               onChange={(e) => onChangeBodyWeight(e.target.value)}
               inputProps={{ min: 0, step: 0.1 }}
               sx={{
-                width: { xs: 62, sm: 96 },
+                width: { xs: 60, sm: 96 },
                 flexShrink: 0,
                 '& .MuiInputBase-root': { height: 28, borderRadius: 0 },
                 '& .MuiInputBase-input': {
@@ -200,10 +200,10 @@ export function SortableLogExerciseGroup({
                 flexShrink: 0,
                 borderRadius: 0,
                 '& .MuiToggleButtonGroup-grouped': {
-                  width: { xs: 42, sm: 64 },
+                  width: { xs: 41, sm: 64 },
                   height: 28,
                   borderRadius: 0,
-                  px: { xs: 0.25, sm: 1 },
+                  px: { xs: 0, sm: 1 },
                   py: 0,
                   fontSize: { xs: '0.58rem', sm: '0.75rem' },
                   lineHeight: 1.2,
