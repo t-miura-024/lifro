@@ -150,6 +150,7 @@ export class DrizzleExerciseBodyPartRepository implements IExerciseBodyPartRepos
         userId: e.userId,
         name: e.name,
         sortIndex: e.sortIndex,
+        supportsAssist: e.supportsAssist,
         createdAt: toISOString(e.createdAt),
         updatedAt: toISOString(e.updatedAt),
         bodyParts: bodyPartsList,

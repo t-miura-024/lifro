@@ -128,8 +128,14 @@ export const orpc = {
     list(): Promise<Outputs['exercises']['list']> {
       return req<Outputs['exercises']['list']>(apiPath.exercises)
     },
-    create(name: Inputs['exercises']['create']['name']): Promise<Outputs['exercises']['create']> {
-      return req<Outputs['exercises']['create']>(apiPath.exercises, jsonInit('POST', { name }))
+    create(
+      name: Inputs['exercises']['create']['name'],
+      supportsAssist: Inputs['exercises']['create']['supportsAssist'],
+    ): Promise<Outputs['exercises']['create']> {
+      return req<Outputs['exercises']['create']>(
+        apiPath.exercises,
+        jsonInit('POST', { name, supportsAssist }),
+      )
     },
     canDelete(id: number): Promise<Outputs['exercises']['canDelete']> {
       return req<Outputs['exercises']['canDelete']>(apiPath.exercisesCanDelete(id))
@@ -146,10 +152,11 @@ export const orpc = {
     update(
       id: number,
       name: Inputs['exercises']['update']['name'],
+      supportsAssist: Inputs['exercises']['update']['supportsAssist'],
     ): Promise<Outputs['exercises']['update']> {
       return req<Outputs['exercises']['update']>(
         apiPath.exercisesById(id),
-        jsonInit('PUT', { name }),
+        jsonInit('PUT', { name, supportsAssist }),
       )
     },
     remove(id: number): Promise<Outputs['exercises']['remove']> {

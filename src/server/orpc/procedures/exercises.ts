@@ -38,9 +38,9 @@ export const list = authed.handler(async ({ context }) => {
 })
 
 export const create = authed
-  .input(z.object({ name: z.string().min(1) }))
+  .input(z.object({ name: z.string().min(1), supportsAssist: z.boolean() }))
   .handler(async ({ context, input }) => {
-    return exerciseService.createExercise(context.userId, input.name)
+    return exerciseService.createExercise(context.userId, input.name, input.supportsAssist)
   })
 
 export const canDelete = authed
@@ -76,9 +76,14 @@ export const updateBodyParts = authed
   })
 
 export const update = authed
-  .input(z.object({ id: z.coerce.number(), name: z.string().min(1) }))
+  .input(z.object({ id: z.coerce.number(), name: z.string().min(1), supportsAssist: z.boolean() }))
   .handler(async ({ context, input }) => {
-    return exerciseService.updateExercise(context.userId, input.id, input.name)
+    return exerciseService.updateExercise(
+      context.userId,
+      input.id,
+      input.name,
+      input.supportsAssist,
+    )
   })
 
 export const remove = authed

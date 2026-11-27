@@ -17,7 +17,7 @@ export const Route = createFileRoute('/api/exercises/$id')({
           const body = await request.json()
           const result = await call(
             router.exercises.update,
-            { id: Number(params.id), name: body.name },
+            { id: Number(params.id), name: body.name, supportsAssist: body.supportsAssist },
             { context },
           )
           return Response.json(result)

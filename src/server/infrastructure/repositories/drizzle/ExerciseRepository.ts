@@ -24,6 +24,7 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
       userId: e.userId,
       name: e.name,
       sortIndex: e.sortIndex,
+      supportsAssist: e.supportsAssist,
       createdAt: toISOString(e.createdAt),
       updatedAt: toISOString(e.updatedAt),
     }))
@@ -44,12 +45,13 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
       userId: e.userId,
       name: e.name,
       sortIndex: e.sortIndex,
+      supportsAssist: e.supportsAssist,
       createdAt: toISOString(e.createdAt),
       updatedAt: toISOString(e.updatedAt),
     }))
   }
 
-  async create(userId: number, name: string): Promise<Exercise> {
+  async create(userId: number, name: string, supportsAssist: boolean): Promise<Exercise> {
     // 現在の最大sortIndexを取得
     const maxRows = await db
       .select({ value: max(exercises.sortIndex) })
@@ -63,6 +65,7 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
         userId,
         name,
         sortIndex: nextSortIndex,
+        supportsAssist,
         updatedAt: new Date(),
       })
       .returning()
@@ -74,15 +77,21 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
       userId: exercise.userId,
       name: exercise.name,
       sortIndex: exercise.sortIndex,
+      supportsAssist: exercise.supportsAssist,
       createdAt: toISOString(exercise.createdAt),
       updatedAt: toISOString(exercise.updatedAt),
     }
   }
 
-  async update(userId: number, exerciseId: number, name: string): Promise<Exercise> {
+  async update(
+    userId: number,
+    exerciseId: number,
+    name: string,
+    supportsAssist: boolean,
+  ): Promise<Exercise> {
     const [exercise] = await db
       .update(exercises)
-      .set({ name, updatedAt: new Date() })
+      .set({ name, supportsAssist, updatedAt: new Date() })
       .where(and(eq(exercises.id, exerciseId), eq(exercises.userId, userId)))
       .returning()
 
@@ -95,6 +104,7 @@ export class DrizzleExerciseRepository implements IExerciseRepository {
       userId: exercise.userId,
       name: exercise.name,
       sortIndex: exercise.sortIndex,
+      supportsAssist: exercise.supportsAssist,
       createdAt: toISOString(exercise.createdAt),
       updatedAt: toISOString(exercise.updatedAt),
     }

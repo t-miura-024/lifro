@@ -25,24 +25,33 @@ export class ExerciseService {
   /**
    * 種目を作成
    */
-  async createExercise(userId: number, name: string): Promise<Exercise> {
+  async createExercise(
+    userId: number,
+    name: string,
+    supportsAssist: boolean,
+  ): Promise<Exercise> {
     const trimmedName = name.trim()
     if (!trimmedName) {
       throw new Error('種目名は必須です')
     }
-    const result = await this.repository.create(userId, trimmedName)
+    const result = await this.repository.create(userId, trimmedName, supportsAssist)
     return result
   }
 
   /**
-   * 種目名を更新
+   * 種目名とアシスト対応設定を更新
    */
-  async updateExercise(userId: number, exerciseId: number, name: string): Promise<Exercise> {
+  async updateExercise(
+    userId: number,
+    exerciseId: number,
+    name: string,
+    supportsAssist: boolean,
+  ): Promise<Exercise> {
     const trimmedName = name.trim()
     if (!trimmedName) {
       throw new Error('種目名は必須です')
     }
-    const result = await this.repository.update(userId, exerciseId, trimmedName)
+    const result = await this.repository.update(userId, exerciseId, trimmedName, supportsAssist)
     return result
   }
 

@@ -8,6 +8,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
 import { getPlatformProxy } from 'wrangler'
 import { type D1Client, configureDatabase, createDb } from '../../database/drizzle/client'
 import * as schema from '../../database/drizzle/schema'
+import { exerciseRepository } from './ExerciseRepository'
 import { routineRepository } from './RoutineRepository'
 import { timerRepository } from './TimerRepository'
 
@@ -128,6 +129,19 @@ beforeEach(async () => {
   // ルーティン・タイマーはユーザーに紐づくため、子行は FK の cascade で消える。
   await db.delete(schema.routines)
   await db.delete(schema.timers)
+})
+
+describe('DrizzleExerciseRepository（実 D1）', () => {
+  it('アシスト対応フラグを作成・更新・取得できる', async () => {
+    const created = await exerciseRepository.create(userId, 'アシスト種目', true)
+    expect(created.supportsAssist).toBe(true)
+
+    const updated = await exerciseRepository.update(userId, created.id, 'アシスト種目（更新）', false)
+    expect(updated.supportsAssist).toBe(false)
+
+    const all = await exerciseRepository.findAllByUserId(userId)
+    expect(all.find((exercise) => exercise.id === created.id)?.supportsAssist).toBe(false)
+  })
 })
 
 describe('DrizzleRoutineRepository（実 D1）', () => {
