@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   calculateAssistLoad,
+  formatLoadFormula,
   loadStoredBodyWeight,
   recalculateSetWeight,
   saveStoredBodyWeight,
@@ -71,6 +72,20 @@ describe('recalculateSetWeight', () => {
   it('計算した負荷をそのまま sets.weight 用の数値へ変換できる', () => {
     const weight = recalculateSetWeight('', '22.5', '78', 'assist')
     expect(Number.parseFloat(weight)).toBe(55.5)
+  })
+})
+
+describe('formatLoadFormula', () => {
+  it('アシストモードは体重とアシストの引き算を表示する', () => {
+    expect(formatLoadFormula('assist', '78')).toBe('負荷 = 体重 78 − アシスト')
+  })
+
+  it('加重モードは体重と加重の足し算を表示する', () => {
+    expect(formatLoadFormula('weighted', '78')).toBe('負荷 = 体重 78 ＋ 加重')
+  })
+
+  it('体重未入力なら体重の数値を省略する', () => {
+    expect(formatLoadFormula('assist', '')).toBe('負荷 = 体重 − アシスト')
   })
 })
 

@@ -877,7 +877,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
       {/* 種目選択スケルトン */}
       <Skeleton variant="rounded" height={40} />
       {/* 前回日付スケルトン */}
-      <Skeleton variant="text" width={120} height={20} sx={{ mt: 1 }} />
+      <Skeleton variant="rounded" width={120} height={24} sx={{ mt: 1 }} />
       {/* テーブルスケルトン */}
       <SetTable columns={logSetTableColumns}>
         <TableBody>
@@ -1132,6 +1132,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                         exerciseGroups={exerciseSelectGroups}
                         canDeleteGroup={exerciseGroups.length > 1}
                         columns={logSetTableColumns}
+                        targetDate={selectedDate.format('YYYY-MM-DD')}
                         bodyWeight={bodyWeight}
                         onChangeBodyWeight={handleBodyWeightChange}
                         onChangeLoadMode={handleLoadModeChange}
