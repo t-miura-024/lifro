@@ -159,7 +159,7 @@ export function SortableLogExerciseGroup({
             sx={{
               display: 'flex',
               alignItems: 'center',
-              columnGap: 0.375,
+              columnGap: 0.25,
               rowGap: 1,
               flexWrap: 'wrap',
             }}
@@ -177,9 +177,10 @@ export function SortableLogExerciseGroup({
               sx={{
                 width: { xs: 62, sm: 96 },
                 flexShrink: 0,
+                '& .MuiInputBase-root': { height: 28 },
                 '& .MuiInputBase-input': {
                   px: { xs: 0.75, sm: 1 },
-                  py: 0.5,
+                  py: 0,
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
                 },
                 '& .MuiInputLabel-root': { fontSize: { xs: '0.7rem', sm: '0.875rem' } },
@@ -197,10 +198,11 @@ export function SortableLogExerciseGroup({
                 ml: 'auto',
                 flexShrink: 0,
                 '& .MuiToggleButtonGroup-grouped': {
-                  width: { xs: 48, sm: 64 },
+                  width: { xs: 42, sm: 64 },
+                  height: 28,
                   px: { xs: 0.25, sm: 1 },
-                  py: { xs: 0.5, sm: 0.75 },
-                  fontSize: { xs: '0.6rem', sm: '0.75rem' },
+                  py: 0,
+                  fontSize: { xs: '0.58rem', sm: '0.75rem' },
                   lineHeight: 1.2,
                   whiteSpace: 'nowrap',
                   textTransform: 'none',

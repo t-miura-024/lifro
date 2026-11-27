@@ -14,25 +14,25 @@ export function PreviousRecordChip({ date, targetDate }: PreviousRecordChipProps
   return (
     <Chip
       icon={<CalendarMonthIcon />}
-      label={label}
+      label={`前回 ${label}`}
       size="small"
       variant="outlined"
       aria-label={`前回の実施日: ${label}`}
       sx={{
         width: 'fit-content',
-        height: 24,
+        height: 28,
         flexShrink: 0,
         bgcolor: 'transparent',
         color: 'text.secondary',
         borderColor: 'divider',
         '& .MuiChip-icon': {
-          ml: 0.75,
+          ml: 0.5,
           mr: -0.25,
-          fontSize: 13,
+          fontSize: 12,
           color: 'text.disabled',
         },
         '& .MuiChip-label': {
-          px: { xs: 0.5, sm: 0.75 },
+          px: { xs: 0.25, sm: 0.75 },
           fontSize: { xs: '0.6rem', sm: '0.75rem' },
           lineHeight: 1,
         },
