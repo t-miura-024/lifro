@@ -17,27 +17,50 @@ export type SetTableColumn = {
   key: string
   label: string
   unit?: string
-  width?: number
+  width?: number | string
 }
 
 type SetTableProps = {
   columns: SetTableColumn[]
   children: ReactNode
+  /** 列の多い表を狭い画面でも1行に収めるための詰め表示。 */
+  compact?: boolean
 }
 
+/**
+ * 詰め表示のスタイル。見出しは折り返さず、セル余白と文字サイズを小さくして
+ * モバイル幅でも「アシスト (kg)」「負荷 (kg)」「回数」「ボリューム」が並ぶようにする。
+ */
+const compactTableSx = {
+  tableLayout: 'fixed',
+  '& .MuiTableCell-root': { px: 0.25, py: 0.5 },
+  '& .MuiTableCell-head': {
+    px: 0.25,
+    fontSize: { xs: '0.65rem', sm: '0.75rem' },
+    lineHeight: 1.2,
+    letterSpacing: '-0.02em',
+    whiteSpace: 'nowrap',
+  },
+} as const
+
 /** セット表の枠組み。列見出しと操作列を描画し、本体は children に委ねる。 */
-export function SetTable({ columns, children }: SetTableProps) {
+export function SetTable({ columns, children, compact = false }: SetTableProps) {
   return (
     <TableContainer>
-      <Table size="small">
+      <Table size="small" sx={compact ? compactTableSx : undefined}>
         <TableHead>
           <TableRow>
             {columns.map((column) => (
-              <TableCell key={column.key} align="right" width={column.width}>
+              <TableCell
+                key={column.key}
+                align="right"
+                width={column.width}
+                sx={{ whiteSpace: 'nowrap' }}
+              >
                 {column.unit ? `${column.label} (${column.unit})` : column.label}
               </TableCell>
             ))}
-            <TableCell width={60} />
+            <TableCell width={compact ? 28 : 60} />
           </TableRow>
         </TableHead>
         {children}
@@ -69,7 +92,7 @@ type SetNumberInputCellProps = {
   onChange: (value: string) => void
   min: number
   step: number
-  placeholder: string
+  placeholder?: string
   note?: ReactNode
 }
 

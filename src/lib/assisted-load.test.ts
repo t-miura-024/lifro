@@ -52,6 +52,14 @@ describe('recalculateSetWeight', () => {
     expect(recalculateSetWeight('55.5', '', '80', 'assist')).toBe('55.5')
   })
 
+  it('アシストに明示的に0を入力した行は負荷が体重そのものになる', () => {
+    expect(recalculateSetWeight('', '0', '78', 'assist')).toBe('78')
+  })
+
+  it('加重に明示的に0を入力した行も負荷が体重そのものになる', () => {
+    expect(recalculateSetWeight('', '0', '78', 'weighted')).toBe('78')
+  })
+
   it('体重未入力では再計算しない', () => {
     expect(recalculateSetWeight('55.5', '22.5', '', 'assist')).toBe('55.5')
   })
@@ -103,10 +111,7 @@ describe('validateAssistedLoad', () => {
 
   it('アシスト対応でない種目は検証対象外', () => {
     expect(
-      validateAssistedLoad(
-        [group({ assistValues: ['999'], supportsAssist: false })],
-        '',
-      ),
+      validateAssistedLoad([group({ assistValues: ['999'], supportsAssist: false })], ''),
     ).toEqual({ valid: true, message: null })
   })
 })
