@@ -182,6 +182,7 @@ export function SortableLogExerciseGroup({
                   px: { xs: 0.75, sm: 1 },
                   py: 0,
                   fontSize: { xs: '0.75rem', sm: '0.875rem' },
+                  textAlign: 'right',
                 },
                 '& .MuiInputLabel-root': { fontSize: { xs: '0.7rem', sm: '0.875rem' } },
               }}
