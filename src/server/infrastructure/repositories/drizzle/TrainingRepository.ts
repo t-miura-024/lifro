@@ -134,6 +134,7 @@ export class DrizzleTrainingRepository implements ITrainingRepository {
           userId: r.exercise.userId,
           name: r.exercise.name,
           sortIndex: r.exercise.sortIndex,
+          supportsAssist: r.exercise.supportsAssist,
           createdAt: toISOString(r.exercise.createdAt),
           updatedAt: toISOString(r.exercise.updatedAt),
         },

@@ -64,6 +64,7 @@ export type Exercise = {
   userId: number
   name: string
   sortIndex: number
+  supportsAssist: boolean // アシスト対応種目（体重から負荷を計算する）
   createdAt: string // ISO 8601
   updatedAt: string // ISO 8601
   bodyParts?: ExerciseBodyPart[]

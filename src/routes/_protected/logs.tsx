@@ -7,6 +7,13 @@ import { ExerciseCard } from '@/components/ui/exercise-card'
 import type { ExerciseSelectGroup } from '@/components/ui/exercise-select'
 import { FormDialogActions } from '@/components/ui/form-dialog-actions'
 import { SetTable, type SetTableColumn, SetTotalRow } from '@/components/ui/set-table'
+import {
+  type LoadMode,
+  loadStoredBodyWeight,
+  recalculateSetWeight,
+  saveStoredBodyWeight,
+  validateAssistedLoad,
+} from '@/lib/assisted-load'
 import { calculateLogVolumes } from '@/lib/log-volume'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
@@ -229,6 +236,7 @@ const emptySet = (exerciseId: number | null, exerciseName: string): SetFormData 
   exerciseName,
   weight: '',
   reps: '',
+  assistValue: '',
 })
 
 const emptyMemo = (): MemoFormData => ({
@@ -240,6 +248,8 @@ const emptyExerciseGroup = (): ExerciseGroup => ({
   key: `group-${Date.now()}-${groupKeyCounter++}`,
   exerciseId: null,
   exerciseName: '',
+  supportsAssist: false,
+  loadMode: 'assist',
   sets: [emptySet(null, '')],
   latestSets: null,
 })
@@ -254,6 +264,8 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Dayjs>(dayjs(initialDate))
   const [dateError, setDateError] = useState<string | null>(null)
+  // アシスト種目の負荷計算に使う体重（その日の入力全体で1つ。DBには保存しない）
+  const [bodyWeight, setBodyWeight] = useState('')
   const today = dayjs()
 
   const sensors = useSensors(
@@ -344,6 +356,11 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     [exerciseGroups, exercises],
   )
 
+  const assistValidation = useMemo(
+    () => validateAssistedLoad(exerciseGroups, bodyWeight),
+    [exerciseGroups, bodyWeight],
+  )
+
   const isTimerPopoverOpen = Boolean(timerAnchorEl)
 
   // モーダルが開いたときに日付を初期化
@@ -351,6 +368,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     if (open) {
       setSelectedDate(dayjs(initialDate))
       setRoutineError(null)
+      setBodyWeight(loadStoredBodyWeight())
     }
   }, [open, initialDate])
 
@@ -392,10 +410,13 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
           for (const set of initialSets) {
             const groupKey = set.exerciseId ?? (set.exerciseName || 'new')
             if (!grouped.has(groupKey)) {
+              const exercise = exercisesData.find((e) => e.id === set.exerciseId)
               grouped.set(groupKey, {
                 key: `group-${Date.now()}-${groupKeyCounter++}`,
                 exerciseId: set.exerciseId,
                 exerciseName: set.exerciseName,
+                supportsAssist: exercise?.supportsAssist ?? false,
+                loadMode: 'assist',
                 sets: [],
                 latestSets: null,
               })
@@ -462,6 +483,8 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     if (exercise) {
       group.exerciseId = exercise.id
       group.exerciseName = exercise.name
+      group.supportsAssist = exercise.supportsAssist
+      group.loadMode = 'assist'
       // グループ内の全セットの種目を更新
       group.sets = group.sets.map((set) => ({
         ...set,
@@ -477,6 +500,8 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     } else {
       group.exerciseId = null
       group.exerciseName = ''
+      group.supportsAssist = false
+      group.loadMode = 'assist'
       group.sets = group.sets.map((set) => ({
         ...set,
         exerciseId: null,
@@ -490,13 +515,57 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const handleSetChange = (
     groupIndex: number,
     setIndex: number,
-    field: 'weight' | 'reps',
+    field: 'weight' | 'reps' | 'assist',
     value: string,
   ) => {
     const newGroups = [...exerciseGroups]
     const group = newGroups[groupIndex]
-    group.sets[setIndex] = { ...group.sets[setIndex], [field]: value }
+    const currentSet = group.sets[setIndex]
+    if (field === 'assist') {
+      // 画面上の入力値（絶対値）から負荷を計算し、保存対象の重量欄へ反映する
+      group.sets[setIndex] = {
+        ...currentSet,
+        assistValue: value,
+        weight: recalculateSetWeight(currentSet.weight, value, bodyWeight, group.loadMode),
+      }
+    } else {
+      group.sets[setIndex] = { ...currentSet, [field]: value }
+    }
     setExerciseGroups(newGroups)
+  }
+
+  const handleBodyWeightChange = (value: string) => {
+    setBodyWeight(value)
+    saveStoredBodyWeight(value)
+    // アシスト量／加重値が入力済みの行だけ、その場で負荷を再計算する
+    setExerciseGroups((groups) =>
+      groups.map((group) => {
+        if (!group.supportsAssist) return group
+        return {
+          ...group,
+          sets: group.sets.map((set) => ({
+            ...set,
+            weight: recalculateSetWeight(set.weight, set.assistValue, value, group.loadMode),
+          })),
+        }
+      }),
+    )
+  }
+
+  const handleLoadModeChange = (groupIndex: number, mode: LoadMode) => {
+    setExerciseGroups((groups) =>
+      groups.map((group, index) => {
+        if (index !== groupIndex) return group
+        return {
+          ...group,
+          loadMode: mode,
+          sets: group.sets.map((set) => ({
+            ...set,
+            weight: recalculateSetWeight(set.weight, set.assistValue, bodyWeight, mode),
+          })),
+        }
+      }),
+    )
   }
 
   const handleAddSet = (groupIndex: number) => {
@@ -689,6 +758,8 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
         key: `group-${Date.now()}-${groupKeyCounter++}`,
         exerciseId: group.exerciseId,
         exerciseName,
+        supportsAssist: exercise?.supportsAssist ?? false,
+        loadMode: 'assist',
         latestSets,
         sets: group.sets.map((set, setIndex) => {
           const previousWeight = latestSets?.sets[setIndex]?.weight
@@ -699,6 +770,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             weight:
               fillPreviousWeight && previousWeight !== undefined ? previousWeight.toString() : '',
             reps: set.targetReps === null ? '' : set.targetReps.toString(),
+            assistValue: '',
           }
         }),
       }
@@ -714,6 +786,10 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   }
 
   const handleSave = () => {
+    if (!assistValidation.valid) {
+      return
+    }
+
     startTransition(async () => {
       // エラーをクリア
       setDateError(null)
@@ -1056,6 +1132,9 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                         exerciseGroups={exerciseSelectGroups}
                         canDeleteGroup={exerciseGroups.length > 1}
                         columns={logSetTableColumns}
+                        bodyWeight={bodyWeight}
+                        onChangeBodyWeight={handleBodyWeightChange}
+                        onChangeLoadMode={handleLoadModeChange}
                         onChangeExercise={handleExerciseChange}
                         onChangeSet={handleSetChange}
                         onAddSet={handleAddSet}
@@ -1119,7 +1198,13 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
           onClose={onClose}
           onSave={handleSave}
           closeDisabled={isPending || isInitialLoading}
-          saveDisabled={isPending || isInitialLoading || !hasChanges || !isRequiredFieldsFilled}
+          saveDisabled={
+            isPending ||
+            isInitialLoading ||
+            !hasChanges ||
+            !isRequiredFieldsFilled ||
+            !assistValidation.valid
+          }
           isSaving={isPending}
         />
       </Dialog>
@@ -1225,6 +1310,7 @@ function trainingToSetFormData(
       exerciseName: set.exercise?.name || '',
       weight: set.weight === 0 ? '' : set.weight.toString(),
       reps: set.reps === 0 ? '' : set.reps.toString(),
+      assistValue: '',
     }))
 }
 

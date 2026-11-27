@@ -152,13 +152,14 @@ export function SetRemoveCell({ canRemove, onRemove }: SetRemoveCellProps) {
 type SetTotalRowProps = {
   value: ReactNode
   note?: ReactNode
+  labelColSpan?: number
 }
 
-/** セット表の合計行。データ列3つと操作列の構成を共通化する。 */
-export function SetTotalRow({ value, note }: SetTotalRowProps) {
+/** セット表の合計行。データ列の先頭をまとめた見出しと合計値を描画する。 */
+export function SetTotalRow({ value, note, labelColSpan = 2 }: SetTotalRowProps) {
   return (
     <TableRow>
-      <TableCell colSpan={2} align="right">
+      <TableCell colSpan={labelColSpan} align="right">
         <Typography variant="subtitle2">合計</Typography>
       </TableCell>
       <TableCell align="right">

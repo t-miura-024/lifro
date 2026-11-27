@@ -34,6 +34,7 @@ import {
   DialogContent,
   DialogTitle,
   FormControl,
+  FormControlLabel,
   IconButton,
   InputLabel,
   MenuItem,
@@ -42,6 +43,7 @@ import {
   Skeleton,
   Snackbar,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -69,6 +71,7 @@ type BodyPartInfo = {
 type ExerciseItem = {
   id: number
   name: string
+  supportsAssist: boolean
   bodyParts?: BodyPartInfo[]
 }
 
@@ -458,6 +461,7 @@ function ExerciseList() {
   const [bodyPartDialogOpen, setBodyPartDialogOpen] = useState(false)
   const [selectedExercise, setSelectedExercise] = useState<ExerciseWithBodyParts | null>(null)
   const [exerciseName, setExerciseName] = useState('')
+  const [supportsAssist, setSupportsAssist] = useState(false)
 
   // エラー表示
   const [errorSnackbar, setErrorSnackbar] = useState<string | null>(null)
@@ -545,6 +549,7 @@ function ExerciseList() {
   // 新規作成
   const handleCreate = () => {
     setExerciseName('')
+    setSupportsAssist(false)
     setCreateDialogOpen(true)
   }
 
@@ -552,11 +557,12 @@ function ExerciseList() {
     if (!exerciseName.trim()) return
 
     startTransition(async () => {
-      await orpc.exercises.create(exerciseName.trim())
+      await orpc.exercises.create(exerciseName.trim(), supportsAssist)
       // 種目系（＋記録・統計系）のキャッシュを更新する（再取得の完了は待たない）
       void refreshExercisesCache(queryClient)
       setCreateDialogOpen(false)
       setExerciseName('')
+      setSupportsAssist(false)
     })
   }
 
@@ -564,6 +570,7 @@ function ExerciseList() {
   const handleEdit = useCallback((exercise: ExerciseWithBodyParts) => {
     setSelectedExercise(exercise)
     setExerciseName(exercise.name)
+    setSupportsAssist(exercise.supportsAssist)
     setEditDialogOpen(true)
   }, [])
 
@@ -571,12 +578,13 @@ function ExerciseList() {
     if (!selectedExercise || !exerciseName.trim()) return
 
     startTransition(async () => {
-      await orpc.exercises.update(selectedExercise.id, exerciseName.trim())
+      await orpc.exercises.update(selectedExercise.id, exerciseName.trim(), supportsAssist)
       // 種目系（＋記録・統計系）のキャッシュを更新する（再取得の完了は待たない）
       void refreshExercisesCache(queryClient)
       setEditDialogOpen(false)
       setSelectedExercise(null)
       setExerciseName('')
+      setSupportsAssist(false)
     })
   }
 
@@ -782,6 +790,16 @@ function ExerciseList() {
               }
             }}
           />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={supportsAssist}
+                onChange={(e) => setSupportsAssist(e.target.checked)}
+              />
+            }
+            label="アシスト種目（体重から負荷を計算）"
+            sx={{ mt: 1 }}
+          />
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>
           <Button onClick={() => setCreateDialogOpen(false)} disabled={isPending}>
@@ -821,6 +839,16 @@ function ExerciseList() {
                 handleEditConfirm()
               }
             }}
+          />
+          <FormControlLabel
+            control={
+              <Switch
+                checked={supportsAssist}
+                onChange={(e) => setSupportsAssist(e.target.checked)}
+              />
+            }
+            label="アシスト種目（体重から負荷を計算）"
+            sx={{ mt: 1 }}
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, py: 2 }}>

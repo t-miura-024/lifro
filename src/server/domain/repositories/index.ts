@@ -108,12 +108,17 @@ export interface IExerciseRepository {
   /**
    * 種目を作成
    */
-  create(userId: number, name: string): Promise<Exercise>
+  create(userId: number, name: string, supportsAssist: boolean): Promise<Exercise>
 
   /**
-   * 種目名を更新
+   * 種目名とアシスト対応設定を更新
    */
-  update(userId: number, exerciseId: number, name: string): Promise<Exercise>
+  update(
+    userId: number,
+    exerciseId: number,
+    name: string,
+    supportsAssist: boolean,
+  ): Promise<Exercise>
 
   /**
    * 種目の並び順を一括更新

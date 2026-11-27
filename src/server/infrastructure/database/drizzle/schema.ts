@@ -67,6 +67,7 @@ export const exercises = sqliteTable(
     userId: integer('user_id', { mode: 'number' }).notNull(),
     name: text('name').notNull(),
     sortIndex: integer('sort_index', { mode: 'number' }).notNull().default(0),
+    supportsAssist: integer('supports_assist', { mode: 'boolean' }).notNull().default(false),
     createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().defaultNow(),
     updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull(),
   },
