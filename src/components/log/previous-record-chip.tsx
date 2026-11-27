@@ -21,6 +21,7 @@ export function PreviousRecordChip({ date, targetDate }: PreviousRecordChipProps
       sx={{
         width: 'fit-content',
         height: 28,
+        borderRadius: 0,
         flexShrink: 0,
         bgcolor: 'transparent',
         color: 'text.secondary',

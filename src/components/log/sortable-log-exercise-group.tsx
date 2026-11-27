@@ -177,7 +177,7 @@ export function SortableLogExerciseGroup({
               sx={{
                 width: { xs: 62, sm: 96 },
                 flexShrink: 0,
-                '& .MuiInputBase-root': { height: 28 },
+                '& .MuiInputBase-root': { height: 28, borderRadius: 0 },
                 '& .MuiInputBase-input': {
                   px: { xs: 0.75, sm: 1 },
                   py: 0,
@@ -198,9 +198,11 @@ export function SortableLogExerciseGroup({
               sx={{
                 ml: 'auto',
                 flexShrink: 0,
+                borderRadius: 0,
                 '& .MuiToggleButtonGroup-grouped': {
                   width: { xs: 42, sm: 64 },
                   height: 28,
+                  borderRadius: 0,
                   px: { xs: 0.25, sm: 1 },
                   py: 0,
                   fontSize: { xs: '0.58rem', sm: '0.75rem' },
