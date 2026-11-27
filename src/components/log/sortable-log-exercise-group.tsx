@@ -41,10 +41,10 @@ const formatDelta = (current: number, previous: number | null) => {
 
 /** アシスト対応種目の列定義。モードに応じて入力列の見出しを変える。 */
 const toAssistedColumns = (label: string): SetTableColumn[] => [
-  { key: 'assist', label, unit: 'kg', width: 110 },
-  { key: 'weight', label: '負荷', unit: 'kg', width: 110 },
-  { key: 'reps', label: '回数', width: 90 },
-  { key: 'volume', label: 'ボリューム', width: 110 },
+  { key: 'assist', label, unit: 'kg', width: '30%' },
+  { key: 'weight', label: '負荷', unit: 'kg', width: '21%' },
+  { key: 'reps', label: '回数', width: '14%' },
+  { key: 'volume', label: 'ボリューム', width: '24%' },
 ]
 
 type SortableLogExerciseGroupProps = {
@@ -108,14 +108,12 @@ export function SortableLogExerciseGroup({
   const assistValidation = group.supportsAssist
     ? validateAssistedLoad([group], bodyWeight)
     : { valid: true, message: null }
-  const assistFormulas = group.supportsAssist
-    ? group.sets.flatMap((set) => {
-        const input = parseNumericInput(set.assistValue)
-        const load = parseNumericInput(set.weight)
-        if (input === null || load === null) return []
-        return [`${loadModeLabel} ${input}kg → 負荷 ${load}kg`]
-      })
-    : []
+  const parsedBodyWeight = parseNumericInput(bodyWeight)
+  const bodyWeightTerm = parsedBodyWeight === null ? '体重' : `体重 ${parsedBodyWeight}`
+  const formulaHint =
+    group.loadMode === 'assist'
+      ? `負荷 = ${bodyWeightTerm} − アシスト`
+      : `負荷 = ${bodyWeightTerm} ＋ 加重`
 
   return (
     <Box ref={setNodeRef} style={style}>
@@ -178,6 +176,21 @@ export function SortableLogExerciseGroup({
                 if (mode) onChangeLoadMode(index, mode)
               }}
               aria-label="負荷のモード"
+              sx={{
+                '& .MuiToggleButtonGroup-grouped': {
+                  width: 80,
+                  px: 1,
+                  py: 0.75,
+                  textTransform: 'none',
+                  color: 'text.secondary',
+                  borderColor: 'divider',
+                  '&.Mui-selected': {
+                    bgcolor: 'primary.main',
+                    color: 'primary.contrastText',
+                    '&:hover': { bgcolor: 'primary.dark' },
+                  },
+                },
+              }}
             >
               <ToggleButton value="assist">アシスト</ToggleButton>
               <ToggleButton value="weighted">加重</ToggleButton>
@@ -185,9 +198,9 @@ export function SortableLogExerciseGroup({
           </Stack>
         )}
 
-        {assistFormulas.length > 0 && (
+        {group.supportsAssist && (
           <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-            {assistFormulas.join(' / ')}
+            {formulaHint}
           </Typography>
         )}
 
@@ -197,7 +210,7 @@ export function SortableLogExerciseGroup({
           </Alert>
         )}
 
-        <SetTable columns={columns}>
+        <SetTable columns={columns} compact={group.supportsAssist}>
           <TableBody>
             {group.sets.map((set, setIndex) => {
               const weight = Number.parseFloat(set.weight) || 0
@@ -210,6 +223,9 @@ export function SortableLogExerciseGroup({
               const weightDelta = formatDelta(weight, previousWeight)
               const repsDelta = formatDelta(reps, previousReps)
               const volumeDelta = formatDelta(volume, previousVolume)
+              // アシスト対応カードでは負荷が計算できていない行に前回差分を出さない
+              const showRowDelta =
+                Boolean(group.latestSets) && (!group.supportsAssist || weight > 0)
 
               return (
                 <TableRow key={set.key}>
@@ -220,14 +236,13 @@ export function SortableLogExerciseGroup({
                         onChange={(value) => onChangeSet(index, setIndex, 'assist', value)}
                         min={0}
                         step={0.5}
-                        placeholder="0"
                       />
                       <SetValueCell
                         value={
                           parseNumericInput(set.weight) === null ? '-' : weight.toLocaleString()
                         }
                         note={
-                          group.latestSets ? (
+                          showRowDelta ? (
                             <SetCellNote color={weightDelta.color}>{weightDelta.text}</SetCellNote>
                           ) : undefined
                         }
@@ -254,7 +269,7 @@ export function SortableLogExerciseGroup({
                     step={1}
                     placeholder="0"
                     note={
-                      group.latestSets ? (
+                      showRowDelta ? (
                         <SetCellNote color={repsDelta.color}>{repsDelta.text}</SetCellNote>
                       ) : undefined
                     }
@@ -262,7 +277,7 @@ export function SortableLogExerciseGroup({
                   <SetValueCell
                     value={volume > 0 ? volume.toLocaleString() : '-'}
                     note={
-                      group.latestSets ? (
+                      showRowDelta ? (
                         <SetCellNote color={volumeDelta.color}>{volumeDelta.text}</SetCellNote>
                       ) : undefined
                     }
@@ -278,7 +293,7 @@ export function SortableLogExerciseGroup({
               value={totalVolume > 0 ? totalVolume.toLocaleString() : '-'}
               labelColSpan={group.supportsAssist ? 3 : 2}
               note={
-                group.latestSets ? (
+                group.latestSets && (!group.supportsAssist || totalVolume > 0) ? (
                   <SetCellNote color={totalVolumeDelta.color}>{totalVolumeDelta.text}</SetCellNote>
                 ) : undefined
               }
