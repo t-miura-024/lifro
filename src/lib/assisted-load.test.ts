@@ -1,7 +1,9 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   calculateAssistLoad,
+  loadStoredBodyWeight,
   recalculateSetWeight,
+  saveStoredBodyWeight,
   validateAssistedLoad,
 } from './assisted-load'
 
@@ -57,6 +59,11 @@ describe('recalculateSetWeight', () => {
   it('モード切り替えは入力値の絶対値を保ったまま負荷を再計算する', () => {
     expect(recalculateSetWeight('55.5', '10', '78', 'weighted')).toBe('88')
   })
+
+  it('計算した負荷をそのまま sets.weight 用の数値へ変換できる', () => {
+    const weight = recalculateSetWeight('', '22.5', '78', 'assist')
+    expect(Number.parseFloat(weight)).toBe(55.5)
+  })
 })
 
 describe('validateAssistedLoad', () => {
@@ -101,5 +108,37 @@ describe('validateAssistedLoad', () => {
         '',
       ),
     ).toEqual({ valid: true, message: null })
+  })
+})
+
+describe('体重のlocalStorage保持', () => {
+  const storage = new Map<string, string>()
+
+  beforeEach(() => {
+    storage.clear()
+    vi.stubGlobal('window', {})
+    vi.stubGlobal('localStorage', {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+    })
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('最後に使った体重を次回の初期値として読み込む', () => {
+    saveStoredBodyWeight('80')
+    expect(loadStoredBodyWeight()).toBe('80')
+  })
+
+  it('未保持の初回は空欄で開始する', () => {
+    expect(loadStoredBodyWeight()).toBe('')
+  })
+
+  it('不正値・0以下は保存しない', () => {
+    saveStoredBodyWeight('abc')
+    saveStoredBodyWeight('0')
+    expect(loadStoredBodyWeight()).toBe('')
   })
 })
