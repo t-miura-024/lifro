@@ -3,6 +3,7 @@ import { PreviousRecordChip } from '@/components/log/previous-record-chip'
 import { AddRowButton } from '@/components/ui/add-row-button'
 import { ExerciseCard, ExerciseCardHeader } from '@/components/ui/exercise-card'
 import { ExerciseSelect, type ExerciseSelectGroup } from '@/components/ui/exercise-select'
+import { FillFromPreviousMenu } from '@/components/ui/fill-from-previous-menu'
 import {
   SetCellNote,
   SetNumberInputCell,
@@ -18,6 +19,7 @@ import {
   parseNumericInput,
   validateAssistedLoad,
 } from '@/lib/assisted-load'
+import type { FillField } from '@/lib/fill-from-previous'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import DeleteIcon from '@mui/icons-material/Delete'
@@ -67,6 +69,7 @@ type SortableLogExerciseGroupProps = {
     field: 'weight' | 'reps' | 'assist',
     value: string,
   ) => void
+  onFillFromPrevious: (groupIndex: number, field: FillField) => void
   onAddSet: (groupIndex: number) => void
   onRemoveSet: (groupIndex: number, setIndex: number) => void
   onRemoveGroup: (index: number) => void
@@ -85,6 +88,7 @@ export function SortableLogExerciseGroup({
   onChangeLoadMode,
   onChangeExercise,
   onChangeSet,
+  onFillFromPrevious,
   onAddSet,
   onRemoveSet,
   onRemoveGroup,
@@ -114,6 +118,11 @@ export function SortableLogExerciseGroup({
     : { valid: true, message: null }
   const formulaHint = formatLoadFormula(group.loadMode, bodyWeight)
   const columns = group.supportsAssist ? toAssistedColumns(loadModeLabel, formulaHint) : baseColumns
+  // 上書き警告は実際の入力欄に値がある列だけに出す（アシスト種目の重量欄は入力欄ではない）
+  const hasWeightInput = group.sets.some(
+    (set) => (group.supportsAssist ? set.assistValue : set.weight).trim() !== '',
+  )
+  const hasRepsInput = group.sets.some((set) => set.reps.trim() !== '')
 
   return (
     <Box ref={setNodeRef} style={style}>
@@ -136,6 +145,24 @@ export function SortableLogExerciseGroup({
             value={group.exerciseId}
             groups={exerciseGroups}
             onChange={(exerciseId) => onChangeExercise(index, exerciseId)}
+          />
+
+          <FillFromPreviousMenu
+            disabled={!group.latestSets}
+            items={[
+              {
+                key: 'weight',
+                label: '前回の重量で入力',
+                overwritesInput: hasWeightInput,
+                onSelect: () => onFillFromPrevious(index, 'weight'),
+              },
+              {
+                key: 'reps',
+                label: '前回の回数で入力',
+                overwritesInput: hasRepsInput,
+                onSelect: () => onFillFromPrevious(index, 'reps'),
+              },
+            ]}
           />
 
           {canDeleteGroup && (
