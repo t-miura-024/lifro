@@ -14,6 +14,7 @@ import {
   saveStoredBodyWeight,
   validateAssistedLoad,
 } from '@/lib/assisted-load'
+import { type FillField, fillFromPrevious } from '@/lib/fill-from-previous'
 import { calculateLogVolumes } from '@/lib/log-volume'
 import { orpc } from '@/lib/orpc-client'
 import { queryKeys, refreshLogsCache } from '@/lib/query-keys'
@@ -161,7 +162,6 @@ function LogList({ rows, onRowClick }: LogListProps) {
 
 /** 部位情報付き種目 */
 type ExerciseWithBodyParts = Awaited<ReturnType<typeof orpc.exercises.listWithBodyParts>>[number]
-type LatestExerciseSetsMap = Awaited<ReturnType<typeof orpc.logs.getLatestSetsMultiple>>
 type Timer = Awaited<ReturnType<typeof orpc.timers.list>>[number]
 type Routine = Awaited<ReturnType<typeof orpc.routines.list>>[number]
 
@@ -284,10 +284,6 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
   const [routines, setRoutines] = useState<Routine[]>([])
   const [isLoadingRoutines, setIsLoadingRoutines] = useState(false)
   const [routineError, setRoutineError] = useState<string | null>(null)
-  const [pendingRoutineApply, setPendingRoutineApply] = useState<{
-    routine: Routine
-    latestSetsMap: LatestExerciseSetsMap
-  } | null>(null)
 
   // 変更検知用のベースライン状態
   const [baseline, setBaseline] = useState<BaselineState | null>(null)
@@ -727,13 +723,36 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
 
       const exerciseIds = [...new Set(applicableGroups.map((group) => group.exerciseId))]
 
-      // 前回セット（当日分は除外）を一括取得し、前回表示・差分表示と重量の初期値に使う
+      // 前回セット（当日分は除外）を一括取得し、前回表示・差分表示とフィルの元値に使う
       const latestSetsMap = await queryClient.fetchQuery({
         queryKey: queryKeys.logs.latestSetsMultiple(exerciseIds, dateStr),
         queryFn: () => orpc.logs.getLatestSetsMultiple(exerciseIds, dateStr),
       })
 
-      setPendingRoutineApply({ routine, latestSetsMap })
+      // ルーティンは即適用する。重量は空欄のままにし、前回値はカードの
+      // 「前回の重量で入力」から入れる。回数にはルーティンの目標回数を入れる。
+      const nextGroups: ExerciseGroup[] = applicableGroups.map((group) => {
+        const exercise = exercises.find((e) => e.id === group.exerciseId)
+        const exerciseName = exercise?.name ?? ''
+        return {
+          key: `group-${Date.now()}-${groupKeyCounter++}`,
+          exerciseId: group.exerciseId,
+          exerciseName,
+          supportsAssist: exercise?.supportsAssist ?? false,
+          loadMode: 'assist',
+          latestSets: latestSetsMap[group.exerciseId] ?? null,
+          sets: group.sets.map((set) => ({
+            key: `set-${Date.now()}-${modalSetKeyCounter++}`,
+            exerciseId: group.exerciseId,
+            exerciseName,
+            weight: '',
+            reps: set.targetReps === null ? '' : set.targetReps.toString(),
+            assistValue: '',
+          })),
+        }
+      })
+
+      setExerciseGroups(nextGroups)
       setRoutineError(null)
     } catch (error) {
       console.error('Failed to apply routine:', error)
@@ -741,48 +760,22 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
     }
   }
 
-  const handleConfirmRoutineApply = (fillPreviousWeight: boolean) => {
-    if (!pendingRoutineApply) return
-    const { routine, latestSetsMap } = pendingRoutineApply
-    setPendingRoutineApply(null)
-
-    const applicableGroups = groupRoutineSets(routine.routineSets).filter((group) =>
-      exercises.some((exercise) => exercise.id === group.exerciseId),
+  const handleFillFromPrevious = (groupIndex: number, field: FillField) => {
+    setExerciseGroups((groups) =>
+      groups.map((group, index) => {
+        if (index !== groupIndex) return group
+        const result = fillFromPrevious({
+          field,
+          sets: group.sets,
+          previousSets: group.latestSets?.sets ?? null,
+          supportsAssist: group.supportsAssist,
+          loadMode: group.loadMode,
+          bodyWeight,
+        })
+        if (!result.applied) return group
+        return { ...group, loadMode: result.loadMode, sets: result.sets }
+      }),
     )
-
-    const nextGroups: ExerciseGroup[] = applicableGroups.map((group) => {
-      const exercise = exercises.find((e) => e.id === group.exerciseId)
-      const exerciseName = exercise?.name ?? ''
-      const latestSets = latestSetsMap[group.exerciseId] ?? null
-      return {
-        key: `group-${Date.now()}-${groupKeyCounter++}`,
-        exerciseId: group.exerciseId,
-        exerciseName,
-        supportsAssist: exercise?.supportsAssist ?? false,
-        loadMode: 'assist',
-        latestSets,
-        sets: group.sets.map((set, setIndex) => {
-          const previousWeight = latestSets?.sets[setIndex]?.weight
-          return {
-            key: `set-${Date.now()}-${modalSetKeyCounter++}`,
-            exerciseId: group.exerciseId,
-            exerciseName,
-            weight:
-              fillPreviousWeight && previousWeight !== undefined ? previousWeight.toString() : '',
-            reps: set.targetReps === null ? '' : set.targetReps.toString(),
-            assistValue: '',
-          }
-        }),
-      }
-    })
-
-    setExerciseGroups(nextGroups)
-    setRoutineError(null)
-  }
-
-  const handleCancelRoutineApply = () => {
-    setPendingRoutineApply(null)
-    setRoutineError(null)
   }
 
   const handleSave = () => {
@@ -1138,6 +1131,7 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
                         onChangeLoadMode={handleLoadModeChange}
                         onChangeExercise={handleExerciseChange}
                         onChangeSet={handleSetChange}
+                        onFillFromPrevious={handleFillFromPrevious}
                         onAddSet={handleAddSet}
                         onRemoveSet={handleRemoveSet}
                         onRemoveGroup={handleRemoveExerciseGroup}
@@ -1239,35 +1233,6 @@ function LogInputModal({ open, onClose, onSaved, initialDate, initialSets }: Log
             disabled={isPending}
           >
             {isPending ? '削除中...' : '削除'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* ルーティン適用の確認ダイアログ */}
-      <Dialog
-        open={pendingRoutineApply !== null}
-        onClose={handleCancelRoutineApply}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>ルーティンの適用</DialogTitle>
-        <DialogContent>
-          {pendingRoutineApply && (
-            <>
-              <Typography>
-                「{pendingRoutineApply.routine.name}」を適用します。重量の初期値を選んでください。
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-                「前回の実施重量で埋める」を選ぶと、各セットの重量に前回の記録を入力します。回数にはルーティンの目標回数が入ります。
-              </Typography>
-            </>
-          )}
-        </DialogContent>
-        <DialogActions sx={{ px: 3, py: 2, gap: 1, flexWrap: 'wrap' }}>
-          <Button onClick={handleCancelRoutineApply}>キャンセル</Button>
-          <Button onClick={() => handleConfirmRoutineApply(false)}>重量は空欄のままにする</Button>
-          <Button variant="contained" onClick={() => handleConfirmRoutineApply(true)}>
-            前回の実施重量で埋める
           </Button>
         </DialogActions>
       </Dialog>
